@@ -5,37 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#2d5016">
+    <meta name="theme-color" content="#27352a">
     <link rel="manifest" href="manifest.json">
     <title>Stock Radar - Cloud</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --bg-gradient: linear-gradient(135deg, #2d5016 0%, #1a3009 100%);
-            --card-bg: #ffffff; --text-color: #333333; --text-secondary: #666666;
-            --input-bg: #ffffff; --input-border: #ddd;
-            --header-bg: rgba(45, 80, 22, 0.95); --filter-bg: #f8f9fa;
-            --table-hover: #f8f9ff; --table-border: #ddd;
-            --sidebar-bg: linear-gradient(180deg, #2d5016 0%, #1a3009 100%);
+            --bg-gradient: linear-gradient(135deg, #27352a 0%, #1a2b1e 100%);
+            --card-bg: #e6d2b5; --text-color: #2a2218; --text-secondary: #5c4d3c;
+            --input-bg: #f0e4d0; --input-border: #c9b99a;
+            --header-bg: rgba(39, 53, 42, 0.95); --filter-bg: #ecdcc0;
+            --table-hover: #dfd0b5; --table-border: #c9b99a;
+            --sidebar-bg: linear-gradient(180deg, #27352a 0%, #1a2b1e 100%);
         }
         body.dark-theme {
-            --bg-gradient: linear-gradient(135deg, #121212 0%, #000000 100%);
-            --card-bg: #1e1e1e; --text-color: #e0e0e0; --text-secondary: #aaaaaa;
-            --input-bg: #2d2d2d; --input-border: #444;
-            --header-bg: rgba(0, 0, 0, 0.95); --filter-bg: #252525;
-            --table-hover: #2a2a2a; --table-border: #444;
-            --sidebar-bg: linear-gradient(180deg, #111 0%, #000 100%);
+            --bg-gradient: linear-gradient(135deg, #1a2b1e 0%, #0e1a11 100%);
+            --card-bg: #2a2418; --text-color: #e6d2b5; --text-secondary: #b3a48e;
+            --input-bg: #332c1f; --input-border: #4a3f2e;
+            --header-bg: rgba(27, 35, 28, 0.95); --filter-bg: #2e2820;
+            --table-hover: #332d22; --table-border: #4a3f2e;
+            --sidebar-bg: linear-gradient(180deg, #1a2b1e 0%, #0e1a11 100%);
         }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-gradient); min-height: 100vh; color: var(--text-color); }
         #login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
         .login-box { background: var(--card-bg); padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); max-width: 400px; width: 100%; text-align: center; color: var(--text-color); }
         .login-logo { width: 250px; margin-bottom: 30px; }
-        .login-box h2 { color: #2d5016; margin-bottom: 10px; }
+        .login-box h2 { color: #27352a; margin-bottom: 10px; }
         .login-box p { color: var(--text-secondary); margin-bottom: 30px; }
         .login-form { text-align: left; }
         .login-form input { width: 100%; padding: 15px; margin-bottom: 15px; border: 2px solid var(--input-border); border-radius: 10px; font-size: 16px; background: var(--input-bg); color: var(--text-color); }
-        .login-form input:focus { outline: none; border-color: #2d5016; }
-        .login-form button { width: 100%; padding: 15px; background: linear-gradient(135deg, #2d5016, #4a8c2a); color: white; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; }
+        .login-form input:focus { outline: none; border-color: #27352a; }
+        .login-form button { width: 100%; padding: 15px; background: linear-gradient(135deg, #27352a, #3d5c42); color: white; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; }
         .login-form button:hover { opacity: 0.9; }
         .login-error { color: #e74c3c; font-size: 14px; margin-bottom: 15px; display: none; }
         #app-container { display: none; }
@@ -73,10 +73,10 @@
         .section-header h2 { font-size: 22px; }
         .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .stat-card { background: var(--card-bg); border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
-        .stat-number { font-size: 28px; font-weight: 700; color: #2d5016; }
+        .stat-number { font-size: 28px; font-weight: 700; color: #27352a; }
         .stat-label { font-size: 13px; color: var(--text-secondary); margin-top: 5px; }
         .loading { text-align: center; padding: 60px 20px; }
-        .loading-spinner { border: 4px solid #ddd; border-top: 4px solid #2d5016; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        .loading-spinner { border: 4px solid #ddd; border-top: 4px solid #27352a; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .form-group { margin-bottom: 18px; }
         .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
@@ -84,9 +84,9 @@
         .form-group textarea { min-height: 80px; resize: vertical; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
         .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
-        .submit-button { width: 100%; padding: 15px; background: linear-gradient(135deg, #2d5016, #4a8c2a); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .submit-button { width: 100%; padding: 15px; background: linear-gradient(135deg, #27352a, #3d5c42); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
         .submit-button:hover { opacity: 0.9; }
-        .scan-button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: linear-gradient(135deg, #2d5016, #4a8c2a); color: white; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; font-weight: 500; }
+        .scan-button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: linear-gradient(135deg, #27352a, #3d5c42); color: white; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; font-weight: 500; }
         .scan-button:hover { opacity: 0.9; }
         .scan-button.export { background: linear-gradient(135deg, #2980b9, #3498db); }
         .scan-button.reset { background: linear-gradient(135deg, #7f8c8d, #95a5a6); }
@@ -143,7 +143,7 @@
         .chart-card { background: var(--card-bg); border-radius: 15px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
         .chart-card h3 { margin-bottom: 15px; font-size: 16px; }
         .annonce-preview { background: var(--filter-bg); padding: 20px; border-radius: 10px; font-size: 14px; white-space: pre-wrap; margin: 15px 0; max-height: 300px; overflow-y: auto; }
-        .copy-button { background: #2d5016; color: white; border: none; padding: 12px 25px; border-radius: 10px; cursor: pointer; font-size: 14px; width: 100%; }
+        .copy-button { background: #27352a; color: white; border: none; padding: 12px 25px; border-radius: 10px; cursor: pointer; font-size: 14px; width: 100%; }
         /* Product detail */
         .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
         .detail-item { background: var(--filter-bg); padding: 12px 16px; border-radius: 8px; }
@@ -157,7 +157,7 @@
         .stock-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
         .stock-pill { padding: 10px 20px; border-radius: 25px; border: 2px solid var(--input-border); background: var(--card-bg); color: var(--text-color); cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; }
         .stock-pill:hover { border-color: #9fdd65; }
-        .stock-pill.active { background: #2d5016; color: white; border-color: #2d5016; }
+        .stock-pill.active { background: #27352a; color: white; border-color: #27352a; }
         @media (max-width: 768px) {
             .header h1 { font-size: 16px; }
             .form-row, .form-row-3 { grid-template-columns: 1fr; }
