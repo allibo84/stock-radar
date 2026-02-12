@@ -715,8 +715,8 @@ function openProductModal(id) {
             <button class="scan-button" id="btn-edit-${p.id}" onclick="toggleEditProduct(${p.id})">✏️ Éditer</button>
             <button class="scan-button" id="btn-save-${p.id}" style="display:none;background:#00b894;" onclick="saveEditProduct(${p.id})">💾 Sauvegarder</button>
             <button class="scan-button" onclick="openVenteModal(${p.id}); closeProductModal();">💰 Vendre</button>
-            ${p.vinted ? `<button class="scan-button" style="background:#00b4b6;" onclick="generateAnnonce(${p.id},'vinted')">Vinted</button>` : ''}
-            ${p.leboncoin ? `<button class="scan-button" style="background:#f56b2a;" onclick="generateAnnonce(${p.id},'leboncoin')">Leboncoin</button>` : ''}
+            <button class="scan-button" style="background:#00b4b6;" onclick="generateAnnonce(${p.id},'vinted')">📝 Vinted</button>
+            <button class="scan-button" style="background:#f56b2a;" onclick="generateAnnonce(${p.id},'leboncoin')">📝 Leboncoin</button>
             <button class="scan-button danger" onclick="deleteProduct(${p.id}); closeProductModal();">🗑️ Supprimer</button>
         </div>
     `;
