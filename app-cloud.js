@@ -213,45 +213,30 @@ async function toggleRecu(id, v) {
     if (v === true) {
         const achat = achats.find(a => a.id === id);
         if (achat) {
-            // Vérifier si un produit avec cet EAN existe déjà dans le stock
-            const { data: existing } = await sb.from('produits').select('id, qte_entrepot, quantite').eq('ean', achat.ean).eq('vendu', false).limit(1);
-            
-            if (existing && existing.length > 0) {
-                // Produit existe → ajouter la quantité à l'entrepôt
-                const p = existing[0];
-                const newQteEnt = (p.qte_entrepot || 0) + (achat.quantite || 1);
-                const newQteTotal = (p.quantite || 0) + (achat.quantite || 1);
-                await sb.from('produits').update({ 
-                    qte_entrepot: newQteEnt, 
-                    quantite: newQteTotal 
-                }).eq('id', p.id);
-            } else {
-                // Nouveau produit → créer dans le stock
-                const pr = {
-                    ean: achat.ean,
-                    nom: achat.nom,
-                    categorie: achat.categorie || '',
-                    etat: 'Neuf',
-                    etat_stock: 'neuf',
-                    prix_achat: achat.prix_ttc || achat.prix_ht || 0,
-                    prix_revente: 0,
-                    qte_fba: 0,
-                    qte_fbm: 0,
-                    qte_entrepot: achat.quantite || 1,
-                    quantite: achat.quantite || 1,
-                    amazon_fba: false,
-                    amazon_fbm: false,
-                    vinted: false,
-                    leboncoin: false,
-                    invendable: false,
-                    vendu: false,
-                    photos: [],
-                    notes: achat.notes || '',
-                    date_ajout: new Date().toISOString(),
-                };
-                const { error } = await sb.from('produits').insert([pr]);
-                if (error) console.warn('Erreur création produit depuis achat:', error.message);
-            }
+            const pr = {
+                ean: achat.ean,
+                nom: achat.nom,
+                categorie: achat.categorie || '',
+                etat: 'Neuf',
+                etat_stock: 'neuf',
+                prix_achat: achat.prix_ttc || achat.prix_ht || 0,
+                prix_revente: 0,
+                qte_fba: 0,
+                qte_fbm: 0,
+                qte_entrepot: achat.quantite || 1,
+                quantite: achat.quantite || 1,
+                amazon_fba: false,
+                amazon_fbm: false,
+                vinted: false,
+                leboncoin: false,
+                invendable: false,
+                vendu: false,
+                photos: [],
+                notes: achat.notes || '',
+                date_ajout: new Date().toISOString(),
+            };
+            const { error } = await sb.from('produits').insert([pr]);
+            if (error) console.warn('Erreur création produit depuis achat:', error.message);
             await loadProducts();
             updateDashboard();
         }
