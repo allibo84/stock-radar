@@ -307,13 +307,44 @@ function checkPurchaseHistory() {
     const infoEl = document.getElementById('info-achat');
     const infoText = document.getElementById('info-achat-text');
     if (!ean || !infoEl || !infoText) return;
+    
+    // Chercher dans le stock existant (produits neuf non vendus)
+    const stockNeuf = products.filter(p => p.ean === ean && !p.vendu && p.etat_stock === 'neuf');
+    
+    // Chercher dans les achats
     const found = achats.filter(a => a.ean === ean);
-    if (found.length) {
+    
+    if (stockNeuf.length) {
+        const s = stockNeuf[0];
+        infoEl.style.display = 'block';
+        infoText.textContent = `En stock neuf : ${s.nom} — ${(s.prix_achat||0).toFixed(2)}€ TTC — ${s.quantite||0} unités`;
+        if (!document.getElementById('product-name').value) document.getElementById('product-name').value = s.nom;
+        if (!document.getElementById('categorie').value && s.categorie) document.getElementById('categorie').value = s.categorie;
+        // Pré-remplir le prix d'achat
+        if (!document.getElementById('prix-achat').value || document.getElementById('prix-achat').value === '0') {
+            document.getElementById('prix-achat').value = (s.prix_achat || 0).toFixed(2);
+            document.getElementById('prix-type-ht').checked = false;
+            document.getElementById('prix-type-ttc').checked = true;
+            recalcPrixAchat();
+        }
+        // Pré-remplir le prix de revente si existant
+        if (s.prix_revente && (!document.getElementById('prix-revente').value || document.getElementById('prix-revente').value === '0')) {
+            document.getElementById('prix-revente').value = (s.prix_revente || 0).toFixed(2);
+            calculateMarge();
+        }
+    } else if (found.length) {
         const last = found[0];
         infoEl.style.display = 'block';
         infoText.textContent = `Déjà acheté : ${last.nom} — ${(last.prix_ttc||0).toFixed(2)}€ TTC chez ${last.fournisseur_nom||'?'}`;
         if (!document.getElementById('product-name').value) document.getElementById('product-name').value = last.nom;
         if (!document.getElementById('categorie').value && last.categorie) document.getElementById('categorie').value = last.categorie;
+        // Pré-remplir le prix d'achat depuis l'achat
+        if (!document.getElementById('prix-achat').value || document.getElementById('prix-achat').value === '0') {
+            document.getElementById('prix-achat').value = (last.prix_ttc || 0).toFixed(2);
+            document.getElementById('prix-type-ht').checked = false;
+            document.getElementById('prix-type-ttc').checked = true;
+            recalcPrixAchat();
+        }
     } else { infoEl.style.display = 'none'; }
 }
 
@@ -386,6 +417,52 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
         date_ajout: new Date().toISOString(),
     };
     if (!pr.ean || !pr.nom) return alert('EAN et Nom requis');
+    
+    // Si on ajoute en occasion ou rebut → déduire du stock neuf
+    if (pr.etat_stock === 'occasion' || pr.etat_stock === 'rebut') {
+        const stockNeuf = products.filter(p => p.ean === pr.ean && !p.vendu && p.etat_stock === 'neuf');
+        let qteADeduire = totalQte;
+        
+        for (const sn of stockNeuf) {
+            if (qteADeduire <= 0) break;
+            const snTotal = (sn.qte_entrepot || 0) + (sn.qte_fba || 0) + (sn.qte_fbm || 0);
+            
+            if (snTotal <= qteADeduire) {
+                // Supprimer entièrement ce produit neuf (marquer vendu ou mettre à 0)
+                await sb.from('produits').update({ 
+                    qte_entrepot: 0, qte_fba: 0, qte_fbm: 0, quantite: 0, vendu: true,
+                    notes: (sn.notes || '') + ' [Transféré en ' + pr.etat_stock + ']'
+                }).eq('id', sn.id);
+                qteADeduire -= snTotal;
+            } else {
+                // Déduire partiellement — on prend d'abord de l'entrepôt, puis FBM, puis FBA
+                let reste = qteADeduire;
+                let newEnt = sn.qte_entrepot || 0;
+                let newFbm = sn.qte_fbm || 0;
+                let newFba = sn.qte_fba || 0;
+                
+                const deductEnt = Math.min(reste, newEnt);
+                newEnt -= deductEnt; reste -= deductEnt;
+                
+                const deductFbm = Math.min(reste, newFbm);
+                newFbm -= deductFbm; reste -= deductFbm;
+                
+                const deductFba = Math.min(reste, newFba);
+                newFba -= deductFba; reste -= deductFba;
+                
+                await sb.from('produits').update({ 
+                    qte_entrepot: newEnt, qte_fbm: newFbm, qte_fba: newFba,
+                    quantite: newEnt + newFbm + newFba
+                }).eq('id', sn.id);
+                qteADeduire = 0;
+            }
+        }
+        
+        if (qteADeduire > 0 && stockNeuf.length > 0) {
+            console.warn(`Attention : ${qteADeduire} unité(s) en plus par rapport au stock neuf disponible`);
+        }
+    }
+    
     const { error } = await sb.from('produits').insert([pr]).select();
     if (error) return alert('Erreur: ' + error.message);
     showSuccess('success-message');
