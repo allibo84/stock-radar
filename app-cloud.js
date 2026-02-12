@@ -8,6 +8,7 @@ let currentPhotos = [], currentVenteProductId = null;
 let activeStockView = 'all';
 let charts = {};
 let achatsFiltersInit = false, grossisteData = null;
+let realtimeChannel = null;
 
 // ═══════ DATA LOADING ═══════
 async function loadAllData() {
@@ -59,7 +60,12 @@ async function loadProducts() {
 }
 
 function setupRealtimeSync() {
-    sb.channel('db-changes')
+    // Fermer le channel existant pour éviter les doublons
+    if (realtimeChannel) {
+        sb.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+    }
+    realtimeChannel = sb.channel('db-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'produits' }, () => loadProducts())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'achats' }, () => loadAchats())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fournisseurs' }, () => loadFournisseurs())
