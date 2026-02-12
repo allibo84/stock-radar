@@ -542,25 +542,95 @@ function openProductModal(id) {
     body.innerHTML = `
         <h2 style="margin-bottom:5px;">${escapeHtml(p.nom)}</h2>
         <p style="color:var(--text-secondary);margin-bottom:20px;">EAN: ${escapeHtml(p.ean||'-')} · ${typeBadge}</p>
-        <div class="detail-grid">
-            <div class="detail-item"><div class="detail-label">Catégorie</div><div class="detail-value">${escapeHtml(p.categorie||'-')}</div></div>
-            <div class="detail-item"><div class="detail-label">État</div><div class="detail-value">${escapeHtml(p.etat||'-')}</div></div>
-            <div class="detail-item"><div class="detail-label">Prix achat TTC</div><div class="detail-value">${(p.prix_achat||0).toFixed(2)}€</div></div>
-            <div class="detail-item"><div class="detail-label">Prix revente</div><div class="detail-value">${(p.prix_revente||0).toFixed(2)}€</div></div>
-            <div class="detail-item"><div class="detail-label">Marge</div><div class="detail-value">${marge}</div></div>
-            <div class="detail-item"><div class="detail-label">Date ajout</div><div class="detail-value">${p.date_ajout?new Date(p.date_ajout).toLocaleDateString('fr-FR'):'-'}</div></div>
+        
+        <!-- Zone lecture -->
+        <div id="product-view-${p.id}">
+            <div class="detail-grid">
+                <div class="detail-item"><div class="detail-label">Catégorie</div><div class="detail-value">${escapeHtml(p.categorie||'-')}</div></div>
+                <div class="detail-item"><div class="detail-label">État</div><div class="detail-value">${escapeHtml(p.etat||'-')}</div></div>
+                <div class="detail-item"><div class="detail-label">Prix achat TTC</div><div class="detail-value">${(p.prix_achat||0).toFixed(2)}€</div></div>
+                <div class="detail-item"><div class="detail-label">Prix revente</div><div class="detail-value">${(p.prix_revente||0).toFixed(2)}€</div></div>
+                <div class="detail-item"><div class="detail-label">Marge</div><div class="detail-value">${marge}</div></div>
+                <div class="detail-item"><div class="detail-label">Date ajout</div><div class="detail-value">${p.date_ajout?new Date(p.date_ajout).toLocaleDateString('fr-FR'):'-'}</div></div>
+            </div>
+            <h3 style="margin:20px 0 10px;">📦 Répartition des quantités</h3>
+            <div class="qte-grid">
+                <div class="qte-card" style="border-top:3px solid #ff9900;"><div class="qte-num">${p.qte_fba||0}</div><div class="qte-label">Amazon FBA</div></div>
+                <div class="qte-card" style="border-top:3px solid #3f51b5;"><div class="qte-num">${p.qte_fbm||0}</div><div class="qte-label">Amazon FBM</div></div>
+                <div class="qte-card" style="border-top:3px solid #9c27b0;"><div class="qte-num">${p.qte_entrepot||0}</div><div class="qte-label">Entrepôt</div></div>
+            </div>
+            <div style="text-align:center;font-size:18px;font-weight:700;margin:10px 0 20px;">Total : ${total} unités</div>
+            <div class="detail-item" style="margin-bottom:15px;"><div class="detail-label">Canaux de vente</div><div class="detail-value">${canaux.length ? canaux.join(', ') : 'Aucun'}</div></div>
+            ${p.notes ? `<div class="detail-item" style="margin-bottom:15px;"><div class="detail-label">Notes</div><div class="detail-value">${escapeHtml(p.notes)}</div></div>` : ''}
+            ${photos}
         </div>
-        <h3 style="margin:20px 0 10px;">📦 Répartition des quantités</h3>
-        <div class="qte-grid">
-            <div class="qte-card" style="border-top:3px solid #ff9900;"><div class="qte-num">${p.qte_fba||0}</div><div class="qte-label">Amazon FBA</div></div>
-            <div class="qte-card" style="border-top:3px solid #3f51b5;"><div class="qte-num">${p.qte_fbm||0}</div><div class="qte-label">Amazon FBM</div></div>
-            <div class="qte-card" style="border-top:3px solid #9c27b0;"><div class="qte-num">${p.qte_entrepot||0}</div><div class="qte-label">Entrepôt</div></div>
+
+        <!-- Zone édition (cachée par défaut) -->
+        <div id="product-edit-${p.id}" style="display:none;">
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <div class="detail-label">Catégorie</div>
+                    <select id="edit-categorie-${p.id}" class="form-input" style="padding:8px;">
+                        <option value="">-- Aucune --</option>
+                        <option value="Informatique" ${p.categorie==='Informatique'?'selected':''}>Informatique</option>
+                        <option value="Électronique" ${p.categorie==='Électronique'?'selected':''}>Électronique</option>
+                        <option value="Maison" ${p.categorie==='Maison'?'selected':''}>Maison</option>
+                        <option value="Jouets" ${p.categorie==='Jouets'?'selected':''}>Jouets</option>
+                        <option value="Sport" ${p.categorie==='Sport'?'selected':''}>Sport</option>
+                        <option value="Mode" ${p.categorie==='Mode'?'selected':''}>Mode</option>
+                        <option value="Beauté" ${p.categorie==='Beauté'?'selected':''}>Beauté</option>
+                        <option value="Alimentation" ${p.categorie==='Alimentation'?'selected':''}>Alimentation</option>
+                        <option value="Autre" ${p.categorie==='Autre'?'selected':''}>Autre</option>
+                    </select>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">État stock</div>
+                    <select id="edit-etat-stock-${p.id}" class="form-input" style="padding:8px;">
+                        <option value="neuf" ${p.etat_stock==='neuf'?'selected':''}>Neuf</option>
+                        <option value="occasion" ${p.etat_stock==='occasion'?'selected':''}>Occasion</option>
+                        <option value="rebut" ${p.etat_stock==='rebut'?'selected':''}>Rebut</option>
+                    </select>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Prix achat TTC</div>
+                    <input type="number" step="0.01" id="edit-prix-achat-${p.id}" class="form-input" value="${(p.prix_achat||0).toFixed(2)}" style="padding:8px;">
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Prix revente</div>
+                    <input type="number" step="0.01" id="edit-prix-revente-${p.id}" class="form-input" value="${(p.prix_revente||0).toFixed(2)}" style="padding:8px;">
+                </div>
+            </div>
+            <h3 style="margin:20px 0 10px;">📦 Répartition des quantités</h3>
+            <div class="qte-grid">
+                <div class="qte-card" style="border-top:3px solid #ff9900;">
+                    <input type="number" min="0" id="edit-qte-fba-${p.id}" value="${p.qte_fba||0}" style="width:60px;text-align:center;font-size:24px;font-weight:700;border:1px solid #555;border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:5px;">
+                    <div class="qte-label">Amazon FBA</div>
+                </div>
+                <div class="qte-card" style="border-top:3px solid #3f51b5;">
+                    <input type="number" min="0" id="edit-qte-fbm-${p.id}" value="${p.qte_fbm||0}" style="width:60px;text-align:center;font-size:24px;font-weight:700;border:1px solid #555;border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:5px;">
+                    <div class="qte-label">Amazon FBM</div>
+                </div>
+                <div class="qte-card" style="border-top:3px solid #9c27b0;">
+                    <input type="number" min="0" id="edit-qte-entrepot-${p.id}" value="${p.qte_entrepot||0}" style="width:60px;text-align:center;font-size:24px;font-weight:700;border:1px solid #555;border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:5px;">
+                    <div class="qte-label">Entrepôt</div>
+                </div>
+            </div>
+            <h3 style="margin:20px 0 10px;">🛒 Canaux de vente</h3>
+            <div style="display:flex;gap:15px;flex-wrap:wrap;margin-bottom:15px;">
+                <label><input type="checkbox" id="edit-amazon-fba-${p.id}" ${p.amazon_fba?'checked':''}> Amazon FBA</label>
+                <label><input type="checkbox" id="edit-amazon-fbm-${p.id}" ${p.amazon_fbm?'checked':''}> Amazon FBM</label>
+                <label><input type="checkbox" id="edit-vinted-${p.id}" ${p.vinted?'checked':''}> Vinted</label>
+                <label><input type="checkbox" id="edit-leboncoin-${p.id}" ${p.leboncoin?'checked':''}> Leboncoin</label>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Notes</div>
+                <textarea id="edit-notes-${p.id}" class="form-input" rows="2" style="padding:8px;">${escapeHtml(p.notes||'')}</textarea>
+            </div>
         </div>
-        <div style="text-align:center;font-size:18px;font-weight:700;margin:10px 0 20px;">Total : ${total} unités</div>
-        <div class="detail-item" style="margin-bottom:15px;"><div class="detail-label">Canaux de vente</div><div class="detail-value">${canaux.length ? canaux.join(', ') : 'Aucun'}</div></div>
-        ${p.notes ? `<div class="detail-item" style="margin-bottom:15px;"><div class="detail-label">Notes</div><div class="detail-value">${escapeHtml(p.notes)}</div></div>` : ''}
-        ${photos}
+
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;">
+            <button class="scan-button" id="btn-edit-${p.id}" onclick="toggleEditProduct(${p.id})">✏️ Éditer</button>
+            <button class="scan-button" id="btn-save-${p.id}" style="display:none;background:#00b894;" onclick="saveEditProduct(${p.id})">💾 Sauvegarder</button>
             <button class="scan-button" onclick="openVenteModal(${p.id}); closeProductModal();">💰 Vendre</button>
             ${p.vinted ? `<button class="scan-button" style="background:#00b4b6;" onclick="generateAnnonce(${p.id},'vinted')">Vinted</button>` : ''}
             ${p.leboncoin ? `<button class="scan-button" style="background:#f56b2a;" onclick="generateAnnonce(${p.id},'leboncoin')">Leboncoin</button>` : ''}
@@ -568,6 +638,44 @@ function openProductModal(id) {
         </div>
     `;
     document.getElementById('product-modal').style.display = 'block';
+}
+
+function toggleEditProduct(id) {
+    document.getElementById('product-view-' + id).style.display = 'none';
+    document.getElementById('product-edit-' + id).style.display = 'block';
+    document.getElementById('btn-edit-' + id).style.display = 'none';
+    document.getElementById('btn-save-' + id).style.display = 'inline-block';
+}
+
+async function saveEditProduct(id) {
+    const qFba = parseInt(document.getElementById('edit-qte-fba-' + id).value) || 0;
+    const qFbm = parseInt(document.getElementById('edit-qte-fbm-' + id).value) || 0;
+    const qEnt = parseInt(document.getElementById('edit-qte-entrepot-' + id).value) || 0;
+    const totalQte = qFba + qFbm + qEnt;
+
+    const update = {
+        categorie: document.getElementById('edit-categorie-' + id).value,
+        etat_stock: document.getElementById('edit-etat-stock-' + id).value,
+        prix_achat: parseFloat(document.getElementById('edit-prix-achat-' + id).value) || 0,
+        prix_revente: parseFloat(document.getElementById('edit-prix-revente-' + id).value) || 0,
+        qte_fba: qFba,
+        qte_fbm: qFbm,
+        qte_entrepot: qEnt,
+        quantite: totalQte,
+        amazon_fba: document.getElementById('edit-amazon-fba-' + id).checked,
+        amazon_fbm: document.getElementById('edit-amazon-fbm-' + id).checked,
+        vinted: document.getElementById('edit-vinted-' + id).checked,
+        leboncoin: document.getElementById('edit-leboncoin-' + id).checked,
+        invendable: document.getElementById('edit-etat-stock-' + id).value === 'rebut',
+        notes: document.getElementById('edit-notes-' + id).value.trim(),
+    };
+
+    const { error } = await sb.from('produits').update(update).eq('id', id);
+    if (error) return alert('Erreur: ' + error.message);
+    
+    closeProductModal();
+    await loadProducts();
+    updateDashboard();
 }
 
 function closeProductModal() { document.getElementById('product-modal').style.display = 'none'; }
