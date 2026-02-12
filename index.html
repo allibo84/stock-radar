@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2d5016">
+    <link rel="manifest" href="manifest.json">
+    <title>Stock Radar - Cloud</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-gradient: linear-gradient(135deg, #2d5016 0%, #1a3009 100%);
+            --card-bg: #ffffff; --text-color: #333333; --text-secondary: #666666;
+            --input-bg: #ffffff; --input-border: #ddd;
+            --header-bg: rgba(45, 80, 22, 0.95); --filter-bg: #f8f9fa;
+            --table-hover: #f8f9ff; --table-border: #ddd;
+            --sidebar-bg: linear-gradient(180deg, #2d5016 0%, #1a3009 100%);
+        }
+        body.dark-theme {
+            --bg-gradient: linear-gradient(135deg, #121212 0%, #000000 100%);
+            --card-bg: #1e1e1e; --text-color: #e0e0e0; --text-secondary: #aaaaaa;
+            --input-bg: #2d2d2d; --input-border: #444;
+            --header-bg: rgba(0, 0, 0, 0.95); --filter-bg: #252525;
+            --table-hover: #2a2a2a; --table-border: #444;
+            --sidebar-bg: linear-gradient(180deg, #111 0%, #000 100%);
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-gradient); min-height: 100vh; color: var(--text-color); }
+        #login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .login-box { background: var(--card-bg); padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); max-width: 400px; width: 100%; text-align: center; color: var(--text-color); }
+        .login-logo { width: 250px; margin-bottom: 30px; }
+        .login-box h2 { color: #2d5016; margin-bottom: 10px; }
+        .login-box p { color: var(--text-secondary); margin-bottom: 30px; }
+        .login-form { text-align: left; }
+        .login-form input { width: 100%; padding: 15px; margin-bottom: 15px; border: 2px solid var(--input-border); border-radius: 10px; font-size: 16px; background: var(--input-bg); color: var(--text-color); }
+        .login-form input:focus { outline: none; border-color: #2d5016; }
+        .login-form button { width: 100%; padding: 15px; background: linear-gradient(135deg, #2d5016, #4a8c2a); color: white; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; }
+        .login-form button:hover { opacity: 0.9; }
+        .login-error { color: #e74c3c; font-size: 14px; margin-bottom: 15px; display: none; }
+        #app-container { display: none; }
+        .header { background: var(--header-bg); backdrop-filter: blur(10px); color: white; padding: 15px 25px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        .hamburger { background: none; border: none; color: white; font-size: 24px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 5px; }
+        .hamburger span { display: block; width: 22px; height: 2px; background: white; transition: 0.3s; }
+        .header-logo { height: 40px; }
+        .header h1 { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+        .header-right { display: flex; align-items: center; gap: 15px; }
+        .dark-toggle { background: none; border: none; color: white; font-size: 20px; cursor: pointer; }
+        .sync-indicator { display: flex; align-items: center; gap: 5px; font-size: 13px; opacity: 0.8; }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; }
+        .user-email { font-size: 13px; opacity: 0.8; }
+        .logout-btn { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+        .sidebar { position: fixed; left: -280px; top: 0; width: 280px; height: 100vh; background: var(--sidebar-bg); z-index: 200; transition: left 0.3s ease; box-shadow: 5px 0 20px rgba(0,0,0,0.3); overflow-y: auto; }
+        .sidebar.open { left: 0; }
+        .sidebar-header { padding: 25px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { width: 200px; }
+        .menu-items { padding: 20px 0; }
+        .menu-item { display: flex; align-items: center; gap: 12px; padding: 14px 25px; color: rgba(255,255,255,0.7); cursor: pointer; transition: all 0.2s; font-size: 15px; }
+        .menu-item:hover { background: rgba(255,255,255,0.1); color: white; }
+        .menu-item.active { background: rgba(255,255,255,0.15); color: white; border-left: 3px solid #9fdd65; font-weight: 600; }
+        .menu-item-icon { font-size: 20px; }
+        .menu-sub-item { padding-left: 45px; font-size: 14px; }
+        .menu-sub-item .menu-item-icon { font-size: 16px; }
+        .menu-section-label { padding: 12px 25px 4px; color: rgba(255,255,255,0.3); font-size: 11px; text-transform: uppercase; letter-spacing: 2px; }
+        .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 150; display: none; }
+        .sidebar.open ~ .overlay { display: block; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .section-header h2 { font-size: 22px; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+        .stat-number { font-size: 28px; font-weight: 700; color: #2d5016; }
+        .stat-label { font-size: 13px; color: var(--text-secondary); margin-top: 5px; }
+        .loading { text-align: center; padding: 60px 20px; }
+        .loading-spinner { border: 4px solid #ddd; border-top: 4px solid #2d5016; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px; border: 2px solid var(--input-border); border-radius: 10px; font-size: 15px; background: var(--input-bg); color: var(--text-color); }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+        .submit-button { width: 100%; padding: 15px; background: linear-gradient(135deg, #2d5016, #4a8c2a); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .submit-button:hover { opacity: 0.9; }
+        .scan-button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: linear-gradient(135deg, #2d5016, #4a8c2a); color: white; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; font-weight: 500; }
+        .scan-button:hover { opacity: 0.9; }
+        .scan-button.export { background: linear-gradient(135deg, #2980b9, #3498db); }
+        .scan-button.reset { background: linear-gradient(135deg, #7f8c8d, #95a5a6); }
+        .scan-button.danger { background: linear-gradient(135deg, #c0392b, #e74c3c); }
+        .scan-section { background: var(--card-bg); padding: 25px; border-radius: 15px; text-align: center; margin-bottom: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+        #video-container { margin-top: 15px; }
+        #video { max-width: 100%; border-radius: 10px; display: none; }
+        .search-filters { background: var(--filter-bg); padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        .search-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .search-input { padding: 10px 15px; border: 2px solid var(--input-border); border-radius: 10px; font-size: 14px; background: var(--input-bg); color: var(--text-color); min-width: 150px; flex: 1; }
+        .products-table { overflow-x: auto; background: var(--card-bg); border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { background: var(--filter-bg); padding: 12px 15px; text-align: left; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--table-border); white-space: nowrap; }
+        td { padding: 12px 15px; border-bottom: 1px solid var(--table-border); }
+        tr:hover { background: var(--table-hover); }
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .badge-stock { background: #e8f5e9; color: #2e7d32; }
+        .badge-sold { background: #e3f2fd; color: #1565c0; }
+        .badge-invendable { background: #fce4ec; color: #c62828; }
+        .badge-fba { background: #fff3e0; color: #e65100; }
+        .badge-fbm { background: #e8eaf6; color: #283593; }
+        .badge-entrepot { background: #f3e5f5; color: #6a1b9a; }
+        .badge-neuf { background: #e8f5e9; color: #2e7d32; }
+        .badge-occasion { background: #fff8e1; color: #f57f17; }
+        .badge-rebut { background: #fce4ec; color: #c62828; }
+        .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
+        .btn-small { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; }
+        .btn-small:hover { opacity: 0.8; }
+        .btn-sold { background: #27ae60; color: white; }
+        .btn-vinted { background: #00b4b6; color: white; }
+        .btn-leboncoin { background: #f56b2a; color: white; }
+        .btn-delete { background: #e74c3c; color: white; }
+        .btn-edit { background: #3498db; color: white; }
+        .btn-fba { background: #ff9900; color: white; }
+        .marge-indicator { padding: 3px 8px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+        .marge-high { background: #d4edda; color: #155724; }
+        .marge-medium { background: #fff3cd; color: #856404; }
+        .marge-low { background: #f8d7da; color: #721c24; }
+        .success-message { display: none; background: #d4edda; color: #155724; padding: 15px; border-radius: 10px; text-align: center; font-weight: 600; margin-bottom: 20px; }
+        .info-message { background: #d1ecf1; color: #0c5460; padding: 12px 15px; border-radius: 10px; margin-bottom: 15px; font-size: 14px; }
+        .calc-display { background: var(--filter-bg); padding: 8px 12px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); margin-top: 5px; }
+        .checkbox-group { display: flex; gap: 20px; flex-wrap: wrap; }
+        .checkbox-group label { display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; }
+        .photo-upload { border: 2px dashed var(--input-border); border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; }
+        .photo-preview { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .photo-preview img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; cursor: pointer; }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 300; overflow-y: auto; padding: 20px; }
+        .modal-content { background: var(--card-bg); border-radius: 15px; padding: 30px; max-width: 700px; margin: 40px auto; position: relative; color: var(--text-color); }
+        .modal-content.wide { max-width: 900px; }
+        .close-modal { position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: var(--text-secondary); }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .empty-state h3 { margin: 15px 0 10px; color: var(--text-color); }
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .chart-card { background: var(--card-bg); border-radius: 15px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+        .chart-card h3 { margin-bottom: 15px; font-size: 16px; }
+        .annonce-preview { background: var(--filter-bg); padding: 20px; border-radius: 10px; font-size: 14px; white-space: pre-wrap; margin: 15px 0; max-height: 300px; overflow-y: auto; }
+        .copy-button { background: #2d5016; color: white; border: none; padding: 12px 25px; border-radius: 10px; cursor: pointer; font-size: 14px; width: 100%; }
+        /* Product detail */
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
+        .detail-item { background: var(--filter-bg); padding: 12px 16px; border-radius: 8px; }
+        .detail-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+        .detail-value { font-size: 16px; font-weight: 600; }
+        .qte-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 15px 0; }
+        .qte-card { background: var(--filter-bg); padding: 15px; border-radius: 10px; text-align: center; }
+        .qte-card .qte-num { font-size: 24px; font-weight: 700; }
+        .qte-card .qte-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+        /* Stock tab pills */
+        .stock-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+        .stock-pill { padding: 10px 20px; border-radius: 25px; border: 2px solid var(--input-border); background: var(--card-bg); color: var(--text-color); cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; }
+        .stock-pill:hover { border-color: #9fdd65; }
+        .stock-pill.active { background: #2d5016; color: white; border-color: #2d5016; }
+        @media (max-width: 768px) {
+            .header h1 { font-size: 16px; }
+            .form-row, .form-row-3 { grid-template-columns: 1fr; }
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .charts-grid { grid-template-columns: 1fr; }
+            .tab-content { padding: 20px 15px; }
+            .detail-grid { grid-template-columns: 1fr; }
+            .qte-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div id="login-container">
+        <div class="login-box">
+            <img src="logo.png" alt="Stock Radar" class="login-logo">
+            <h2>Connexion</h2>
+            <p>Gérez votre stock intelligent</p>
+            <div class="login-error" id="login-error"></div>
+            <form class="login-form" id="login-form">
+                <input type="email" id="login-email" placeholder="Email" required>
+                <input type="password" id="login-password" placeholder="Mot de passe" required>
+                <button type="submit">Se connecter</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-container">
+        <header class="header">
+            <div class="header-left">
+                <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').style.display=document.getElementById('sidebar').classList.contains('open')?'block':'none';">
+                    <span></span><span></span><span></span>
+                </button>
+                <img src="logo.png" alt="Logo" class="header-logo">
+                <h1>STOCK RADAR</h1>
+            </div>
+            <div class="header-right">
+                <button class="dark-toggle" id="dark-toggle" onclick="toggleDarkMode()">🌙</button>
+                <div class="sync-indicator"><div class="sync-dot"></div><span>Synchronisé</span></div>
+                <span class="user-email" id="user-email"></span>
+                <button class="logout-btn" onclick="logout()">Déconnexion</button>
+            </div>
+        </header>
+
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header"><img src="logo.png" alt="Stock Radar" class="sidebar-logo"></div>
+            <div class="menu-items">
+                <div class="menu-item active" data-tab="dashboard">
+                    <span class="menu-item-icon">📊</span><span>Dashboard</span>
+                </div>
+                <div class="menu-section-label">Achats</div>
+                <div class="menu-item" data-tab="fournisseurs">
+                    <span class="menu-item-icon">🏪</span><span>Fournisseurs</span>
+                </div>
+                <div class="menu-item" data-tab="achats">
+                    <span class="menu-item-icon">🛒</span><span>Mes Achats</span>
+                </div>
+                <div class="menu-item" data-tab="import-grossiste">
+                    <span class="menu-item-icon">📥</span><span>Import Grossiste</span>
+                </div>
+                <div class="menu-section-label">Stock</div>
+                <div class="menu-item" data-tab="stock">
+                    <span class="menu-item-icon">📦</span><span>Mon Stock</span>
+                </div>
+                <div class="menu-item" data-tab="nouveau-produit">
+                    <span class="menu-item-icon">➕</span><span>Nouveau Produit</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="overlay" id="overlay" onclick="document.getElementById('sidebar').classList.remove('open'); this.style.display='none';"></div>
+
+        <div class="container">
+            <div class="loading" id="loading"><div class="loading-spinner"></div><p>Chargement des données...</p></div>
+            <div id="main-content" style="display:none;">
+
+                <!-- ══════ DASHBOARD ══════ -->
+                <div id="dashboard" class="tab-content active">
+                    <div class="section-header"><h2>📊 Vue d'ensemble</h2></div>
+                    <div class="stats">
+                        <div class="stat-card"><div class="stat-number" id="dash-total-produits">0</div><div class="stat-label">Produits en stock</div></div>
+                        <div class="stat-card"><div class="stat-number" id="dash-total-vendus">0</div><div class="stat-label">Vendus</div></div>
+                        <div class="stat-card"><div class="stat-number" id="dash-valeur-stock">0€</div><div class="stat-label">Valeur stock</div></div>
+                        <div class="stat-card"><div class="stat-number" id="dash-ca-realise">0€</div><div class="stat-label">CA réalisé</div></div>
+                        <div class="stat-card"><div class="stat-number" id="dash-benefice">0€</div><div class="stat-label">Bénéfice</div></div>
+                        <div class="stat-card"><div class="stat-number" id="dash-marge-moyenne">0%</div><div class="stat-label">Marge moyenne</div></div>
+                    </div>
+                    <div class="stats" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
+                        <div class="stat-card" style="border-left:4px solid #ff9900;"><div class="stat-number" id="dash-qte-fba">0</div><div class="stat-label">FBA</div></div>
+                        <div class="stat-card" style="border-left:4px solid #3f51b5;"><div class="stat-number" id="dash-qte-fbm">0</div><div class="stat-label">FBM</div></div>
+                        <div class="stat-card" style="border-left:4px solid #9c27b0;"><div class="stat-number" id="dash-qte-entrepot">0</div><div class="stat-label">Entrepôt</div></div>
+                        <div class="stat-card" style="border-left:4px solid #f44336;"><div class="stat-number" id="dash-qte-rebut">0</div><div class="stat-label">Rebut</div></div>
+                    </div>
+                    <div class="charts-grid">
+                        <div class="chart-card"><h3>📈 Évolution mensuelle</h3><canvas id="chartEvolution" height="200"></canvas></div>
+                        <div class="chart-card"><h3>📦 Répartition stock</h3><canvas id="chartRepartition" height="200"></canvas></div>
+                        <div class="chart-card"><h3>🏆 Top 5 catégories</h3><canvas id="chartCategories" height="200"></canvas></div>
+                        <div class="chart-card"><h3>💰 CA par canal</h3><canvas id="chartCanaux" height="200"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- ══════ FOURNISSEURS ══════ -->
+                <div id="fournisseurs" class="tab-content">
+                    <div class="section-header">
+                        <h2>🏪 Fournisseurs</h2>
+                        <button class="scan-button" onclick="document.getElementById('fournisseur-form-section').style.display=document.getElementById('fournisseur-form-section').style.display==='none'?'block':'none'">➕ Ajouter</button>
+                    </div>
+                    <div id="fournisseur-form-section" style="display:none; background:var(--card-bg); padding:25px; border-radius:15px; margin-bottom:20px; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                        <form id="fournisseur-form">
+                            <div class="form-row">
+                                <div class="form-group"><label>Nom *</label><input type="text" id="f-nom" required></div>
+                                <div class="form-group"><label>Contact</label><input type="text" id="f-contact"></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>Email</label><input type="email" id="f-email"></div>
+                                <div class="form-group"><label>Téléphone</label><input type="tel" id="f-tel"></div>
+                            </div>
+                            <div class="form-group"><label>Adresse</label><input type="text" id="f-adresse"></div>
+                            <div class="form-group"><label>Notes</label><textarea id="f-notes"></textarea></div>
+                            <button type="submit" class="submit-button">💾 Enregistrer</button>
+                        </form>
+                    </div>
+                    <div id="fournisseurs-container"></div>
+                </div>
+
+                <!-- ══════ ACHATS ══════ -->
+                <div id="achats" class="tab-content">
+                    <div class="section-header">
+                        <h2>🛒 Mes Achats</h2>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <button class="scan-button" onclick="document.getElementById('achat-form-section').style.display=document.getElementById('achat-form-section').style.display==='none'?'block':'none'">➕ Nouvel achat</button>
+                            <button class="scan-button export" onclick="exportAchatsCSV()">📊 Export CSV</button>
+                        </div>
+                    </div>
+                    <div id="achat-form-section" style="display:none; background:var(--card-bg); padding:25px; border-radius:15px; margin-bottom:20px; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                        <form id="achat-form">
+                            <div class="form-row"><div class="form-group"><label>EAN *</label><input type="text" id="a-ean" required></div><div class="form-group"><label>Nom *</label><input type="text" id="a-nom" required></div></div>
+                            <div class="form-row"><div class="form-group"><label>Catégorie</label><select id="a-categorie"><option value="">--</option><option>Électronique</option><option>Informatique</option><option>Mode</option><option>Maison</option><option>Beauté</option><option>Sport</option><option>Jouets</option><option>Livres</option><option>Auto</option><option>Autre</option></select></div><div class="form-group"><label>Fournisseur</label><select id="a-fournisseur"><option value="">--</option></select></div></div>
+                            <div class="form-row">
+                                <div class="form-group"><label>Prix HT</label><input type="number" id="a-prix-ht" step="0.01" oninput="calculateTTC()"></div>
+                                <div class="form-group"><label>Prix TTC</label><input type="number" id="a-prix-ttc" step="0.01" readonly style="background:var(--filter-bg);"></div>
+                            </div>
+                            <div class="form-row"><div class="form-group"><label>Quantité</label><input type="number" id="a-quantite" min="1" value="1"></div><div class="form-group"><label>Date</label><input type="date" id="a-date"></div></div>
+                            <div class="form-group"><label>Notes</label><textarea id="a-notes"></textarea></div>
+                            <button type="submit" class="submit-button">💾 Enregistrer</button>
+                        </form>
+                    </div>
+                    <div class="search-filters">
+                        <div class="search-row">
+                            <input type="text" class="search-input" id="search-achats" placeholder="🔍 Rechercher...">
+                            <select class="search-input" id="filter-achat-fournisseur"><option value="">Tous fournisseurs</option></select>
+                            <select class="search-input" id="filter-achat-recu"><option value="">Tous</option><option value="oui">✅ Reçu</option><option value="non">⏳ En attente</option></select>
+                        </div>
+                    </div>
+                    <div class="stats" id="achats-stats">
+                        <div class="stat-card"><div class="stat-number" id="achats-total">0</div><div class="stat-label">Total achats</div></div>
+                        <div class="stat-card"><div class="stat-number" id="achats-montant">0€</div><div class="stat-label">Montant total</div></div>
+                        <div class="stat-card"><div class="stat-number" id="achats-en-attente">0</div><div class="stat-label">En attente</div></div>
+                    </div>
+                    <div id="achats-container"></div>
+                </div>
+
+                <!-- ══════ IMPORT GROSSISTE ══════ -->
+                <div id="import-grossiste" class="tab-content">
+                    <div class="section-header"><h2>📥 Import Grossiste</h2></div>
+                    <div style="background:var(--card-bg); padding:25px; border-radius:15px; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                        <p style="color:var(--text-secondary); margin-bottom:15px;">Importez un fichier Excel ou CSV de votre commande grossiste. Les colonnes seront détectées automatiquement.</p>
+                        <div style="background:var(--filter-bg); padding:15px; border-radius:10px; margin-bottom:20px; font-size:13px; color:var(--text-secondary);">
+                            <strong>Colonnes attendues :</strong> EAN/Code-barres, Nom/Titre, Prix (HT ou TTC), Quantité, Catégorie (optionnel)
+                        </div>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:15px;">
+                            <label class="scan-button" style="cursor:pointer;"><span>📂 Choisir un fichier</span><input type="file" id="grossiste-file-input" accept=".xlsx,.xls,.csv" style="display:none;" onchange="previewGrossisteImport(this)"></label>
+                            <span id="grossiste-file-name" style="color:var(--text-secondary); font-size:14px;"></span>
+                        </div>
+                        <div style="margin-bottom:15px;">
+                            <label style="font-weight:600; margin-bottom:6px; display:block;">Emplacement par défaut :</label>
+                            <select id="grossiste-emplacement" style="padding:10px; border:2px solid var(--input-border); border-radius:10px; background:var(--input-bg); color:var(--text-color);">
+                                <option value="entrepot">🏭 Entrepôt</option>
+                                <option value="fba">📦 Amazon FBA</option>
+                                <option value="fbm">🏠 Amazon FBM</option>
+                            </select>
+                        </div>
+                        <div id="grossiste-preview" style="display:none;">
+                            <h3 style="margin-bottom:10px;">Aperçu de l'import</h3>
+                            <div id="grossiste-preview-table" style="max-height:400px; overflow-y:auto;"></div>
+                            <div style="display:flex; gap:10px; margin-top:15px;">
+                                <button class="scan-button" onclick="confirmGrossisteImport()">✅ Importer <span id="grossiste-count">0</span> produits</button>
+                                <button class="scan-button reset" onclick="cancelGrossisteImport()">❌ Annuler</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══════ STOCK ══════ -->
+                <div id="stock" class="tab-content">
+                    <div class="section-header">
+                        <h2>📦 Mon Stock</h2>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <button class="scan-button" onclick="switchTab('nouveau-produit')">➕ Nouveau Produit</button>
+                            <button class="scan-button export" onclick="exportStockExcel()">📊 Export Excel</button>
+                        </div>
+                    </div>
+                    <!-- Pills sous-catégories -->
+                    <div class="stock-pills">
+                        <button class="stock-pill active" data-stock="all" onclick="switchStockView('all')">📦 Tout</button>
+                        <button class="stock-pill" data-stock="neuf" onclick="switchStockView('neuf')">🆕 Neuf</button>
+                        <button class="stock-pill" data-stock="occasion" onclick="switchStockView('occasion')">♻️ Occasion</button>
+                        <button class="stock-pill" data-stock="entrepot" onclick="switchStockView('entrepot')">🏭 Entrepôt</button>
+                        <button class="stock-pill" data-stock="rebut" onclick="switchStockView('rebut')">🗑️ Rebut</button>
+                    </div>
+                    <!-- Filtres -->
+                    <div class="search-filters">
+                        <div class="search-row">
+                            <input type="text" class="search-input" id="stock-search" placeholder="🔍 Rechercher nom, EAN..." oninput="displayStock()">
+                            <select class="search-input" id="stock-sort" onchange="displayStock()">
+                                <option value="date-desc">Date ↓ récent</option>
+                                <option value="date-asc">Date ↑ ancien</option>
+                                <option value="qte-desc">Quantité ↓</option>
+                                <option value="qte-asc">Quantité ↑</option>
+                                <option value="prix-desc">Prix ↓</option>
+                                <option value="prix-asc">Prix ↑</option>
+                                <option value="nom-asc">Nom A→Z</option>
+                            </select>
+                            <select class="search-input" id="stock-filter-canal" onchange="displayStock()" style="display:none;">
+                                <option value="">Tous canaux</option>
+                                <option value="fba">Amazon FBA</option>
+                                <option value="fbm">Amazon FBM</option>
+                            </select>
+                            <select class="search-input" id="stock-filter-cat" onchange="displayStock()">
+                                <option value="">Toutes catégories</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Stats stock -->
+                    <div class="stats" id="stock-stats">
+                        <div class="stat-card"><div class="stat-number" id="stock-total">0</div><div class="stat-label">Produits</div></div>
+                        <div class="stat-card"><div class="stat-number" id="stock-qte-total">0</div><div class="stat-label">Unités</div></div>
+                        <div class="stat-card"><div class="stat-number" id="stock-valeur">0€</div><div class="stat-label">Valeur totale</div></div>
+                        <div class="stat-card"><div class="stat-number" id="stock-prix-moy">0€</div><div class="stat-label">Prix moyen</div></div>
+                    </div>
+                    <div id="stock-container"></div>
+                </div>
+
+                <!-- ══════ NOUVEAU PRODUIT ══════ -->
+                <div id="nouveau-produit" class="tab-content">
+                    <div class="success-message" id="success-message">✅ Produit ajouté au stock !</div>
+                    <div class="info-message" id="info-achat" style="display:none;">💡 <span id="info-achat-text"></span></div>
+                    <div class="scan-section">
+                        <h2>Scanner le code-barres</h2>
+                        <button class="scan-button" onclick="startScanner()">📷 Scanner</button>
+                        <button class="scan-button stop" id="stop-scanner" style="display:none;" onclick="stopScanner()">⏹️ Stop</button>
+                        <div id="video-container"><video id="video" autoplay playsinline></video></div>
+                    </div>
+                    <form id="product-form">
+                        <div class="form-group">
+                            <label for="ean">EAN / ASIN *</label>
+                            <div style="display:flex;gap:10px;">
+                                <input type="text" id="ean" required placeholder="Saisir ou scanner" oninput="checkPurchaseHistory()" style="flex:1;">
+                                <button type="button" class="btn-small" onclick="searchPrice('amazon')" style="background:#ff9900;color:white;padding:8px 15px;border-radius:8px;">Amazon</button>
+                                <button type="button" class="btn-small" onclick="searchPrice('google')" style="background:#4285F4;color:white;padding:8px 15px;border-radius:8px;">Google</button>
+                            </div>
+                        </div>
+                        <div class="form-group"><label for="product-name">Nom du produit *</label><input type="text" id="product-name" required placeholder="Ex: iPhone 13"></div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Catégorie *</label><select id="categorie" required><option value="">--</option><option value="Électronique">📱 Électronique</option><option value="Informatique">💻 Informatique</option><option value="Mode">👕 Mode</option><option value="Maison">🏠 Maison</option><option value="Beauté">💄 Beauté</option><option value="Sport">⚽ Sport</option><option value="Jouets">🧸 Jouets</option><option value="Livres">📚 Livres</option><option value="Auto">🚗 Auto</option><option value="Autre">📦 Autre</option></select></div>
+                            <div class="form-group"><label>État produit *</label><select id="etat" required><option value="">--</option><option value="Neuf">Neuf</option><option value="Comme neuf">Comme neuf</option><option value="Très bon état">Très bon</option><option value="Bon état">Bon</option><option value="État correct">Correct</option><option value="Pour pièces">Pièces</option></select></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Type de stock *</label><select id="etat-stock" required><option value="neuf">🆕 Neuf</option><option value="occasion">♻️ Occasion</option><option value="rebut">🗑️ Rebut</option></select></div>
+                            <div class="form-group"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Prix d'achat (€)</label>
+                                <div style="display:flex;gap:10px;margin-bottom:8px;">
+                                    <label style="display:flex;align-items:center;gap:5px;font-weight:normal;cursor:pointer;"><input type="radio" name="prix-type" id="prix-type-ht" value="ht" checked onchange="recalcPrixAchat()"> HT</label>
+                                    <label style="display:flex;align-items:center;gap:5px;font-weight:normal;cursor:pointer;"><input type="radio" name="prix-type" id="prix-type-ttc" value="ttc" onchange="recalcPrixAchat()"> TTC</label>
+                                </div>
+                                <input type="number" id="prix-achat" step="0.01" placeholder="0.00" oninput="recalcPrixAchat()">
+                                <div class="calc-display" id="prix-achat-conv" style="display:none;"></div>
+                            </div>
+                            <div class="form-group"><label>Prix revente (€) *</label><input type="number" id="prix-revente" step="0.01" required placeholder="0.00" oninput="calculateMarge()" style="margin-top:38px;"><div class="calc-display" id="marge-display" style="display:none;"></div></div>
+                        </div>
+                        <!-- Répartition quantités -->
+                        <div style="background:var(--filter-bg); padding:20px; border-radius:12px; margin-bottom:18px;">
+                            <label style="font-weight:600; margin-bottom:10px; display:block;">📦 Répartition des quantités</label>
+                            <div class="form-row-3">
+                                <div class="form-group"><label style="font-size:13px;">🏭 Entrepôt</label><input type="number" id="qte-entrepot" min="0" value="0" oninput="updateTotalQte()"></div>
+                                <div class="form-group"><label style="font-size:13px;">📦 Amazon FBA</label><input type="number" id="qte-fba" min="0" value="0" oninput="updateTotalQte()"></div>
+                                <div class="form-group"><label style="font-size:13px;">🏠 Amazon FBM</label><input type="number" id="qte-fbm" min="0" value="0" oninput="updateTotalQte()"></div>
+                            </div>
+                            <div id="total-qte-display" style="text-align:center; font-weight:700; font-size:16px; margin-top:5px;">Total : 0 unités</div>
+                        </div>
+                        <!-- Canaux de vente -->
+                        <div class="form-group">
+                            <label>Canaux de vente</label>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" id="amazon_fba"> Amazon FBA</label>
+                                <label><input type="checkbox" id="amazon_fbm"> Amazon FBM</label>
+                                <label><input type="checkbox" id="vinted"> Vinted</label>
+                                <label><input type="checkbox" id="leboncoin"> Leboncoin</label>
+                            </div>
+                        </div>
+                        <div class="form-group"><label>Photos</label><div class="photo-upload" onclick="document.getElementById('photo-input').click()"><p>📸 Ajouter photos</p><input type="file" id="photo-input" accept="image/*" multiple style="display:none;" onchange="handlePhotoUpload(event)"></div><div class="photo-preview" id="photo-preview"></div></div>
+                        <div class="form-group"><label for="notes">Notes</label><textarea id="notes" placeholder="Remarques..."></textarea></div>
+                        <button type="submit" class="submit-button">💾 Enregistrer</button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Fiche Produit -->
+    <div id="product-modal" class="modal">
+        <div class="modal-content wide">
+            <span class="close-modal" onclick="closeProductModal()">&times;</span>
+            <div id="product-modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Modal Vente -->
+    <div id="vente-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeVenteModal()">&times;</span>
+            <h2>💰 Marquer comme vendu</h2>
+            <form id="vente-form">
+                <div class="form-group"><label>Prix de vente (€) *</label><input type="number" id="vente-prix" step="0.01" required placeholder="0.00"></div>
+                <div class="form-group"><label>Date de vente *</label><input type="date" id="vente-date" required></div>
+                <div class="form-group"><label>Quantité vendue *</label><input type="number" id="vente-qte" min="1" value="1" required></div>
+                <div class="form-group"><label>Canal de vente *</label>
+                    <select id="vente-plateforme" required>
+                        <option value="">-- Sélectionner --</option>
+                        <option value="Amazon FBA">Amazon FBA</option>
+                        <option value="Amazon FBM">Amazon FBM</option>
+                        <option value="Vinted">Vinted</option>
+                        <option value="Leboncoin">Leboncoin</option>
+                        <option value="Autre">Autre</option>
+                    </select>
+                </div>
+                <button type="submit" class="submit-button">✅ Confirmer la vente</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Annonce -->
+    <div id="annonce-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeAnnonceModal()">&times;</span>
+            <h2 id="modal-title">Annonce</h2>
+            <div class="annonce-preview" id="annonce-text"></div>
+            <button class="copy-button" onclick="copyAnnonce()">📋 Copier</button>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="config.js"></script>
+    <script src="app-cloud.js"></script>
+    <script src="auth.js"></script>
+</body>
+</html>
