@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestion-retours-v3';
+const CACHE_NAME = 'gestion-retours-v4';
 const urlsToCache = [
   'index.html',
   'config.js',
@@ -36,10 +36,14 @@ self.addEventListener('activate', event => {
 
 // Interception des requêtes réseau - Network first, fallback to cache
 self.addEventListener('fetch', event => {
+  // Ne cacher que les GET de même origine (pas les requêtes Supabase)
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.origin !== location.origin) return;
+
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Mettre en cache la réponse réseau
         if (response.ok) {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then(cache => {
@@ -49,7 +53,6 @@ self.addEventListener('fetch', event => {
         return response;
       })
       .catch(() => {
-        // Fallback vers le cache si hors-ligne
         return caches.match(event.request);
       })
   );
