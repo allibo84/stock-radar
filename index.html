@@ -223,8 +223,8 @@
                 <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').style.display=document.getElementById('sidebar').classList.contains('open')?'block':'none';">
                     <span></span><span></span><span></span>
                 </button>
-                <img src="logo.png" alt="Logo" class="header-logo">
-                <h1>STOCK RADAR</h1>
+                <img src="logo.png" alt="Logo" class="header-logo" style="cursor:pointer;" onclick="switchTab('dashboard')">
+                <h1 style="cursor:pointer;" onclick="switchTab('dashboard')">STOCK RADAR</h1>
             </div>
             <div class="header-center">
                 <div class="global-search-wrapper">
@@ -262,6 +262,9 @@
                 </div>
                 <div class="menu-item" data-tab="nouveau-produit">
                     <span class="menu-item-icon">➕</span><span>Nouveau Produit</span>
+                </div>
+                <div class="menu-item" data-tab="mouvements">
+                    <span class="menu-item-icon">📋</span><span>Journal Mouvements</span>
                 </div>
                 <div class="menu-section-label">Outils</div>
                 <div class="menu-item" data-tab="outils-export">
@@ -485,6 +488,18 @@
                                         <option value="">Tous</option>
                                     </select>
                                 </div>
+                                <div class="filter-group">
+                                    <label>Statut</label>
+                                    <select id="stock-filter-statut" onchange="displayStock()">
+                                        <option value="">Tous</option>
+                                        <option value="recu">📦 Reçu</option>
+                                        <option value="a_controler">🔍 À contrôler</option>
+                                        <option value="a_etiqueter">🏷️ À étiqueter</option>
+                                        <option value="a_expedier">📮 À expédier</option>
+                                        <option value="envoye">🚀 Envoyé</option>
+                                        <option value="termine">✅ Terminé</option>
+                                    </select>
+                                </div>
                             </div>
                             <div style="text-align:right;margin-top:5px;">
                                 <button class="btn-toggle-filters" onclick="resetFilters()">🔄 Réinitialiser</button>
@@ -565,6 +580,13 @@
                         <div class="form-group"><label for="notes">Notes</label><textarea id="notes" placeholder="Remarques..."></textarea></div>
                         <button type="submit" class="submit-button">💾 Enregistrer</button>
                     </form>
+                </div>
+
+                <!-- ══════ JOURNAL MOUVEMENTS ══════ -->
+                <div id="mouvements" class="tab-content">
+                    <div class="section-header"><h2>📋 Journal des mouvements</h2></div>
+                    <p style="color:var(--text-secondary);margin-bottom:20px;">Historique de tous les mouvements de stock : réceptions, transferts, ventes, ajustements.</p>
+                    <div id="mouvements-container"></div>
                 </div>
 
                 <!-- ══════ EXPORT & SAUVEGARDE ══════ -->

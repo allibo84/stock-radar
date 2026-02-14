@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════
 
 // sb est créé dans config.js
-let fournisseurs = [], achats = [], products = [];
+let fournisseurs = [], achats = [], products = [], mouvements = [];
 let currentPhotos = [], currentVenteProductId = null;
 let activeStockView = 'all';
 let charts = {};
@@ -17,6 +17,7 @@ async function loadAllData() {
             loadFournisseurs().catch(e => console.warn('Fournisseurs:', e)),
             loadAchats().catch(e => console.warn('Achats:', e)),
             loadProducts().catch(e => console.warn('Produits:', e)),
+            loadMouvements().catch(e => console.warn('Mouvements:', e)),
         ]);
     } catch (e) { console.error('Erreur chargement:', e); }
     document.getElementById('loading').style.display = 'none';
@@ -48,6 +49,8 @@ async function loadProducts() {
     products = (data || []).map(p => ({
         ...p,
         etat_stock: p.etat_stock || 'neuf',
+        statut: p.statut || 'recu',
+        emplacement: p.emplacement || '',
         qte_fba: p.qte_fba || 0,
         qte_fbm: p.qte_fbm || 0,
         qte_entrepot: p.qte_entrepot || (p.quantite || 1),
@@ -59,8 +62,14 @@ async function loadProducts() {
     updateDashboard();
 }
 
+async function loadMouvements() {
+    const { data, error } = await sb.from('mouvements').select('*').order('created_at', { ascending: false }).limit(200);
+    if (error) console.warn('Erreur mouvements:', error.message);
+    mouvements = data || [];
+    displayMouvements();
+}
+
 function setupRealtimeSync() {
-    // Fermer le channel existant pour éviter les doublons
     if (realtimeChannel) {
         sb.removeChannel(realtimeChannel);
         realtimeChannel = null;
@@ -69,6 +78,7 @@ function setupRealtimeSync() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'produits' }, () => loadProducts())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'achats' }, () => loadAchats())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fournisseurs' }, () => loadFournisseurs())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'mouvements' }, () => loadMouvements())
         .subscribe();
 }
 
@@ -225,6 +235,8 @@ async function toggleRecu(id, v) {
                 categorie: achat.categorie || '',
                 etat: 'Neuf',
                 etat_stock: 'neuf',
+                statut: 'recu',
+                emplacement: '',
                 prix_achat: achat.prix_ttc || achat.prix_ht || 0,
                 prix_revente: 0,
                 qte_fba: 0,
@@ -241,8 +253,11 @@ async function toggleRecu(id, v) {
                 notes: achat.notes || '',
                 date_ajout: new Date().toISOString(),
             };
-            const { error } = await sb.from('produits').insert([pr]);
+            const { data: inserted, error } = await sb.from('produits').insert([pr]).select();
             if (error) console.warn('Erreur création produit depuis achat:', error.message);
+            if (inserted && inserted[0]) {
+                await logMouvement(inserted[0].id, 'reception', achat.quantite || 1, 'achat', 'entrepot', 'Réception achat', achat.fournisseur_nom || '');
+            }
             await loadProducts();
             updateDashboard();
         }
@@ -606,6 +621,10 @@ function getFilteredStock() {
         list = list.filter(p => eansFournisseur.includes(p.ean));
     }
 
+    // Statut
+    const statutFilter = document.getElementById('stock-filter-statut')?.value || '';
+    if (statutFilter) list = list.filter(p => (p.statut || 'recu') === statutFilter);
+
     // Fonction utilitaire marge
     const getMarge = (p) => (p.prix_achat > 0 && p.prix_revente > 0) ? ((p.prix_revente - p.prix_achat) / p.prix_achat * 100) : -999;
     const getAge = (p) => p.date_ajout ? Math.floor((Date.now() - new Date(p.date_ajout)) / 86400000) : 0;
@@ -660,6 +679,7 @@ function resetFilters() {
     document.getElementById('stock-filter-date-from').value = '';
     document.getElementById('stock-filter-date-to').value = '';
     document.getElementById('stock-filter-fournisseur').value = '';
+    document.getElementById('stock-filter-statut').value = '';
     document.getElementById('stock-search').value = '';
     displayStock();
 }
@@ -782,6 +802,21 @@ function openProductModal(id) {
         
         <!-- Zone lecture -->
         <div id="product-view-${p.id}">
+            <!-- Statut & Emplacement -->
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:15px;align-items:center;">
+                <div style="flex:1;">
+                    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Statut</div>
+                    <select onchange="changeStatut(${p.id}, this.value)" style="padding:8px 12px;border-radius:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-color);font-size:13px;font-weight:600;">
+                        ${STATUTS.map(s => `<option value="${s.value}" ${(p.statut||'recu')===s.value?'selected':''}>${s.label}</option>`).join('')}
+                    </select>
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Emplacement (zone/étagère/bac)</div>
+                    <input type="text" value="${escapeHtml(p.emplacement||'')}" placeholder="Ex: A-03-2" 
+                        onchange="changeEmplacement(${p.id}, this.value)" 
+                        style="padding:8px 12px;border-radius:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-color);font-size:13px;width:100%;">
+                </div>
+            </div>
             <div class="detail-grid">
                 <div class="detail-item"><div class="detail-label">Catégorie</div><div class="detail-value">${escapeHtml(p.categorie||'-')}</div></div>
                 <div class="detail-item"><div class="detail-label">État</div><div class="detail-value">${escapeHtml(p.etat||'-')}</div></div>
@@ -798,6 +833,7 @@ function openProductModal(id) {
             </div>
             <div style="text-align:center;font-size:18px;font-weight:700;margin:10px 0 20px;">Total : ${total} unités</div>
             <div class="detail-item" style="margin-bottom:15px;"><div class="detail-label">Canaux de vente</div><div class="detail-value">${canaux.length ? canaux.join(', ') : 'Aucun'}</div></div>
+            ${p.emplacement ? `<div class="detail-item" style="margin-bottom:15px;"><div class="detail-label">📍 Emplacement</div><div class="detail-value" style="font-weight:700;">${escapeHtml(p.emplacement)}</div></div>` : ''}
             ${p.notes ? `<div class="detail-item" style="margin-bottom:15px;"><div class="detail-label">Notes</div><div class="detail-value">${escapeHtml(p.notes)}</div></div>` : ''}
             ${photos}
         </div>
@@ -863,11 +899,16 @@ function openProductModal(id) {
                 <div class="detail-label">Notes</div>
                 <textarea id="edit-notes-${p.id}" class="form-input" rows="2" style="padding:8px;">${escapeHtml(p.notes||'')}</textarea>
             </div>
+            <div class="detail-item">
+                <div class="detail-label">📍 Emplacement (zone/étagère/bac)</div>
+                <input type="text" id="edit-emplacement-${p.id}" class="form-input" style="padding:8px;" value="${escapeHtml(p.emplacement||'')}" placeholder="Ex: A-03-2">
+            </div>
         </div>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;">
             <button class="scan-button" id="btn-edit-${p.id}" onclick="toggleEditProduct(${p.id})">✏️ Éditer</button>
             <button class="scan-button" id="btn-save-${p.id}" style="display:none;background:#00b894;" onclick="saveEditProduct(${p.id})">💾 Sauvegarder</button>
+            <button class="scan-button" style="background:#3498db;" onclick="mouvementManuel(${p.id}); closeProductModal();">🔄 Transférer</button>
             <button class="scan-button" onclick="openVenteModal(${p.id}); closeProductModal();">💰 Vendre</button>
             <button class="scan-button" style="background:#00b4b6;" onclick="generateAnnonce(${p.id},'vinted')">📝 Vinted</button>
             <button class="scan-button" style="background:#f56b2a;" onclick="generateAnnonce(${p.id},'leboncoin')">📝 Leboncoin</button>
@@ -905,6 +946,7 @@ async function saveEditProduct(id) {
         leboncoin: document.getElementById('edit-leboncoin-' + id).checked,
         invendable: document.getElementById('edit-etat-stock-' + id).value === 'rebut',
         notes: document.getElementById('edit-notes-' + id).value.trim(),
+        emplacement: document.getElementById('edit-emplacement-' + id).value.trim(),
     };
 
     const { error } = await sb.from('produits').update(update).eq('id', id);
@@ -960,6 +1002,7 @@ document.getElementById('vente-form')?.addEventListener('submit', async function
 
     const { error } = await sb.from('produits').update(update).eq('id', currentVenteProductId);
     if (error) return alert('Erreur: ' + error.message);
+    await logMouvement(currentVenteProductId, 'vente', qteVendue, canal || 'entrepot', 'vendu', `Vente ${canal} — ${prixVente}€`, '');
     closeVenteModal();
     await loadProducts();
     showSuccess('success-message');
@@ -1240,6 +1283,121 @@ function toggleDarkMode() {
 function updateDarkModeIcon() {
     const btn = document.getElementById('dark-toggle');
     if (btn) btn.textContent = document.body.classList.contains('dark-theme') ? '☀️' : '🌙';
+}
+
+// ═══════ MOUVEMENTS DE STOCK ═══════
+async function logMouvement(produitId, type, quantite, de, vers, raison, notes) {
+    const p = products.find(x => x.id === produitId);
+    const mvt = {
+        produit_id: produitId,
+        produit_ean: p?.ean || '',
+        produit_nom: p?.nom || '',
+        type: type,
+        quantite: quantite,
+        de_emplacement: de || '',
+        vers_emplacement: vers || '',
+        raison: raison || '',
+        notes: notes || '',
+    };
+    const { error } = await sb.from('mouvements').insert([mvt]);
+    if (error) console.warn('Erreur log mouvement:', error.message);
+}
+
+function displayMouvements() {
+    const c = document.getElementById('mouvements-container');
+    if (!c) return;
+    
+    if (!mouvements.length) {
+        c.innerHTML = '<div class="empty-state"><h3>Aucun mouvement</h3><p>Les mouvements apparaîtront ici automatiquement.</p></div>';
+        return;
+    }
+
+    const typeIcons = { 'entree': '📥', 'sortie': '📤', 'transfert': '🔄', 'ajustement': '⚙️', 'vente': '💰', 'reception': '✅' };
+    const typeColors = { 'entree': '#27ae60', 'sortie': '#e74c3c', 'transfert': '#3498db', 'ajustement': '#f39c12', 'vente': '#9b59b6', 'reception': '#27352a' };
+    
+    let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>Type</th><th>Produit</th><th>EAN</th><th>Qté</th><th>De</th><th>Vers</th><th>Raison</th></tr></thead><tbody>';
+    
+    mouvements.slice(0, 100).forEach(m => {
+        const date = m.created_at ? new Date(m.created_at).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '-';
+        const icon = typeIcons[m.type] || '📋';
+        const color = typeColors[m.type] || '#666';
+        h += `<tr>
+            <td>${date}</td>
+            <td><span style="color:${color};font-weight:700;">${icon} ${m.type}</span></td>
+            <td><strong>${escapeHtml(m.produit_nom||'-')}</strong></td>
+            <td>${escapeHtml(m.produit_ean||'-')}</td>
+            <td style="font-weight:700;">${m.quantite||0}</td>
+            <td>${escapeHtml(m.de_emplacement||'-')}</td>
+            <td>${escapeHtml(m.vers_emplacement||'-')}</td>
+            <td>${escapeHtml(m.raison||m.notes||'-')}</td>
+        </tr>`;
+    });
+    c.innerHTML = h + '</tbody></table></div>';
+}
+
+// ═══════ STATUT WORKFLOW ═══════
+const STATUTS = [
+    { value: 'recu', label: '📦 Reçu', color: '#27352a' },
+    { value: 'a_controler', label: '🔍 À contrôler', color: '#e67e22' },
+    { value: 'a_etiqueter', label: '🏷️ À étiqueter', color: '#f39c12' },
+    { value: 'a_expedier', label: '📮 À expédier', color: '#3498db' },
+    { value: 'envoye', label: '🚀 Envoyé', color: '#2ecc71' },
+    { value: 'termine', label: '✅ Terminé', color: '#27ae60' },
+];
+
+function getStatutBadge(statut) {
+    const s = STATUTS.find(x => x.value === statut) || STATUTS[0];
+    return `<span style="background:${s.color};color:white;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">${s.label}</span>`;
+}
+
+async function changeStatut(productId, newStatut) {
+    const p = products.find(x => x.id === productId);
+    if (!p) return;
+    const oldStatut = p.statut || 'recu';
+    await sb.from('produits').update({ statut: newStatut }).eq('id', productId);
+    await logMouvement(productId, 'ajustement', 0, '', '', `Statut: ${oldStatut} → ${newStatut}`, '');
+    await loadProducts();
+}
+
+// ═══════ EMPLACEMENT ═══════
+async function changeEmplacement(productId, newEmplacement) {
+    const p = products.find(x => x.id === productId);
+    if (!p) return;
+    const oldEmpl = p.emplacement || '';
+    await sb.from('produits').update({ emplacement: newEmplacement }).eq('id', productId);
+    if (oldEmpl !== newEmplacement) {
+        await logMouvement(productId, 'transfert', p.quantite||0, oldEmpl || 'non défini', newEmplacement || 'non défini', 'Changement emplacement', '');
+    }
+    await loadProducts();
+}
+
+// Mouvement de stock manuel (transfert de quantité entre emplacements)
+async function mouvementManuel(productId) {
+    const p = products.find(x => x.id === productId);
+    if (!p) return;
+    
+    const qte = parseInt(prompt(`Quantité à déplacer (stock total: ${p.quantite||0}) :`));
+    if (!qte || qte <= 0) return;
+    
+    const de = prompt('De quel emplacement ? (entrepot / fba / fbm)');
+    const vers = prompt('Vers quel emplacement ? (entrepot / fba / fbm)');
+    if (!de || !vers || de === vers) return alert('Emplacements invalides');
+    
+    const champs = { entrepot: 'qte_entrepot', fba: 'qte_fba', fbm: 'qte_fbm' };
+    if (!champs[de] || !champs[vers]) return alert('Emplacement non reconnu (entrepot, fba, fbm)');
+    
+    const qteDe = p[champs[de]] || 0;
+    if (qte > qteDe) return alert(`Stock insuffisant en ${de} (${qteDe} disponible)`);
+    
+    const update = {};
+    update[champs[de]] = qteDe - qte;
+    update[champs[vers]] = (p[champs[vers]] || 0) + qte;
+    
+    const { error } = await sb.from('produits').update(update).eq('id', productId);
+    if (error) return alert('Erreur: ' + error.message);
+    
+    await logMouvement(productId, 'transfert', qte, de, vers, 'Transfert manuel', '');
+    await loadProducts();
 }
 
 // ═══════ ADVANCED EXPORT ═══════
