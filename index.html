@@ -299,7 +299,8 @@
                     <div class="stats">
                         <div class="stat-card"><div class="stat-number" id="dash-total-produits">0</div><div class="stat-label">Produits en stock</div></div>
                         <div class="stat-card"><div class="stat-number" id="dash-total-vendus">0</div><div class="stat-label">Vendus</div></div>
-                        <div class="stat-card"><div class="stat-number" id="dash-valeur-stock">0€</div><div class="stat-label">Valeur stock</div></div>
+                        <div class="stat-card"><div class="stat-number" id="dash-valeur-stock">0€</div><div class="stat-label">Valeur stock (coût)</div></div>
+                        <div class="stat-card"><div class="stat-number" id="dash-valeur-entrepot">0€</div><div class="stat-label">Valeur entrepôt</div></div>
                         <div class="stat-card"><div class="stat-number" id="dash-ca-realise">0€</div><div class="stat-label">CA réalisé</div></div>
                         <div class="stat-card"><div class="stat-number" id="dash-benefice">0€</div><div class="stat-label">Bénéfice</div></div>
                         <div class="stat-card"><div class="stat-number" id="dash-marge-moyenne">0%</div><div class="stat-label">Marge moyenne</div></div>
@@ -356,8 +357,8 @@
                             <div class="form-row"><div class="form-group"><label>EAN *</label><input type="text" id="a-ean" required></div><div class="form-group"><label>Nom *</label><input type="text" id="a-nom" required></div></div>
                             <div class="form-row"><div class="form-group"><label>Catégorie</label><select id="a-categorie"><option value="">--</option><option>Électronique</option><option>Informatique</option><option>Mode</option><option>Maison</option><option>Beauté</option><option>Sport</option><option>Jouets</option><option>Livres</option><option>Auto</option><option>Autre</option></select></div><div class="form-group"><label>Fournisseur</label><select id="a-fournisseur"><option value="">--</option></select></div></div>
                             <div class="form-row">
-                                <div class="form-group"><label>Prix HT</label><input type="number" id="a-prix-ht" step="0.01" oninput="calculateTTC()"></div>
-                                <div class="form-group"><label>Prix TTC</label><input type="number" id="a-prix-ttc" step="0.01" readonly style="background:var(--filter-bg);"></div>
+                                <div class="form-group"><label>Prix unitaire HT</label><input type="number" id="a-prix-ht" step="0.01" oninput="calculateTTC()" placeholder="Prix par unité HT"></div>
+                                <div class="form-group"><label>Prix unitaire TTC</label><input type="number" id="a-prix-ttc" step="0.01" oninput="calculateHT()" placeholder="Prix par unité TTC"></div>
                             </div>
                             <div class="form-row"><div class="form-group"><label>Quantité</label><input type="number" id="a-quantite" min="1" value="1"></div><div class="form-group"><label>Date</label><input type="date" id="a-date"></div></div>
                             <div class="form-group"><label>Notes</label><textarea id="a-notes"></textarea></div>
@@ -510,8 +511,10 @@
                     <div class="stats" id="stock-stats">
                         <div class="stat-card"><div class="stat-number" id="stock-total">0</div><div class="stat-label">Produits</div></div>
                         <div class="stat-card"><div class="stat-number" id="stock-qte-total">0</div><div class="stat-label">Unités</div></div>
-                        <div class="stat-card"><div class="stat-number" id="stock-valeur">0€</div><div class="stat-label">Valeur totale</div></div>
-                        <div class="stat-card"><div class="stat-number" id="stock-prix-moy">0€</div><div class="stat-label">Prix moyen</div></div>
+                        <div class="stat-card"><div class="stat-number" id="stock-valeur-achat">0€</div><div class="stat-label">Valeur achat (coût)</div></div>
+                        <div class="stat-card"><div class="stat-number" id="stock-valeur-revente">0€</div><div class="stat-label">Valeur revente</div></div>
+                        <div class="stat-card"><div class="stat-number" id="stock-valeur-entrepot">0€</div><div class="stat-label">Valeur entrepôt</div></div>
+                        <div class="stat-card"><div class="stat-number" id="stock-benefice-potentiel">0€</div><div class="stat-label">Bénéfice potentiel</div></div>
                     </div>
                     <div id="stock-container"></div>
                 </div>

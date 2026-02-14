@@ -151,7 +151,13 @@ function updateFournisseursSelect() {
 function calculateTTC() {
     const ht = parseFloat(document.getElementById('a-prix-ht')?.value) || 0;
     const ttcEl = document.getElementById('a-prix-ttc');
-    if (ttcEl) ttcEl.value = (ht * 1.20).toFixed(2);
+    if (ttcEl && ht > 0) ttcEl.value = (ht * 1.20).toFixed(2);
+}
+
+function calculateHT() {
+    const ttc = parseFloat(document.getElementById('a-prix-ttc')?.value) || 0;
+    const htEl = document.getElementById('a-prix-ht');
+    if (htEl && ttc > 0) htEl.value = (ttc / 1.20).toFixed(2);
 }
 
 document.getElementById('achat-form')?.addEventListener('submit', async function(e) {
@@ -712,12 +718,17 @@ function displayStock() {
 
     // Stats
     const totalQte = list.reduce((s, p) => s + (p.quantite || 0), 0);
-    const valeur = list.reduce((s, p) => s + ((p.prix_revente || 0) * (p.quantite || 0)), 0);
+    const valeurAchat = list.reduce((s, p) => s + ((p.prix_achat || 0) * (p.quantite || 0)), 0);
+    const valeurRevente = list.reduce((s, p) => s + ((p.prix_revente || 0) * (p.quantite || 0)), 0);
+    const valeurEntrepot = list.reduce((s, p) => s + ((p.prix_achat || 0) * (p.qte_entrepot || 0)), 0);
+    const beneficePotentiel = valeurRevente - valeurAchat;
     const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
     el('stock-total', list.length);
     el('stock-qte-total', totalQte);
-    el('stock-valeur', valeur.toFixed(2) + '€');
-    el('stock-prix-moy', list.length ? (valeur / totalQte).toFixed(2) + '€' : '0€');
+    el('stock-valeur-achat', valeurAchat.toFixed(2) + '€');
+    el('stock-valeur-revente', valeurRevente.toFixed(2) + '€');
+    el('stock-valeur-entrepot', valeurEntrepot.toFixed(2) + '€');
+    el('stock-benefice-potentiel', beneficePotentiel.toFixed(2) + '€');
 
     if (!list.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun produit</h3><p>Ajoutez des produits depuis le menu</p></div>'; return; }
 
@@ -1203,7 +1214,10 @@ function updateDashboard() {
 
     el('dash-total-produits', enStock.reduce((s,p)=>s+(p.quantite||0),0));
     el('dash-total-vendus', vendus.length);
-    el('dash-valeur-stock', enStock.reduce((s,p) => s + ((p.prix_revente||0)*(p.quantite||0)), 0).toFixed(2) + '€');
+    const valStockAchat = enStock.reduce((s,p) => s + ((p.prix_achat||0)*(p.quantite||0)), 0);
+    el('dash-valeur-stock', valStockAchat.toFixed(2) + '€');
+    const valEntrepot = enStock.reduce((s,p) => s + ((p.prix_achat||0)*(p.qte_entrepot||0)), 0);
+    el('dash-valeur-entrepot', valEntrepot.toFixed(2) + '€');
 
     const ca = vendus.reduce((s,p) => s + (p.prix_vente_reel||0), 0);
     el('dash-ca-realise', ca.toFixed(2) + '€');
