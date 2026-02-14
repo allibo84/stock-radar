@@ -263,6 +263,13 @@
                 <div class="menu-item" data-tab="nouveau-produit">
                     <span class="menu-item-icon">➕</span><span>Nouveau Produit</span>
                 </div>
+                <div class="menu-section-label">Outils</div>
+                <div class="menu-item" data-tab="outils-export">
+                    <span class="menu-item-icon">📤</span><span>Export & Sauvegarde</span>
+                </div>
+            </div>
+            <div style="padding:15px 20px;border-top:1px solid rgba(255,255,255,0.1);margin-top:auto;">
+                <div style="font-size:11px;color:rgba(255,255,255,0.4);">⌨️ Raccourcis : Ctrl+N Nouveau · Ctrl+F Recherche · Ctrl+S Scan</div>
             </div>
         </div>
 
@@ -558,6 +565,71 @@
                         <div class="form-group"><label for="notes">Notes</label><textarea id="notes" placeholder="Remarques..."></textarea></div>
                         <button type="submit" class="submit-button">💾 Enregistrer</button>
                     </form>
+                </div>
+
+                <!-- ══════ EXPORT & SAUVEGARDE ══════ -->
+                <div id="outils-export" class="tab-content">
+                    <div class="section-header"><h2>📤 Export & Sauvegarde</h2></div>
+                    
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;">
+                        <!-- Exports -->
+                        <div style="background:var(--card-bg);padding:25px;border-radius:15px;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                            <h3 style="margin-bottom:15px;">📊 Export Excel / CSV</h3>
+                            <p style="color:var(--text-secondary);margin-bottom:20px;font-size:14px;">Exporte les données filtrées ou complètes dans différents formats.</p>
+                            
+                            <div style="margin-bottom:12px;">
+                                <label style="font-weight:600;font-size:13px;display:block;margin-bottom:5px;">Que exporter ?</label>
+                                <select id="export-type" class="search-input" style="width:100%;padding:10px;">
+                                    <option value="stock-all">📦 Stock complet</option>
+                                    <option value="stock-filtered">📦 Stock filtré (filtre actif)</option>
+                                    <option value="stock-neuf">🆕 Stock Neuf uniquement</option>
+                                    <option value="stock-occasion">♻️ Stock Occasion uniquement</option>
+                                    <option value="achats-all">🛒 Tous les achats</option>
+                                    <option value="achats-mois">🛒 Achats du mois</option>
+                                    <option value="fournisseurs">🏪 Fournisseurs</option>
+                                    <option value="vendus">💰 Produits vendus</option>
+                                    <option value="marge">📈 Rapport de marge</option>
+                                </select>
+                            </div>
+                            <div style="margin-bottom:12px;">
+                                <label style="font-weight:600;font-size:13px;display:block;margin-bottom:5px;">Format</label>
+                                <select id="export-format" class="search-input" style="width:100%;padding:10px;">
+                                    <option value="xlsx">Excel (.xlsx)</option>
+                                    <option value="csv">CSV (.csv)</option>
+                                </select>
+                            </div>
+                            <button class="scan-button export" onclick="exportAdvanced()" style="width:100%;justify-content:center;">📥 Exporter</button>
+                        </div>
+                        
+                        <!-- Sauvegarde -->
+                        <div style="background:var(--card-bg);padding:25px;border-radius:15px;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                            <h3 style="margin-bottom:15px;">💾 Sauvegarde & Restauration</h3>
+                            <p style="color:var(--text-secondary);margin-bottom:20px;font-size:14px;">Sauvegardez toutes vos données (produits, achats, fournisseurs) dans un fichier JSON. Utile avant une grosse modification.</p>
+                            
+                            <button class="scan-button" onclick="backupData()" style="width:100%;justify-content:center;margin-bottom:12px;">📦 Sauvegarder tout (JSON)</button>
+                            
+                            <div style="border-top:1px solid var(--input-border);padding-top:15px;margin-top:15px;">
+                                <h4 style="margin-bottom:10px;">🔄 Restaurer une sauvegarde</h4>
+                                <p style="color:var(--text-secondary);font-size:13px;margin-bottom:10px;">⚠️ Cela va <strong>remplacer</strong> toutes les données actuelles par celles du fichier.</p>
+                                <input type="file" id="restore-file" accept=".json" style="display:none;" onchange="restoreData(event)">
+                                <button class="scan-button danger" onclick="document.getElementById('restore-file').click()" style="width:100%;justify-content:center;">🔄 Restaurer depuis un fichier</button>
+                            </div>
+                        </div>
+
+                        <!-- Raccourcis clavier -->
+                        <div style="background:var(--card-bg);padding:25px;border-radius:15px;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                            <h3 style="margin-bottom:15px;">⌨️ Raccourcis clavier</h3>
+                            <p style="color:var(--text-secondary);margin-bottom:20px;font-size:14px;">Gagnez du temps avec les raccourcis.</p>
+                            <div style="display:grid;gap:8px;">
+                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Nouveau produit</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + N</kbd></div>
+                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Recherche globale</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + F</kbd></div>
+                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Lancer le scanner</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + S</kbd></div>
+                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Dashboard</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + D</kbd></div>
+                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Mon Stock</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + K</kbd></div>
+                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Exporter stock Excel</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + E</kbd></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
             </div>

@@ -1242,7 +1242,258 @@ function updateDarkModeIcon() {
     if (btn) btn.textContent = document.body.classList.contains('dark-theme') ? '☀️' : '🌙';
 }
 
-// ═══════ INIT ═══════
+// ═══════ ADVANCED EXPORT ═══════
+function exportAdvanced() {
+    const type = document.getElementById('export-type').value;
+    const format = document.getElementById('export-format').value;
+    let data = [], fileName = 'export';
+
+    switch(type) {
+        case 'stock-all':
+            data = products.filter(p => !p.vendu).map(p => formatProductExport(p));
+            fileName = 'stock-complet';
+            break;
+        case 'stock-filtered':
+            data = getFilteredStock().map(p => formatProductExport(p));
+            fileName = 'stock-filtre';
+            break;
+        case 'stock-neuf':
+            data = products.filter(p => !p.vendu && (p.etat_stock||'neuf') === 'neuf').map(p => formatProductExport(p));
+            fileName = 'stock-neuf';
+            break;
+        case 'stock-occasion':
+            data = products.filter(p => !p.vendu && p.etat_stock === 'occasion').map(p => formatProductExport(p));
+            fileName = 'stock-occasion';
+            break;
+        case 'achats-all':
+            data = achats.map(a => formatAchatExport(a));
+            fileName = 'achats-complet';
+            break;
+        case 'achats-mois': {
+            const now = new Date();
+            const moisDebut = new Date(now.getFullYear(), now.getMonth(), 1);
+            data = achats.filter(a => a.date_achat && new Date(a.date_achat) >= moisDebut).map(a => formatAchatExport(a));
+            fileName = 'achats-mois-' + (now.getMonth()+1);
+            break;
+        }
+        case 'fournisseurs':
+            data = fournisseurs.map(f => ({
+                'Nom': f.nom||'', 'Contact': f.contact||'', 'Email': f.email||'',
+                'Téléphone': f.tel||'', 'Adresse': f.adresse||'', 'Notes': f.notes||''
+            }));
+            fileName = 'fournisseurs';
+            break;
+        case 'vendus':
+            data = products.filter(p => p.vendu).map(p => ({
+                ...formatProductExport(p),
+                'Date vente': p.date_vente || '',
+                'Prix vente réel': p.prix_vente_reel || 0,
+                'Plateforme vente': p.plateforme_vente || '',
+                'Bénéfice': ((p.prix_vente_reel||0) - (p.prix_achat||0)).toFixed(2)
+            }));
+            fileName = 'vendus';
+            break;
+        case 'marge': {
+            const enStock = products.filter(p => !p.vendu && p.prix_achat > 0 && p.prix_revente > 0);
+            data = enStock.map(p => {
+                const marge = ((p.prix_revente - p.prix_achat) / p.prix_achat * 100);
+                const roi = ((p.prix_revente - p.prix_achat) / p.prix_achat);
+                const age = p.date_ajout ? Math.floor((Date.now() - new Date(p.date_ajout)) / 86400000) : 0;
+                return {
+                    'EAN': p.ean||'', 'Nom': p.nom||'', 'Catégorie': p.categorie||'',
+                    'Prix Achat': p.prix_achat, 'Prix Revente': p.prix_revente,
+                    'Marge €': (p.prix_revente - p.prix_achat).toFixed(2),
+                    'Marge %': marge.toFixed(1) + '%',
+                    'ROI': roi.toFixed(2),
+                    'Qté': p.quantite||0,
+                    'Valeur potentielle': ((p.prix_revente - p.prix_achat) * (p.quantite||0)).toFixed(2),
+                    'Ancienneté (jours)': age,
+                    'Risque': age > 60 ? 'ÉLEVÉ' : age > 30 ? 'MOYEN' : 'FAIBLE'
+                };
+            }).sort((a, b) => parseFloat(b['Marge %']) - parseFloat(a['Marge %']));
+            fileName = 'rapport-marge';
+            break;
+        }
+    }
+
+    if (!data.length) return alert('Aucune donnée à exporter');
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    if (format === 'xlsx') {
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, fileName);
+        XLSX.writeFile(wb, `stock-radar-${fileName}-${dateStr}.xlsx`);
+    } else {
+        const headers = Object.keys(data[0]);
+        let csv = '\uFEFF' + headers.join(';') + '\n';
+        data.forEach(row => {
+            csv += headers.map(h => `"${String(row[h]||'').replace(/"/g,'""')}"`).join(';') + '\n';
+        });
+        downloadCSV(csv, `stock-radar-${fileName}-${dateStr}.csv`);
+    }
+}
+
+function formatProductExport(p) {
+    const marge = (p.prix_achat > 0 && p.prix_revente > 0) ? ((p.prix_revente - p.prix_achat) / p.prix_achat * 100).toFixed(1) + '%' : '-';
+    return {
+        'Date': p.date_ajout ? new Date(p.date_ajout).toLocaleDateString('fr-FR') : '',
+        'EAN': p.ean||'', 'Nom': p.nom||'', 'Catégorie': p.categorie||'',
+        'État': p.etat||'', 'Type Stock': p.etat_stock||'',
+        'Qté FBA': p.qte_fba||0, 'Qté FBM': p.qte_fbm||0, 'Qté Entrepôt': p.qte_entrepot||0,
+        'Qté Total': p.quantite||0,
+        'Prix Achat': (p.prix_achat||0).toFixed(2), 'Prix Revente': (p.prix_revente||0).toFixed(2),
+        'Marge': marge,
+        'Valeur': ((p.prix_revente||0) * (p.quantite||0)).toFixed(2),
+        'Canaux': [p.amazon_fba?'FBA':'', p.amazon_fbm?'FBM':'', p.vinted?'Vinted':'', p.leboncoin?'LBC':''].filter(Boolean).join(', '),
+        'Notes': p.notes||''
+    };
+}
+
+function formatAchatExport(a) {
+    return {
+        'Date': a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '',
+        'EAN': a.ean||'', 'Nom': a.nom||'', 'Fournisseur': a.fournisseur_nom||'',
+        'Quantité': a.quantite||1, 'Prix HT': (a.prix_ht||0).toFixed(2),
+        'Prix TTC': (a.prix_ttc||0).toFixed(2),
+        'Reçu': a.recu ? 'Oui' : 'Non', 'Notes': a.notes||''
+    };
+}
+
+// ═══════ BACKUP / RESTORE ═══════
+async function backupData() {
+    const backup = {
+        version: 'stock-radar-v2',
+        date: new Date().toISOString(),
+        fournisseurs: fournisseurs,
+        achats: achats,
+        produits: products
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `stock-radar-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+}
+
+async function restoreData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!confirm('⚠️ ATTENTION : Cela va SUPPRIMER toutes les données actuelles et les remplacer par celles du fichier de sauvegarde.\n\nÊtes-vous sûr ?')) {
+        event.target.value = '';
+        return;
+    }
+
+    try {
+        const text = await file.text();
+        const backup = JSON.parse(text);
+        
+        if (!backup.version || !backup.version.startsWith('stock-radar')) {
+            alert('❌ Fichier de sauvegarde non reconnu');
+            return;
+        }
+
+        // Confirmation finale
+        const info = `Données du fichier :\n- ${(backup.fournisseurs||[]).length} fournisseurs\n- ${(backup.achats||[]).length} achats\n- ${(backup.produits||[]).length} produits\n\nDate de sauvegarde : ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'inconnue'}\n\nConfirmer la restauration ?`;
+        if (!confirm(info)) return;
+
+        // Supprimer les données actuelles
+        await sb.from('produits').delete().neq('id', 0);
+        await sb.from('achats').delete().neq('id', 0);
+        await sb.from('fournisseurs').delete().neq('id', 0);
+
+        // Insérer les données de la sauvegarde par lots
+        if (backup.fournisseurs?.length) {
+            const fClean = backup.fournisseurs.map(f => ({ nom: f.nom, contact: f.contact||'', email: f.email||'', tel: f.tel||'', adresse: f.adresse||'', notes: f.notes||'' }));
+            for (let i = 0; i < fClean.length; i += 50) {
+                await sb.from('fournisseurs').insert(fClean.slice(i, i+50));
+            }
+        }
+        if (backup.achats?.length) {
+            const aClean = backup.achats.map(a => ({ ean: a.ean, nom: a.nom, categorie: a.categorie||'', fournisseur_nom: a.fournisseur_nom||'', prix_ht: a.prix_ht||0, prix_ttc: a.prix_ttc||0, quantite: a.quantite||1, recu: a.recu||false, notes: a.notes||'', date_achat: a.date_achat }));
+            for (let i = 0; i < aClean.length; i += 50) {
+                await sb.from('achats').insert(aClean.slice(i, i+50));
+            }
+        }
+        if (backup.produits?.length) {
+            const pClean = backup.produits.map(p => ({
+                ean: p.ean, nom: p.nom, categorie: p.categorie||'', etat: p.etat||'Neuf', etat_stock: p.etat_stock||'neuf',
+                prix_achat: p.prix_achat||0, prix_revente: p.prix_revente||0,
+                qte_fba: p.qte_fba||0, qte_fbm: p.qte_fbm||0, qte_entrepot: p.qte_entrepot||0, quantite: p.quantite||0,
+                amazon_fba: p.amazon_fba||false, amazon_fbm: p.amazon_fbm||false,
+                vinted: p.vinted||false, leboncoin: p.leboncoin||false,
+                invendable: p.invendable||false, vendu: p.vendu||false,
+                date_vente: p.date_vente||null, prix_vente_reel: p.prix_vente_reel||0,
+                plateforme_vente: p.plateforme_vente||null,
+                photos: p.photos||[], notes: p.notes||'', date_ajout: p.date_ajout
+            }));
+            for (let i = 0; i < pClean.length; i += 50) {
+                await sb.from('produits').insert(pClean.slice(i, i+50));
+            }
+        }
+
+        alert('✅ Restauration terminée ! Rechargement...');
+        location.reload();
+    } catch (e) {
+        alert('❌ Erreur lors de la restauration : ' + e.message);
+        console.error(e);
+    }
+    event.target.value = '';
+}
+
+// ═══════ KEYBOARD SHORTCUTS ═══════
+document.addEventListener('keydown', (e) => {
+    // Ignorer si on est dans un input/textarea
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+        // Sauf Escape pour fermer les modals
+        if (e.key === 'Escape') {
+            closeProductModal();
+            closeVenteModal();
+            document.getElementById('global-search-results').style.display = 'none';
+        }
+        return;
+    }
+
+    if (e.ctrlKey || e.metaKey) {
+        switch(e.key.toLowerCase()) {
+            case 'n':
+                e.preventDefault();
+                switchTab('nouveau-produit');
+                setTimeout(() => document.getElementById('ean')?.focus(), 200);
+                break;
+            case 'f':
+                e.preventDefault();
+                const searchInput = document.getElementById('global-search');
+                if (searchInput) { searchInput.focus(); searchInput.select(); }
+                break;
+            case 's':
+                e.preventDefault();
+                switchTab('nouveau-produit');
+                setTimeout(() => startScanner(), 300);
+                break;
+            case 'd':
+                e.preventDefault();
+                switchTab('dashboard');
+                break;
+            case 'k':
+                e.preventDefault();
+                switchTab('stock');
+                break;
+            case 'e':
+                e.preventDefault();
+                exportStockExcel();
+                break;
+        }
+    }
+
+    // Escape pour fermer les modals
+    if (e.key === 'Escape') {
+        closeProductModal();
+        closeVenteModal();
+        document.getElementById('global-search-results').style.display = 'none';
+    }
+});
 if (localStorage.getItem('darkMode') === 'true') { document.body.classList.add('dark-theme'); }
 updateDarkModeIcon();
 const dateEl = document.getElementById('a-date');
