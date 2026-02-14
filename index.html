@@ -158,14 +158,47 @@
         .stock-pill { padding: 10px 20px; border-radius: 25px; border: 2px solid var(--input-border); background: var(--card-bg); color: var(--text-color); cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; }
         .stock-pill:hover { border-color: #9fdd65; }
         .stock-pill.active { background: #27352a; color: white; border-color: #27352a; }
+        /* Global search */
+        .header-center { flex: 1; max-width: 450px; margin: 0 15px; }
+        .global-search-wrapper { position: relative; }
+        .global-search-wrapper input { width: 100%; padding: 8px 15px; border: 2px solid rgba(255,255,255,0.2); border-radius: 25px; background: rgba(255,255,255,0.1); color: white; font-size: 14px; outline: none; transition: all 0.3s; }
+        .global-search-wrapper input::placeholder { color: rgba(255,255,255,0.5); }
+        .global-search-wrapper input:focus { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.15); }
+        .global-search-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--card-bg); border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); max-height: 400px; overflow-y: auto; z-index: 300; margin-top: 5px; }
+        .search-result-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid var(--table-border); display: flex; justify-content: space-between; align-items: center; }
+        .search-result-item:hover { background: var(--table-hover); }
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-type { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+        .search-result-type.stock { background: #27352a; color: white; }
+        .search-result-type.achat { background: #ff9900; color: white; }
+        .search-result-type.fournisseur { background: #3f51b5; color: white; }
+        /* Advanced filters */
+        .filters-advanced { display: none; padding: 15px; background: var(--filter-bg); border-radius: 10px; margin-top: 10px; }
+        .filters-advanced.show { display: block; }
+        .filters-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
+        .filter-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+        .filter-group select, .filter-group input { width: 100%; padding: 8px; border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--text-color); font-size: 13px; }
+        .btn-toggle-filters { background: none; border: 2px solid var(--input-border); color: var(--text-color); padding: 8px 15px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .btn-toggle-filters.active { background: #27352a; color: white; border-color: #27352a; }
+        /* Scan feedback */
+        .scan-feedback { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 12px; font-weight: 700; font-size: 16px; z-index: 500; animation: scanPop 0.5s ease; }
+        .scan-feedback.ok { background: #27ae60; color: white; }
+        .scan-feedback.ko { background: #e74c3c; color: white; }
+        .scan-feedback.doublon { background: #f39c12; color: white; }
+        @keyframes scanPop { 0% { transform: translateX(-50%) scale(0.5); opacity: 0; } 100% { transform: translateX(-50%) scale(1); opacity: 1; } }
+        /* Risk badge */
+        .badge-risk { background: #e74c3c; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .badge-slow { background: #f39c12; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
         @media (max-width: 768px) {
             .header h1 { font-size: 16px; }
+            .header-center { display: none; }
             .form-row, .form-row-3 { grid-template-columns: 1fr; }
             .stats { grid-template-columns: repeat(2, 1fr); }
             .charts-grid { grid-template-columns: 1fr; }
             .tab-content { padding: 20px 15px; }
             .detail-grid { grid-template-columns: 1fr; }
             .qte-grid { grid-template-columns: 1fr; }
+            .filters-row { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
@@ -192,6 +225,12 @@
                 </button>
                 <img src="logo.png" alt="Logo" class="header-logo">
                 <h1>STOCK RADAR</h1>
+            </div>
+            <div class="header-center">
+                <div class="global-search-wrapper">
+                    <input type="text" id="global-search" placeholder="🔍 Recherche globale (EAN, nom, fournisseur, notes...)" oninput="globalSearch(this.value)">
+                    <div id="global-search-results" class="global-search-dropdown" style="display:none;"></div>
+                </div>
             </div>
             <div class="header-right">
                 <button class="dark-toggle" id="dark-toggle" onclick="toggleDarkMode()">🌙</button>
@@ -228,6 +267,17 @@
         </div>
 
         <div class="overlay" id="overlay" onclick="document.getElementById('sidebar').classList.remove('open'); this.style.display='none';"></div>
+        
+        <!-- Scan feedback popup -->
+        <div id="scan-feedback" class="scan-feedback" style="display:none;"></div>
+
+        <!-- Mobile search (hidden on desktop) -->
+        <div style="padding:10px 15px;display:none;" id="mobile-search">
+            <div class="global-search-wrapper">
+                <input type="text" id="global-search-mobile" placeholder="🔍 Recherche globale..." oninput="globalSearch(this.value, true)">
+                <div id="global-search-results-mobile" class="global-search-dropdown" style="display:none;"></div>
+            </div>
+        </div>
 
         <div class="container">
             <div class="loading" id="loading"><div class="loading-spinner"></div><p>Chargement des données...</p></div>
@@ -370,7 +420,7 @@
                     <!-- Filtres -->
                     <div class="search-filters">
                         <div class="search-row">
-                            <input type="text" class="search-input" id="stock-search" placeholder="🔍 Rechercher nom, EAN..." oninput="displayStock()">
+                            <input type="text" class="search-input" id="stock-search" placeholder="🔍 Rechercher nom, EAN, fournisseur, notes..." oninput="displayStock()">
                             <select class="search-input" id="stock-sort" onchange="displayStock()">
                                 <option value="date-desc">Date ↓ récent</option>
                                 <option value="date-asc">Date ↑ ancien</option>
@@ -379,15 +429,59 @@
                                 <option value="prix-desc">Prix ↓</option>
                                 <option value="prix-asc">Prix ↑</option>
                                 <option value="nom-asc">Nom A→Z</option>
+                                <option value="marge-desc">Marge ↓ meilleure</option>
+                                <option value="marge-asc">Marge ↑ pire</option>
+                                <option value="roi-desc">ROI ↓ meilleur</option>
+                                <option value="age-desc">Ancienneté ↓ + vieux</option>
+                                <option value="risk">⚠️ À risque (vieux stock)</option>
                             </select>
-                            <select class="search-input" id="stock-filter-canal" onchange="displayStock()" style="display:none;">
-                                <option value="">Tous canaux</option>
-                                <option value="fba">Amazon FBA</option>
-                                <option value="fbm">Amazon FBM</option>
-                            </select>
-                            <select class="search-input" id="stock-filter-cat" onchange="displayStock()">
-                                <option value="">Toutes catégories</option>
-                            </select>
+                            <button class="btn-toggle-filters" id="btn-adv-filters" onclick="toggleAdvancedFilters()">⚙️ Filtres</button>
+                        </div>
+                        <div class="filters-advanced" id="advanced-filters">
+                            <div class="filters-row">
+                                <div class="filter-group">
+                                    <label>Catégorie</label>
+                                    <select id="stock-filter-cat" onchange="displayStock()">
+                                        <option value="">Toutes</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>Plateforme</label>
+                                    <select id="stock-filter-canal" onchange="displayStock()">
+                                        <option value="">Toutes</option>
+                                        <option value="fba">Amazon FBA</option>
+                                        <option value="fbm">Amazon FBM</option>
+                                        <option value="vinted">Vinted</option>
+                                        <option value="leboncoin">Leboncoin</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>Emplacement</label>
+                                    <select id="stock-filter-emplacement" onchange="displayStock()">
+                                        <option value="">Tous</option>
+                                        <option value="entrepot">Entrepôt seulement</option>
+                                        <option value="fba">FBA seulement</option>
+                                        <option value="fbm">FBM seulement</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>Date depuis</label>
+                                    <input type="date" id="stock-filter-date-from" onchange="displayStock()">
+                                </div>
+                                <div class="filter-group">
+                                    <label>Date jusqu'à</label>
+                                    <input type="date" id="stock-filter-date-to" onchange="displayStock()">
+                                </div>
+                                <div class="filter-group">
+                                    <label>Fournisseur</label>
+                                    <select id="stock-filter-fournisseur" onchange="displayStock()">
+                                        <option value="">Tous</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="text-align:right;margin-top:5px;">
+                                <button class="btn-toggle-filters" onclick="resetFilters()">🔄 Réinitialiser</button>
+                            </div>
                         </div>
                     </div>
                     <!-- Stats stock -->

@@ -355,6 +355,42 @@ function checkPurchaseHistory() {
 }
 
 let codeReader = null;
+let lastScannedEAN = '';
+let scanCooldown = false;
+
+// Sons de scan
+function playSound(type) {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.value = 0.3;
+        if (type === 'ok') {
+            osc.frequency.value = 880;
+            osc.type = 'sine';
+        } else if (type === 'doublon') {
+            osc.frequency.value = 440;
+            osc.type = 'triangle';
+        } else {
+            osc.frequency.value = 220;
+            osc.type = 'square';
+        }
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+    } catch(e) {}
+}
+
+function showScanFeedback(text, type) {
+    const el = document.getElementById('scan-feedback');
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'scan-feedback ' + type;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 2000);
+}
+
 async function startScanner() {
     try {
         codeReader = new ZXing.BrowserMultiFormatReader();
@@ -363,14 +399,42 @@ async function startScanner() {
         document.getElementById('stop-scanner').style.display = 'inline-flex';
         const devices = await codeReader.listVideoInputDevices();
         const back = devices.find(d => d.label.toLowerCase().includes('back')) || devices[0];
+        
         codeReader.decodeFromVideoDevice(back?.deviceId, 'video', (result) => {
-            if (result) {
-                document.getElementById('ean').value = result.getText();
+            if (result && !scanCooldown) {
+                const ean = result.getText();
+                scanCooldown = true;
+                setTimeout(() => { scanCooldown = false; }, 1500);
+                
+                // Détection doublon
+                const existant = products.find(p => p.ean === ean && !p.vendu);
+                
+                if (ean === lastScannedEAN) {
+                    playSound('doublon');
+                    showScanFeedback('⚠️ Déjà scanné : ' + ean, 'doublon');
+                    return;
+                }
+                
+                lastScannedEAN = ean;
+                document.getElementById('ean').value = ean;
                 checkPurchaseHistory();
-                stopScanner();
+                
+                if (existant) {
+                    playSound('doublon');
+                    showScanFeedback('⚠️ Doublon en stock : ' + existant.nom, 'doublon');
+                } else {
+                    playSound('ok');
+                    showScanFeedback('✅ ' + ean, 'ok');
+                }
+                
+                // Ne pas arrêter le scanner en mode continu
+                // L'utilisateur arrête manuellement
             }
         });
-    } catch (e) { alert('Erreur caméra: ' + e.message); }
+    } catch (e) { 
+        playSound('ko');
+        alert('Erreur caméra: ' + e.message); 
+    }
 }
 
 function stopScanner() {
@@ -487,9 +551,6 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
 function switchStockView(view) {
     activeStockView = view;
     document.querySelectorAll('.stock-pill').forEach(p => p.classList.toggle('active', p.dataset.stock === view));
-    // Show FBA/FBM filter only on neuf
-    const canalFilter = document.getElementById('stock-filter-canal');
-    if (canalFilter) canalFilter.style.display = (view === 'neuf') ? 'block' : 'none';
     displayStock();
 }
 
@@ -498,6 +559,10 @@ function getFilteredStock() {
     const sort = document.getElementById('stock-sort')?.value || 'date-desc';
     const canal = document.getElementById('stock-filter-canal')?.value || '';
     const cat = document.getElementById('stock-filter-cat')?.value || '';
+    const emplacement = document.getElementById('stock-filter-emplacement')?.value || '';
+    const dateFrom = document.getElementById('stock-filter-date-from')?.value || '';
+    const dateTo = document.getElementById('stock-filter-date-to')?.value || '';
+    const fournisseurFilter = document.getElementById('stock-filter-fournisseur')?.value || '';
 
     let list = products.filter(p => !p.vendu);
 
@@ -506,17 +571,44 @@ function getFilteredStock() {
     else if (activeStockView === 'occasion') list = list.filter(p => (p.etat_stock || '') === 'occasion' && !p.invendable);
     else if (activeStockView === 'entrepot') list = list.filter(p => (p.qte_entrepot || 0) > 0 && !p.invendable);
     else if (activeStockView === 'rebut') list = list.filter(p => (p.etat_stock || '') === 'rebut' || p.invendable);
-    // 'all' = tout non-vendu
 
-    // Recherche
-    if (search) list = list.filter(p => (p.nom||'').toLowerCase().includes(search) || (p.ean||'').toLowerCase().includes(search));
+    // Recherche étendue (nom, EAN, catégorie, notes, fournisseur)
+    if (search) {
+        list = list.filter(p => 
+            (p.nom||'').toLowerCase().includes(search) || 
+            (p.ean||'').toLowerCase().includes(search) ||
+            (p.categorie||'').toLowerCase().includes(search) ||
+            (p.notes||'').toLowerCase().includes(search)
+        );
+    }
 
-    // Canal FBA/FBM
-    if (canal === 'fba') list = list.filter(p => (p.qte_fba || 0) > 0);
-    else if (canal === 'fbm') list = list.filter(p => (p.qte_fbm || 0) > 0);
+    // Canal / Plateforme
+    if (canal === 'fba') list = list.filter(p => (p.qte_fba || 0) > 0 || p.amazon_fba);
+    else if (canal === 'fbm') list = list.filter(p => (p.qte_fbm || 0) > 0 || p.amazon_fbm);
+    else if (canal === 'vinted') list = list.filter(p => p.vinted);
+    else if (canal === 'leboncoin') list = list.filter(p => p.leboncoin);
 
     // Catégorie
     if (cat) list = list.filter(p => p.categorie === cat);
+
+    // Emplacement
+    if (emplacement === 'entrepot') list = list.filter(p => (p.qte_entrepot || 0) > 0);
+    else if (emplacement === 'fba') list = list.filter(p => (p.qte_fba || 0) > 0);
+    else if (emplacement === 'fbm') list = list.filter(p => (p.qte_fbm || 0) > 0);
+
+    // Dates
+    if (dateFrom) list = list.filter(p => p.date_ajout && new Date(p.date_ajout) >= new Date(dateFrom));
+    if (dateTo) list = list.filter(p => p.date_ajout && new Date(p.date_ajout) <= new Date(dateTo + 'T23:59:59'));
+
+    // Fournisseur (cherche dans les achats liés)
+    if (fournisseurFilter) {
+        const eansFournisseur = achats.filter(a => a.fournisseur_nom === fournisseurFilter).map(a => a.ean);
+        list = list.filter(p => eansFournisseur.includes(p.ean));
+    }
+
+    // Fonction utilitaire marge
+    const getMarge = (p) => (p.prix_achat > 0 && p.prix_revente > 0) ? ((p.prix_revente - p.prix_achat) / p.prix_achat * 100) : -999;
+    const getAge = (p) => p.date_ajout ? Math.floor((Date.now() - new Date(p.date_ajout)) / 86400000) : 0;
 
     // Tri
     list.sort((a, b) => {
@@ -528,10 +620,48 @@ function getFilteredStock() {
             case 'prix-desc': return (b.prix_revente||0) - (a.prix_revente||0);
             case 'prix-asc': return (a.prix_revente||0) - (b.prix_revente||0);
             case 'nom-asc': return (a.nom||'').localeCompare(b.nom||'');
+            case 'marge-desc': return getMarge(b) - getMarge(a);
+            case 'marge-asc': return getMarge(a) - getMarge(b);
+            case 'roi-desc': {
+                const roiA = a.prix_achat > 0 ? ((a.prix_revente - a.prix_achat) / a.prix_achat) : -999;
+                const roiB = b.prix_achat > 0 ? ((b.prix_revente - b.prix_achat) / b.prix_achat) : -999;
+                return roiB - roiA;
+            }
+            case 'age-desc': return getAge(b) - getAge(a);
+            case 'risk': {
+                // Stock à risque = vieux (>30j) + pas de prix de revente ou marge faible
+                const riskA = getAge(a) * (getMarge(a) < 10 ? 2 : 1);
+                const riskB = getAge(b) * (getMarge(b) < 10 ? 2 : 1);
+                return riskB - riskA;
+            }
             default: return 0;
         }
     });
     return list;
+}
+
+// Toggle filtres avancés
+function toggleAdvancedFilters() {
+    const el = document.getElementById('advanced-filters');
+    const btn = document.getElementById('btn-adv-filters');
+    if (el.classList.contains('show')) {
+        el.classList.remove('show');
+        btn.classList.remove('active');
+    } else {
+        el.classList.add('show');
+        btn.classList.add('active');
+    }
+}
+
+function resetFilters() {
+    document.getElementById('stock-filter-cat').value = '';
+    document.getElementById('stock-filter-canal').value = '';
+    document.getElementById('stock-filter-emplacement').value = '';
+    document.getElementById('stock-filter-date-from').value = '';
+    document.getElementById('stock-filter-date-to').value = '';
+    document.getElementById('stock-filter-fournisseur').value = '';
+    document.getElementById('stock-search').value = '';
+    displayStock();
 }
 
 function displayStock() {
@@ -543,9 +673,19 @@ function displayStock() {
     if (catSel) {
         const cats = [...new Set(products.map(p => p.categorie).filter(Boolean))];
         const cur = catSel.value;
-        catSel.innerHTML = '<option value="">Toutes catégories</option>';
+        catSel.innerHTML = '<option value="">Toutes</option>';
         cats.forEach(cat => catSel.innerHTML += `<option value="${cat}">${cat}</option>`);
         catSel.value = cur;
+    }
+
+    // Populate fournisseurs
+    const fournSel = document.getElementById('stock-filter-fournisseur');
+    if (fournSel) {
+        const fNames = [...new Set(achats.map(a => a.fournisseur_nom).filter(Boolean))];
+        const cur = fournSel.value;
+        fournSel.innerHTML = '<option value="">Tous</option>';
+        fNames.forEach(f => fournSel.innerHTML += `<option value="${f}">${f}</option>`);
+        fournSel.value = cur;
     }
 
     const list = getFilteredStock();
@@ -563,17 +703,30 @@ function displayStock() {
 
     let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>EAN</th><th>Produit</th><th>Cat.</th><th>Type</th>';
     if (activeStockView === 'neuf' || activeStockView === 'all') h += '<th>FBA</th><th>FBM</th>';
-    h += '<th>Entrepôt</th><th>Total</th><th>Achat</th><th>Revente</th><th>Actions</th></tr></thead><tbody>';
+    h += '<th>Entrep.</th><th>Total</th><th>Achat</th><th>Revente</th><th>Marge</th><th>Actions</th></tr></thead><tbody>';
 
     list.forEach(p => {
         const date = p.date_ajout ? new Date(p.date_ajout).toLocaleDateString('fr-FR') : '-';
+        const age = p.date_ajout ? Math.floor((Date.now() - new Date(p.date_ajout)) / 86400000) : 0;
+        const marge = (p.prix_achat > 0 && p.prix_revente > 0) ? ((p.prix_revente - p.prix_achat) / p.prix_achat * 100) : null;
+        
         const typeBadge = p.invendable ? '<span class="badge badge-rebut">Rebut</span>'
             : (p.etat_stock === 'occasion') ? '<span class="badge badge-occasion">Occasion</span>'
             : (p.etat_stock === 'rebut') ? '<span class="badge badge-rebut">Rebut</span>'
             : '<span class="badge badge-neuf">Neuf</span>';
 
+        let riskBadge = '';
+        if (age > 60) riskBadge = ' <span class="badge-risk">⚠️ ' + age + 'j</span>';
+        else if (age > 30) riskBadge = ' <span class="badge-slow">🕐 ' + age + 'j</span>';
+
+        let margeDisplay = '-';
+        if (marge !== null) {
+            const margeColor = marge >= 30 ? '#27ae60' : marge >= 10 ? '#f39c12' : '#e74c3c';
+            margeDisplay = `<span style="color:${margeColor};font-weight:700;">${marge.toFixed(0)}%</span>`;
+        }
+
         h += `<tr style="cursor:pointer" onclick="openProductModal(${p.id})">
-            <td>${date}</td>
+            <td>${date}${riskBadge}</td>
             <td>${escapeHtml(p.ean||'')}</td>
             <td><strong>${escapeHtml(p.nom||'')}</strong></td>
             <td>${escapeHtml(p.categorie||'-')}</td>
@@ -585,6 +738,7 @@ function displayStock() {
             <td><strong>${p.quantite||0}</strong></td>
             <td>${(p.prix_achat||0).toFixed(2)}€</td>
             <td>${(p.prix_revente||0).toFixed(2)}€</td>
+            <td>${margeDisplay}</td>
             <td onclick="event.stopPropagation()"><div class="action-buttons">
                 <button class="btn-small btn-sold" onclick="openVenteModal(${p.id})">💰</button>
                 <button class="btn-small btn-edit" onclick="openProductModal(${p.id})">👁️</button>
@@ -1093,3 +1247,95 @@ if (localStorage.getItem('darkMode') === 'true') { document.body.classList.add('
 updateDarkModeIcon();
 const dateEl = document.getElementById('a-date');
 if (dateEl) dateEl.value = new Date().toISOString().split('T')[0];
+
+// Show mobile search on small screens
+if (window.innerWidth <= 768) {
+    const ms = document.getElementById('mobile-search');
+    if (ms) ms.style.display = 'block';
+}
+
+// ═══════ GLOBAL SEARCH ═══════
+let searchTimeout = null;
+function globalSearch(query, isMobile = false) {
+    clearTimeout(searchTimeout);
+    const resultsId = isMobile ? 'global-search-results-mobile' : 'global-search-results';
+    const dropdown = document.getElementById(resultsId);
+    if (!dropdown) return;
+    
+    if (!query || query.length < 2) {
+        dropdown.style.display = 'none';
+        return;
+    }
+
+    searchTimeout = setTimeout(() => {
+        const q = query.toLowerCase();
+        let results = [];
+        
+        // Chercher dans les produits
+        products.filter(p => !p.vendu).forEach(p => {
+            if ((p.nom||'').toLowerCase().includes(q) || (p.ean||'').toLowerCase().includes(q) || 
+                (p.categorie||'').toLowerCase().includes(q) || (p.notes||'').toLowerCase().includes(q)) {
+                results.push({ type: 'stock', id: p.id, nom: p.nom, detail: `EAN: ${p.ean||'-'} · ${p.quantite||0} unités · ${(p.prix_revente||0).toFixed(2)}€`, badge: p.etat_stock || 'neuf' });
+            }
+        });
+        
+        // Chercher dans les achats
+        achats.forEach(a => {
+            if ((a.nom||'').toLowerCase().includes(q) || (a.ean||'').toLowerCase().includes(q) || 
+                (a.fournisseur_nom||'').toLowerCase().includes(q)) {
+                results.push({ type: 'achat', id: a.id, nom: a.nom, detail: `EAN: ${a.ean||'-'} · ${a.fournisseur_nom||'?'} · ${(a.prix_ttc||0).toFixed(2)}€`, badge: a.recu ? 'Reçu' : 'Attente' });
+            }
+        });
+        
+        // Chercher dans les fournisseurs
+        fournisseurs.forEach(f => {
+            if ((f.nom||'').toLowerCase().includes(q) || (f.email||'').toLowerCase().includes(q) || 
+                (f.contact||'').toLowerCase().includes(q)) {
+                results.push({ type: 'fournisseur', id: f.id, nom: f.nom, detail: `${f.contact||''} ${f.email||''}`.trim() || 'Pas de détails', badge: '' });
+            }
+        });
+
+        if (!results.length) {
+            dropdown.innerHTML = '<div class="search-result-item" style="color:var(--text-secondary);">Aucun résultat pour "' + escapeHtml(query) + '"</div>';
+        } else {
+            dropdown.innerHTML = results.slice(0, 15).map(r => `
+                <div class="search-result-item" onclick="goToSearchResult('${r.type}', ${r.id})">
+                    <div>
+                        <strong>${escapeHtml(r.nom)}</strong>
+                        <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(r.detail)}</div>
+                    </div>
+                    <span class="search-result-type ${r.type}">${r.type === 'stock' ? '📦 Stock' : r.type === 'achat' ? '🛒 Achat' : '🏪 Fournisseur'}</span>
+                </div>
+            `).join('');
+        }
+        dropdown.style.display = 'block';
+    }, 200);
+}
+
+function goToSearchResult(type, id) {
+    // Fermer les dropdowns
+    document.getElementById('global-search-results').style.display = 'none';
+    const mobileResults = document.getElementById('global-search-results-mobile');
+    if (mobileResults) mobileResults.style.display = 'none';
+    document.getElementById('global-search').value = '';
+    const mobileInput = document.getElementById('global-search-mobile');
+    if (mobileInput) mobileInput.value = '';
+    
+    if (type === 'stock') {
+        switchTab('stock');
+        setTimeout(() => openProductModal(id), 300);
+    } else if (type === 'achat') {
+        switchTab('achats');
+    } else if (type === 'fournisseur') {
+        switchTab('fournisseurs');
+    }
+}
+
+// Fermer dropdown quand on clique ailleurs
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.global-search-wrapper')) {
+        document.getElementById('global-search-results').style.display = 'none';
+        const mobileResults = document.getElementById('global-search-results-mobile');
+        if (mobileResults) mobileResults.style.display = 'none';
+    }
+});
