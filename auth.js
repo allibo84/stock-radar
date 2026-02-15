@@ -73,14 +73,21 @@ function displayUserSwitcher() {
     if (!container || !isAdmin) return;
     container.style.display = 'flex';
     
-    let html = '<select id="user-switch-select" onchange="switchViewUser(this.value)" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:white;font-size:13px;max-width:250px;">';
-    html += `<option value="${currentUser.id}" ${!viewingUserId || viewingUserId === currentUser.id ? 'selected' : ''}>📌 Mon compte</option>`;
-    html += '<option value="">👁️ Tous les comptes</option>';
+    const myProfile = allUsers.find(u => u.isMe);
+    const myEmail = myProfile ? myProfile.email : currentUser.email;
+    const others = allUsers.filter(u => !u.isMe);
     
-    allUsers.filter(u => !u.isMe).forEach(u => {
+    let html = '<select id="user-switch-select" onchange="switchViewUser(this.value)" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:white;font-size:13px;max-width:280px;">';
+    html += `<option value="${currentUser.id}" ${!viewingUserId || viewingUserId === currentUser.id ? 'selected' : ''}>📌 ${myEmail}</option>`;
+    
+    others.forEach(u => {
         const selected = viewingUserId === u.user_id ? 'selected' : '';
         html += `<option value="${u.user_id}" ${selected}>👤 ${u.email}</option>`;
     });
+    
+    if (others.length > 0) {
+        html += `<option value="" ${!viewingUserId ? 'selected' : ''}>👁️ Tous les comptes (${allUsers.length})</option>`;
+    }
     
     html += '</select>';
     container.innerHTML = html;
