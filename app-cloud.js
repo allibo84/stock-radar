@@ -27,7 +27,10 @@ async function loadAllData() {
 }
 
 async function loadFournisseurs() {
-    const { data, error } = await sb.from('fournisseurs').select('*').order('nom');
+    let query = sb.from('fournisseurs').select('*').order('nom');
+    const uid = getUserFilter();
+    if (uid) query = query.eq('user_id', uid);
+    const { data, error } = await query;
     if (error) console.warn('Erreur fournisseurs:', error.message);
     fournisseurs = data || [];
     displayFournisseurs();
@@ -35,7 +38,10 @@ async function loadFournisseurs() {
 }
 
 async function loadAchats() {
-    const { data, error } = await sb.from('achats').select('*').order('date_achat', { ascending: false });
+    let query = sb.from('achats').select('*').order('date_achat', { ascending: false });
+    const uid = getUserFilter();
+    if (uid) query = query.eq('user_id', uid);
+    const { data, error } = await query;
     if (error) console.warn('Erreur achats:', error.message);
     achats = data || [];
     displayAchats();
@@ -44,7 +50,10 @@ async function loadAchats() {
 }
 
 async function loadProducts() {
-    const { data, error } = await sb.from('produits').select('*').order('date_ajout', { ascending: false });
+    let query = sb.from('produits').select('*').order('date_ajout', { ascending: false });
+    const uid = getUserFilter();
+    if (uid) query = query.eq('user_id', uid);
+    const { data, error } = await query;
     if (error) console.warn('Erreur produits:', error.message);
     products = (data || []).map(p => ({
         ...p,
@@ -63,7 +72,10 @@ async function loadProducts() {
 }
 
 async function loadMouvements() {
-    const { data, error } = await sb.from('mouvements').select('*').order('created_at', { ascending: false }).limit(200);
+    let query = sb.from('mouvements').select('*').order('created_at', { ascending: false }).limit(200);
+    const uid = getUserFilter();
+    if (uid) query = query.eq('user_id', uid);
+    const { data, error } = await query;
     if (error) console.warn('Erreur mouvements:', error.message);
     mouvements = data || [];
     displayMouvements();
