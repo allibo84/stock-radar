@@ -18,6 +18,7 @@ async function loadAllData() {
             loadAchats().catch(e => console.warn('Achats:', e)),
             loadProducts().catch(e => console.warn('Produits:', e)),
             loadMouvements().catch(e => console.warn('Mouvements:', e)),
+            loadFactures().catch(e => console.warn('Factures:', e)),
         ]);
     } catch (e) { console.error('Erreur chargement:', e); }
     document.getElementById('loading').style.display = 'none';
@@ -93,6 +94,7 @@ function setupRealtimeSync() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'achats' }, () => loadAchats())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fournisseurs' }, () => loadFournisseurs())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'mouvements' }, () => loadMouvements())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'factures' }, () => loadFactures())
         .subscribe();
 }
 
@@ -121,20 +123,58 @@ function escapeHtml(t) {
 }
 
 // ═══════ FOURNISSEURS ═══════
+let factures = [];
+
 function displayFournisseurs() {
     const c = document.getElementById('fournisseurs-container');
     if (!c) return;
     if (!fournisseurs.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun fournisseur</h3></div>'; return; }
-    let h = '<div class="products-table"><table><thead><tr><th>Nom</th><th>Contact</th><th>Email</th><th>Tél</th><th>Actions</th></tr></thead><tbody>';
+    
+    let h = '';
     fournisseurs.forEach(f => {
-        h += `<tr><td><strong>${escapeHtml(f.nom)}</strong></td><td>${escapeHtml(f.contact||'')}</td><td>${escapeHtml(f.email||'')}</td><td>${escapeHtml(f.tel||'')}</td><td><button class="btn-small btn-delete" onclick="deleteFournisseur(${f.id})">🗑️</button></td></tr>`;
+        const nbAchats = achats.filter(a => a.fournisseur_nom === f.nom).length;
+        const totalAchats = achats.filter(a => a.fournisseur_nom === f.nom).reduce((s, a) => s + (a.prix_ttc || 0), 0);
+        const catBadge = f.categorie_fournisseur ? `<span style="background:#27352a;color:white;padding:2px 8px;border-radius:10px;font-size:11px;">${f.categorie_fournisseur}</span>` : '';
+        
+        h += `<div class="fournisseur-card" onclick="openFournisseurModal(${f.id})">
+            <div class="fournisseur-header">
+                <div><strong style="font-size:16px;">${escapeHtml(f.nom)}</strong> ${catBadge}</div>
+                <div style="display:flex;gap:8px;" onclick="event.stopPropagation()">
+                    <button class="btn-small" style="background:#3498db;color:white;padding:5px 10px;border-radius:6px;" onclick="openFournisseurModal(${f.id})">👁️</button>
+                    <button class="btn-small btn-delete" onclick="deleteFournisseur(${f.id})">🗑️</button>
+                </div>
+            </div>
+            <div class="fournisseur-details">
+                ${f.contact ? `<div class="fournisseur-detail">👤 <strong>${escapeHtml(f.contact)}</strong></div>` : ''}
+                ${f.email ? `<div class="fournisseur-detail">📧 ${escapeHtml(f.email)}</div>` : ''}
+                ${f.tel ? `<div class="fournisseur-detail">📞 ${escapeHtml(f.tel)}</div>` : ''}
+                <div class="fournisseur-detail">🛒 <strong>${nbAchats}</strong> achats · <strong>${totalAchats.toFixed(2)}€</strong></div>
+                ${f.delai_livraison ? `<div class="fournisseur-detail">🚚 ${escapeHtml(f.delai_livraison)}</div>` : ''}
+                ${f.moq > 0 ? `<div class="fournisseur-detail">📦 MOQ: ${f.moq}</div>` : ''}
+            </div>
+        </div>`;
     });
-    c.innerHTML = h + '</tbody></table></div>';
+    c.innerHTML = h;
 }
 
 document.getElementById('fournisseur-form')?.addEventListener('submit', async function(e) {
     e.preventDefault();
-    const f = { nom: document.getElementById('f-nom').value.trim(), contact: document.getElementById('f-contact').value.trim(), email: document.getElementById('f-email').value.trim(), tel: document.getElementById('f-tel').value.trim(), adresse: document.getElementById('f-adresse').value.trim(), notes: document.getElementById('f-notes').value.trim() };
+    const f = {
+        nom: document.getElementById('f-nom').value.trim(),
+        contact: document.getElementById('f-contact').value.trim(),
+        email: document.getElementById('f-email').value.trim(),
+        tel: document.getElementById('f-tel').value.trim(),
+        adresse: document.getElementById('f-adresse').value.trim(),
+        site_web: document.getElementById('f-siteweb')?.value.trim() || '',
+        siret: document.getElementById('f-siret')?.value.trim() || '',
+        tva_intra: document.getElementById('f-tva')?.value.trim() || '',
+        conditions_paiement: document.getElementById('f-conditions')?.value.trim() || '',
+        delai_livraison: document.getElementById('f-delai')?.value.trim() || '',
+        moq: parseInt(document.getElementById('f-moq')?.value) || 0,
+        franco: parseFloat(document.getElementById('f-franco')?.value) || 0,
+        categorie_fournisseur: document.getElementById('f-categorie-fournisseur')?.value || '',
+        notes: document.getElementById('f-notes').value.trim()
+    };
     if (!f.nom) return alert('Nom requis');
     const { error } = await sb.from('fournisseurs').insert([f]);
     if (error) return alert('Erreur: ' + error.message);
@@ -147,6 +187,186 @@ async function deleteFournisseur(id) {
     if (!confirm('Supprimer ce fournisseur ?')) return;
     await sb.from('fournisseurs').delete().eq('id', id);
     await loadFournisseurs();
+}
+
+// Fiche fournisseur modale
+function openFournisseurModal(id) {
+    const f = fournisseurs.find(x => x.id === id);
+    if (!f) return;
+    
+    const fAchats = achats.filter(a => a.fournisseur_nom === f.nom);
+    const totalAchats = fAchats.reduce((s, a) => s + (a.prix_ttc || 0), 0);
+    const fFactures = factures.filter(fa => fa.fournisseur_id === f.id);
+    
+    // Historique prix par EAN
+    const prixParEAN = {};
+    fAchats.forEach(a => {
+        if (!a.ean) return;
+        if (!prixParEAN[a.ean]) prixParEAN[a.ean] = { nom: a.nom, prix: [] };
+        prixParEAN[a.ean].prix.push({ date: a.date_achat, ht: a.prix_ht || 0, ttc: a.prix_ttc || 0 });
+    });
+
+    const body = document.getElementById('fournisseur-modal-body');
+    let h = `<h2 style="margin-bottom:5px;">${escapeHtml(f.nom)}</h2>
+        <p style="color:var(--text-secondary);margin-bottom:20px;">${f.categorie_fournisseur ? f.categorie_fournisseur + ' · ' : ''}${fAchats.length} achats · ${totalAchats.toFixed(2)}€ total</p>
+        
+        <div class="detail-grid">
+            <div class="detail-item"><div class="detail-label">Contact</div><div class="detail-value">${escapeHtml(f.contact||'-')}</div></div>
+            <div class="detail-item"><div class="detail-label">Email</div><div class="detail-value">${f.email ? `<a href="mailto:${f.email}">${escapeHtml(f.email)}</a>` : '-'}</div></div>
+            <div class="detail-item"><div class="detail-label">Téléphone</div><div class="detail-value">${f.tel ? `<a href="tel:${f.tel}">${escapeHtml(f.tel)}</a>` : '-'}</div></div>
+            <div class="detail-item"><div class="detail-label">Adresse</div><div class="detail-value">${escapeHtml(f.adresse||'-')}</div></div>
+            <div class="detail-item"><div class="detail-label">Site web</div><div class="detail-value">${f.site_web ? `<a href="${f.site_web}" target="_blank">${escapeHtml(f.site_web)}</a>` : '-'}</div></div>
+            <div class="detail-item"><div class="detail-label">SIRET</div><div class="detail-value">${escapeHtml(f.siret||'-')}</div></div>
+            <div class="detail-item"><div class="detail-label">TVA Intra.</div><div class="detail-value">${escapeHtml(f.tva_intra||'-')}</div></div>
+            <div class="detail-item"><div class="detail-label">Conditions paiement</div><div class="detail-value">${escapeHtml(f.conditions_paiement||'-')}</div></div>
+            <div class="detail-item"><div class="detail-label">Délai livraison</div><div class="detail-value">${escapeHtml(f.delai_livraison||'-')}</div></div>
+            <div class="detail-item"><div class="detail-label">MOQ</div><div class="detail-value">${f.moq > 0 ? f.moq + ' unités' : '-'}</div></div>
+            <div class="detail-item"><div class="detail-label">Franco de port</div><div class="detail-value">${f.franco > 0 ? f.franco.toFixed(2) + '€' : '-'}</div></div>
+        </div>
+        ${f.notes ? `<div style="margin:15px 0;padding:12px;background:var(--filter-bg);border-radius:8px;"><strong>Notes :</strong> ${escapeHtml(f.notes)}</div>` : ''}`;
+
+    // Historique prix par produit
+    const eanKeys = Object.keys(prixParEAN);
+    if (eanKeys.length) {
+        h += `<h3 style="margin:25px 0 10px;">📈 Historique prix par produit</h3>
+        <div class="products-table"><table><thead><tr><th>EAN</th><th>Produit</th><th>Date</th><th>Prix HT</th><th>Prix TTC</th><th>Évolution</th></tr></thead><tbody>`;
+        
+        eanKeys.forEach(ean => {
+            const item = prixParEAN[ean];
+            const sorted = item.prix.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+            sorted.forEach((p, i) => {
+                let evol = '';
+                if (i > 0 && sorted[i-1].ttc > 0) {
+                    const diff = ((p.ttc - sorted[i-1].ttc) / sorted[i-1].ttc * 100);
+                    evol = diff > 0 ? `<span style="color:#e74c3c;">+${diff.toFixed(1)}% ↑</span>` : diff < 0 ? `<span style="color:#27ae60;">${diff.toFixed(1)}% ↓</span>` : '<span style="color:#95a5a6;">= 0%</span>';
+                }
+                h += `<tr><td>${escapeHtml(ean)}</td><td>${escapeHtml(item.nom||'')}</td><td>${p.date ? new Date(p.date).toLocaleDateString('fr-FR') : '-'}</td><td>${(p.ht||0).toFixed(2)}€</td><td>${(p.ttc||0).toFixed(2)}€</td><td>${evol}</td></tr>`;
+            });
+        });
+        h += '</tbody></table></div>';
+    }
+
+    // Factures du fournisseur
+    if (fFactures.length) {
+        h += `<h3 style="margin:25px 0 10px;">🧾 Factures</h3>
+        <div class="products-table"><table><thead><tr><th>N°</th><th>Date</th><th>Échéance</th><th>Montant TTC</th><th>Statut</th></tr></thead><tbody>`;
+        fFactures.forEach(fa => {
+            const isRetard = !fa.payee && fa.date_echeance && new Date(fa.date_echeance) < new Date();
+            const badge = fa.payee ? '<span class="badge-payee">✅ Payée</span>' : isRetard ? '<span class="badge-retard">⚠️ En retard</span>' : '<span class="badge-impayee">🔴 Impayée</span>';
+            h += `<tr><td>${escapeHtml(fa.numero)}</td><td>${fa.date_facture ? new Date(fa.date_facture).toLocaleDateString('fr-FR') : '-'}</td><td>${fa.date_echeance ? new Date(fa.date_echeance).toLocaleDateString('fr-FR') : '-'}</td><td>${(fa.montant_ttc||0).toFixed(2)}€</td><td>${badge}</td></tr>`;
+        });
+        h += '</tbody></table></div>';
+    }
+
+    // Derniers achats
+    if (fAchats.length) {
+        h += `<h3 style="margin:25px 0 10px;">🛒 Derniers achats (${fAchats.length})</h3>
+        <div class="products-table"><table><thead><tr><th>Date</th><th>EAN</th><th>Produit</th><th>Qté</th><th>Prix TTC</th><th>Reçu</th></tr></thead><tbody>`;
+        fAchats.slice(0, 20).forEach(a => {
+            h += `<tr><td>${a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-'}</td><td>${escapeHtml(a.ean)}</td><td>${escapeHtml(a.nom)}</td><td>${a.quantite||1}</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td>${a.recu ? '✅' : '⏳'}</td></tr>`;
+        });
+        h += '</tbody></table></div>';
+    }
+
+    body.innerHTML = h;
+    document.getElementById('fournisseur-modal').style.display = 'flex';
+}
+
+function closeFournisseurModal() {
+    document.getElementById('fournisseur-modal').style.display = 'none';
+}
+
+// ═══════ FACTURES ═══════
+async function loadFactures() {
+    let query = sb.from('factures').select('*').order('date_facture', { ascending: false });
+    const uid = getUserFilter();
+    if (uid) query = query.eq('user_id', uid);
+    const { data, error } = await query;
+    if (error) console.warn('Erreur factures:', error.message);
+    factures = data || [];
+    displayFactures();
+    updateFacturesSelect();
+}
+
+function updateFacturesSelect() {
+    const sel = document.getElementById('fac-fournisseur');
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">--</option>';
+    fournisseurs.forEach(f => sel.innerHTML += `<option value="${f.id}">${escapeHtml(f.nom)}</option>`);
+    sel.value = cur;
+}
+
+function displayFactures() {
+    const c = document.getElementById('factures-container');
+    if (!c) return;
+    
+    const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    el('fac-total', factures.length);
+    el('fac-montant', factures.reduce((s, f) => s + (f.montant_ttc || 0), 0).toFixed(2) + '€');
+    const impayees = factures.filter(f => !f.payee);
+    el('fac-impayees', impayees.length);
+    el('fac-montant-du', impayees.reduce((s, f) => s + (f.montant_ttc || 0), 0).toFixed(2) + '€');
+    
+    if (!factures.length) { c.innerHTML = '<div class="empty-state"><h3>Aucune facture</h3></div>'; return; }
+    
+    let h = '<div class="products-table"><table><thead><tr><th>N°</th><th>Fournisseur</th><th>Date</th><th>Échéance</th><th>HT</th><th>TTC</th><th>Statut</th><th>Actions</th></tr></thead><tbody>';
+    
+    factures.forEach(fa => {
+        const isRetard = !fa.payee && fa.date_echeance && new Date(fa.date_echeance) < new Date();
+        const badge = fa.payee ? '<span class="badge-payee">✅ Payée</span>' : isRetard ? '<span class="badge-retard">⚠️ Retard</span>' : '<span class="badge-impayee">🔴 Impayée</span>';
+        
+        h += `<tr>
+            <td><strong>${escapeHtml(fa.numero)}</strong></td>
+            <td>${escapeHtml(fa.fournisseur_nom||'-')}</td>
+            <td>${fa.date_facture ? new Date(fa.date_facture).toLocaleDateString('fr-FR') : '-'}</td>
+            <td>${fa.date_echeance ? new Date(fa.date_echeance).toLocaleDateString('fr-FR') : '-'}</td>
+            <td>${(fa.montant_ht||0).toFixed(2)}€</td>
+            <td><strong>${(fa.montant_ttc||0).toFixed(2)}€</strong></td>
+            <td>${badge}</td>
+            <td><div class="action-buttons">
+                ${!fa.payee ? `<button class="btn-small" style="background:#27ae60;color:white;padding:4px 8px;border-radius:6px;" onclick="marquerPayee(${fa.id})">💰</button>` : ''}
+                <button class="btn-small btn-delete" onclick="deleteFacture(${fa.id})">🗑️</button>
+            </div></td>
+        </tr>`;
+    });
+    c.innerHTML = h + '</tbody></table></div>';
+}
+
+document.getElementById('facture-form')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const fId = parseInt(document.getElementById('fac-fournisseur').value);
+    const fObj = fournisseurs.find(f => f.id === fId);
+    
+    const fa = {
+        numero: document.getElementById('fac-numero').value.trim(),
+        fournisseur_id: fId || null,
+        fournisseur_nom: fObj ? fObj.nom : '',
+        date_facture: document.getElementById('fac-date').value || null,
+        date_echeance: document.getElementById('fac-echeance').value || null,
+        montant_ht: parseFloat(document.getElementById('fac-montant-ht').value) || 0,
+        montant_ttc: parseFloat(document.getElementById('fac-montant-ttc').value) || 0,
+        notes: document.getElementById('fac-notes').value.trim(),
+        payee: false
+    };
+    if (!fa.numero) return alert('N° facture requis');
+    const { error } = await sb.from('factures').insert([fa]);
+    if (error) return alert('Erreur: ' + error.message);
+    this.reset();
+    document.getElementById('facture-form-section').style.display = 'none';
+    await loadFactures();
+});
+
+async function marquerPayee(id) {
+    if (!confirm('Marquer cette facture comme payée ?')) return;
+    await sb.from('factures').update({ payee: true, date_paiement: new Date().toISOString().split('T')[0] }).eq('id', id);
+    await loadFactures();
+}
+
+async function deleteFacture(id) {
+    if (!confirm('Supprimer cette facture ?')) return;
+    await sb.from('factures').delete().eq('id', id);
+    await loadFactures();
 }
 
 function updateFournisseursSelect() {
@@ -1068,6 +1288,7 @@ window.onclick = e => {
     if (e.target === document.getElementById('product-modal')) closeProductModal();
     if (e.target === document.getElementById('vente-modal')) closeVenteModal();
     if (e.target === document.getElementById('annonce-modal')) closeAnnonceModal();
+    if (e.target === document.getElementById('fournisseur-modal')) closeFournisseurModal();
 };
 
 // ═══════ DELETE PRODUCT ═══════
@@ -1853,7 +2074,8 @@ async function backupData() {
         date: new Date().toISOString(),
         fournisseurs: fournisseurs,
         achats: achats,
-        produits: products
+        produits: products,
+        factures: factures
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -1885,6 +2107,7 @@ async function restoreData(event) {
         if (!confirm(info)) return;
 
         // Supprimer les données actuelles
+        await sb.from('factures').delete().neq('id', 0);
         await sb.from('produits').delete().neq('id', 0);
         await sb.from('achats').delete().neq('id', 0);
         await sb.from('fournisseurs').delete().neq('id', 0);
@@ -1916,6 +2139,17 @@ async function restoreData(event) {
             }));
             for (let i = 0; i < pClean.length; i += 50) {
                 await sb.from('produits').insert(pClean.slice(i, i+50));
+            }
+        }
+        if (backup.factures?.length) {
+            const faClean = backup.factures.map(fa => ({
+                numero: fa.numero, fournisseur_id: null, fournisseur_nom: fa.fournisseur_nom||'',
+                date_facture: fa.date_facture, date_echeance: fa.date_echeance,
+                montant_ht: fa.montant_ht||0, montant_ttc: fa.montant_ttc||0,
+                payee: fa.payee||false, date_paiement: fa.date_paiement||null, notes: fa.notes||''
+            }));
+            for (let i = 0; i < faClean.length; i += 50) {
+                await sb.from('factures').insert(faClean.slice(i, i+50));
             }
         }
 
