@@ -30,10 +30,13 @@ async function checkAuth() {
 }
 
 async function checkIfAdmin() {
-    if (!currentUser) return;
+    if (!currentUser) { isAdmin = false; return; }
     try {
-        const { data, error } = await sb.from('app_admins').select('*').eq('user_id', currentUser.id).maybeSingle();
-        isAdmin = !error && !!data;
+        const { data, error } = await sb.from('app_admins').select('user_id').eq('user_id', currentUser.id);
+        if (error) { isAdmin = false; return; }
+        // Vérifier explicitement que notre user_id est dans les résultats
+        isAdmin = Array.isArray(data) && data.some(row => row.user_id === currentUser.id);
+        console.log('Admin check:', currentUser.email, '→', isAdmin);
     } catch (e) { isAdmin = false; }
 }
 
@@ -129,13 +132,23 @@ function showApp() {
     if (currentUser?.email) {
         document.getElementById('user-email').textContent = currentUser.email;
     }
+    
+    // Admin : afficher badge + sélecteur / Non-admin : cacher
+    const badge = document.getElementById('admin-badge');
+    const switcher = document.getElementById('admin-switcher');
+    const indicator = document.getElementById('viewing-indicator');
+    
     if (isAdmin) {
-        const badge = document.getElementById('admin-badge');
         if (badge) badge.style.display = 'inline-block';
+        if (switcher) switcher.style.display = 'flex';
+        if (viewingUserId === null) viewingUserId = currentUser.id;
         loadUsersList();
+    } else {
+        if (badge) badge.style.display = 'none';
+        if (switcher) switcher.style.display = 'none';
+        if (indicator) indicator.style.display = 'none';
+        viewingUserId = currentUser.id; // user normal voit seulement ses données
     }
-    // Par défaut l'admin voit son propre compte
-    if (isAdmin && viewingUserId === null) viewingUserId = currentUser.id;
     loadAllData();
 }
 
