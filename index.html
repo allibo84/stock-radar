@@ -213,6 +213,28 @@
         .badge-payee { background: #27ae60; color: white; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
         .badge-impayee { background: #e74c3c; color: white; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
         .badge-retard { background: #f39c12; color: white; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+        /* Aide / Guide */
+        .help-section { margin-bottom: 30px; }
+        .help-card { background: var(--card-bg); border-radius: 15px; padding: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.06); overflow: hidden; margin-bottom: 12px; }
+        .help-card-header { padding: 18px 22px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 15px; transition: background 0.2s; }
+        .help-card-header:hover { background: var(--filter-bg); }
+        .help-card-header .help-icon { font-size: 20px; margin-right: 12px; }
+        .help-card-header .help-chevron { transition: transform 0.3s; color: var(--text-secondary); }
+        .help-card-header.open .help-chevron { transform: rotate(180deg); }
+        .help-card-body { display: none; padding: 0 22px 22px; line-height: 1.7; color: var(--text-secondary); font-size: 14px; }
+        .help-card-body.open { display: block; }
+        .help-card-body p { margin-bottom: 10px; }
+        .help-card-body strong { color: var(--text-color); }
+        .help-step { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start; }
+        .help-step-num { background: #27352a; color: white; min-width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+        .help-step-text { flex: 1; }
+        .help-tip { background: var(--filter-bg); border-left: 4px solid #27352a; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 13px; }
+        .help-tip strong { color: #27352a; }
+        .help-shortcut { display: inline-flex; align-items: center; gap: 6px; margin: 3px 4px; }
+        .help-shortcut kbd { background: var(--filter-bg); border: 1px solid var(--input-border); padding: 2px 8px; border-radius: 5px; font-size: 12px; font-family: monospace; font-weight: 600; }
+        .help-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin: 15px 0; }
+        .help-feature { background: var(--filter-bg); padding: 15px; border-radius: 10px; }
+        .help-feature-title { font-weight: 700; color: var(--text-color); margin-bottom: 6px; font-size: 14px; }
         @media (max-width: 768px) {
             .header h1 { font-size: 16px; }
             .header-center { display: none; }
@@ -305,6 +327,9 @@
                 <div class="menu-section-label">Outils</div>
                 <div class="menu-item" data-tab="outils-export">
                     <span class="menu-item-icon">📤</span><span>Export & Sauvegarde</span>
+                </div>
+                <div class="menu-item" data-tab="aide">
+                    <span class="menu-item-icon">❓</span><span>Aide & Guide</span>
                 </div>
             </div>
             <div style="padding:15px 20px;border-top:1px solid rgba(255,255,255,0.1);margin-top:auto;">
@@ -821,11 +846,280 @@
                     </div>
                 </div>
 
+                <!-- ══════ AIDE & GUIDE ══════ -->
+                <div id="aide" class="tab-content">
+                    <div class="section-header"><h2>❓ Aide & Guide complet</h2></div>
+                    <p style="color:var(--text-secondary);margin-bottom:25px;font-size:15px;">Bienvenue dans Stock Radar ! Ce guide vous explique tout ce que vous pouvez faire avec l'application.</p>
+
+                    <!-- Vue d'ensemble -->
+                    <div class="help-section">
+                        <h3 style="margin-bottom:15px;font-size:18px;">🗺️ Vue d'ensemble</h3>
+                        <div style="background:var(--card-bg);border-radius:15px;padding:22px;box-shadow:0 2px 10px rgba(0,0,0,0.06);margin-bottom:20px;">
+                            <p style="line-height:1.8;color:var(--text-secondary);font-size:14px;">
+                                <strong style="color:var(--text-color);">Stock Radar</strong> est votre outil complet de gestion de stock pour le e-commerce. Il vous permet de gérer vos <strong style="color:var(--text-color);">achats</strong>, votre <strong style="color:var(--text-color);">stock</strong> (neuf, occasion, entrepôt, rebut), vos <strong style="color:var(--text-color);">ventes</strong> sur différentes plateformes (Amazon FBA/FBM, Vinted, Leboncoin), vos <strong style="color:var(--text-color);">fournisseurs</strong> et vos <strong style="color:var(--text-color);">factures</strong>. Toutes les données sont synchronisées en temps réel dans le cloud.
+                            </p>
+                            <div class="help-grid">
+                                <div class="help-feature"><div class="help-feature-title">📊 Dashboard</div>Vue d'ensemble : valeur du stock, CA réalisé, bénéfice, répartition FBA/FBM/Entrepôt, graphiques.</div>
+                                <div class="help-feature"><div class="help-feature-title">🏪 Fournisseurs</div>Fiches complètes avec contacts, conditions, historique prix et achats.</div>
+                                <div class="help-feature"><div class="help-feature-title">🛒 Achats</div>Suivi des commandes, réception automatique vers le stock.</div>
+                                <div class="help-feature"><div class="help-feature-title">🧾 Factures</div>Gestion des factures fournisseurs, suivi des échéances et paiements.</div>
+                                <div class="help-feature"><div class="help-feature-title">📦 Stock</div>Vue complète avec filtres avancés, tri par marge/ROI, alertes stock bas.</div>
+                                <div class="help-feature"><div class="help-feature-title">📋 Mouvements</div>Journal automatique de toutes les entrées, sorties, transferts.</div>
+                                <div class="help-feature"><div class="help-feature-title">🔔 Alertes</div>Détection automatique des produits en rupture ou en stock bas.</div>
+                                <div class="help-feature"><div class="help-feature-title">📊 Inventaire</div>Comptage physique avec scan, détection des écarts, ajustement automatique.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sections accordéon -->
+                    <div class="help-section">
+
+                        <!-- 1. Premiers pas -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">🚀</span> Premiers pas — Par où commencer ?</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text"><strong>Ajouter vos fournisseurs</strong> — Allez dans <strong>🏪 Fournisseurs</strong> et cliquez <strong>➕ Ajouter</strong>. Renseignez au minimum le nom. Vous pourrez compléter la fiche plus tard (contact, conditions, SIRET...).</div></div>
+                                <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text"><strong>Enregistrer vos achats</strong> — Allez dans <strong>🛒 Mes Achats</strong> et cliquez <strong>➕ Nouvel achat</strong>. Saisissez l'EAN, le nom du produit, le fournisseur, le prix unitaire et la quantité.</div></div>
+                                <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text"><strong>Réceptionner</strong> — Quand la commande arrive, cliquez sur le badge <strong>⏳ En attente</strong> pour le passer en <strong>✅ Reçu</strong>. Le produit est automatiquement créé dans le stock.</div></div>
+                                <div class="help-step"><div class="help-step-num">4</div><div class="help-step-text"><strong>Compléter la fiche produit</strong> — Dans <strong>📦 Mon Stock</strong>, cliquez sur un produit pour ouvrir sa fiche. Ajoutez le prix de revente, les canaux de vente, les photos, l'emplacement...</div></div>
+                                <div class="help-step"><div class="help-step-num">5</div><div class="help-step-text"><strong>Enregistrer les ventes</strong> — Cliquez sur 💰 pour marquer un produit comme vendu. Renseignez le prix réel, la date et le canal de vente.</div></div>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> Vous pouvez aussi ajouter un produit directement via <strong>➕ Nouveau Produit</strong> sans passer par un achat, en scannant le code-barres ou en saisissant l'EAN manuellement.</div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Fournisseurs -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">🏪</span> Fournisseurs — Fiches complètes</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p>Chaque fournisseur a une <strong>fiche détaillée</strong> accessible en cliquant sur sa carte. Vous y trouverez :</p>
+                                <div class="help-grid">
+                                    <div class="help-feature"><div class="help-feature-title">👤 Coordonnées</div>Nom, contact, email, téléphone, adresse, site web</div>
+                                    <div class="help-feature"><div class="help-feature-title">🏢 Infos entreprise</div>SIRET, TVA intracommunautaire, catégorie (grossiste, fabricant...)</div>
+                                    <div class="help-feature"><div class="help-feature-title">📋 Conditions</div>Conditions de paiement, délai livraison, MOQ (minimum de commande), franco de port</div>
+                                    <div class="help-feature"><div class="help-feature-title">📈 Historique prix</div>Évolution des prix par produit au fil du temps, avec % de variation</div>
+                                </div>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> La fiche fournisseur affiche aussi la liste de ses factures et ses derniers achats. C'est l'endroit idéal pour avoir une vision complète de votre relation avec ce fournisseur.</div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Achats -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">🛒</span> Achats — Suivi des commandes</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p>La section Achats vous permet de suivre toutes vos commandes fournisseur.</p>
+                                <p><strong>Créer un achat :</strong> Renseignez l'EAN, le nom, le fournisseur, le <strong>prix unitaire</strong> HT ou TTC (la conversion est automatique), et la quantité.</p>
+                                <p><strong>Réception :</strong> Quand vous recevez la marchandise, cliquez sur le badge du statut pour basculer de <strong>⏳ En attente</strong> à <strong>✅ Reçu</strong>. Cela crée automatiquement le produit dans votre stock avec le bon prix d'achat et la bonne quantité en entrepôt.</p>
+                                <p><strong>Import grossiste :</strong> Vous pouvez importer un fichier Excel ou CSV depuis la section <strong>📥 Import Grossiste</strong> pour enregistrer plusieurs achats en une fois.</p>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> Utilisez les filtres pour voir uniquement les achats en attente de réception, ou filtrer par fournisseur. Exportez vos achats en CSV avec le bouton 📊 Export.</div>
+                            </div>
+                        </div>
+
+                        <!-- 4. Factures -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">🧾</span> Factures — Suivi des paiements</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p>Enregistrez vos factures fournisseur pour suivre ce que vous devez payer.</p>
+                                <p><strong>Créer une facture :</strong> Numéro de facture, fournisseur, date, échéance, montant HT/TTC.</p>
+                                <p><strong>Statuts automatiques :</strong></p>
+                                <div class="help-grid">
+                                    <div class="help-feature"><div class="help-feature-title">✅ Payée</div>La facture a été réglée. Cliquez sur 💰 pour marquer comme payée.</div>
+                                    <div class="help-feature"><div class="help-feature-title">🔴 Impayée</div>La facture n'est pas encore réglée.</div>
+                                    <div class="help-feature"><div class="help-feature-title">⚠️ En retard</div>La date d'échéance est dépassée et la facture n'est toujours pas payée.</div>
+                                </div>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> Les stats en haut vous montrent le montant total dû et le nombre de factures impayées. Consultez aussi la fiche fournisseur pour voir ses factures.</div>
+                            </div>
+                        </div>
+
+                        <!-- 5. Stock -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">📦</span> Mon Stock — Gestion complète</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p><strong>Onglets de vue :</strong> Filtrez rapidement entre Tout, Neuf, Occasion, Entrepôt et Rebut avec les boutons en haut.</p>
+                                <p><strong>Les 4 types de stock :</strong></p>
+                                <div class="help-grid">
+                                    <div class="help-feature"><div class="help-feature-title">🆕 Neuf</div>Produits neufs prêts à la vente</div>
+                                    <div class="help-feature"><div class="help-feature-title">♻️ Occasion</div>Produits d'occasion — quand vous ajoutez un produit occasion, la quantité est déduite du stock neuf</div>
+                                    <div class="help-feature"><div class="help-feature-title">🏭 Entrepôt</div>Vue de tout ce qui est physiquement dans votre entrepôt</div>
+                                    <div class="help-feature"><div class="help-feature-title">🗑️ Rebut</div>Produits défectueux ou invendables</div>
+                                </div>
+                                <p style="margin-top:12px;"><strong>Répartition des quantités :</strong> Chaque produit a ses quantités réparties entre <strong>Amazon FBA</strong>, <strong>Amazon FBM</strong> et <strong>Entrepôt</strong>. Utilisez le bouton 🔄 Transférer dans la fiche produit pour déplacer du stock entre ces emplacements.</p>
+                                <p><strong>Colonnes du tableau :</strong> Date, EAN, produit, catégorie, type, quantités FBA/FBM/Entrepôt, total, prix d'achat, prix de revente, et <strong>marge</strong> (vert > 30%, orange 10-30%, rouge < 10%).</p>
+                                <p><strong>Badges dans le tableau :</strong></p>
+                                <div class="help-grid">
+                                    <div class="help-feature"><div class="help-feature-title">⚠️ 60j+</div>Badge rouge : stock en entrepôt depuis plus de 60 jours — risque élevé</div>
+                                    <div class="help-feature"><div class="help-feature-title">🕐 30j+</div>Badge orange : stock depuis plus de 30 jours — à surveiller</div>
+                                    <div class="help-feature"><div class="help-feature-title">🔴 / 🟠</div>Alertes stock bas si un seuil minimum est défini</div>
+                                </div>
+                                <p style="margin-top:12px;"><strong>Statuts workflow</strong> (dans la fiche produit) : Reçu → À contrôler → À étiqueter → À expédier → Envoyé → Terminé. Changez le statut directement depuis la fiche.</p>
+                                <p><strong>Emplacement :</strong> Renseignez la localisation physique au format zone/étagère/bac (ex: <strong>A-03-2</strong>).</p>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> Les stats en haut montrent la <strong>valeur achat</strong> (ce que vous avez investi), la <strong>valeur revente</strong> (ce que vous pouvez gagner), la <strong>valeur entrepôt</strong> et le <strong>bénéfice potentiel</strong>.</div>
+                            </div>
+                        </div>
+
+                        <!-- 6. Filtres & Tri -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">🔍</span> Recherche, Filtres & Tri avancé</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p><strong>Recherche globale</strong> (barre en haut du site) : Cherche dans tous les produits, achats et fournisseurs en même temps. Tapez un EAN, un nom, un fournisseur ou un mot-clé. Les résultats sont cliquables et vous emmènent directement au bon endroit.</p>
+                                <p><strong>Filtres avancés</strong> (bouton ⚙️ dans Mon Stock) :</p>
+                                <div class="help-grid">
+                                    <div class="help-feature"><div class="help-feature-title">📂 Catégorie</div>Électronique, Mode, Maison, etc.</div>
+                                    <div class="help-feature"><div class="help-feature-title">📱 Plateforme</div>Amazon FBA, FBM, Vinted, Leboncoin</div>
+                                    <div class="help-feature"><div class="help-feature-title">📍 Emplacement</div>Entrepôt, FBA ou FBM uniquement</div>
+                                    <div class="help-feature"><div class="help-feature-title">📅 Dates</div>Filtrer par période (du ... au ...)</div>
+                                    <div class="help-feature"><div class="help-feature-title">🏪 Fournisseur</div>Voir les produits d'un fournisseur spécifique</div>
+                                    <div class="help-feature"><div class="help-feature-title">📋 Statut</div>Filtrer par statut workflow (Reçu, À expédier...)</div>
+                                </div>
+                                <p style="margin-top:12px;"><strong>Options de tri :</strong> Date, quantité, prix, nom, <strong>marge</strong> (meilleure/pire), <strong>ROI</strong> (retour sur investissement), <strong>ancienneté</strong>, et <strong>⚠️ À risque</strong> (combine ancienneté + mauvaise marge).</p>
+                            </div>
+                        </div>
+
+                        <!-- 7. Scanner -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">📷</span> Scanner de code-barres</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p>Le scanner utilise la caméra de votre appareil pour lire les codes-barres EAN.</p>
+                                <p><strong>Mode continu :</strong> Le scanner ne s'arrête pas après chaque scan — vous pouvez enchaîner plusieurs produits. Appuyez sur ⏹️ Stop pour arrêter.</p>
+                                <p><strong>Retour audio et visuel :</strong></p>
+                                <div class="help-grid">
+                                    <div class="help-feature"><div class="help-feature-title">✅ Bip aigu + popup vert</div>Code scanné avec succès, produit non présent en stock</div>
+                                    <div class="help-feature"><div class="help-feature-title">⚠️ Bip moyen + popup orange</div>Produit déjà en stock (doublon) ou code déjà scanné</div>
+                                    <div class="help-feature"><div class="help-feature-title">❌ Bip grave</div>Erreur de lecture</div>
+                                </div>
+                                <p style="margin-top:12px;">Après le scan, les champs sont <strong>pré-remplis automatiquement</strong> si le produit a déjà été acheté : nom, catégorie, prix d'achat, prix de revente.</p>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> Le scanner fonctionne aussi dans la section <strong>📊 Inventaire</strong> pour le comptage physique.</div>
+                            </div>
+                        </div>
+
+                        <!-- 8. Alertes -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">🔔</span> Alertes stock bas</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p>Définissez un <strong>seuil minimum</strong> par produit. Quand le stock descend en dessous, une alerte apparaît.</p>
+                                <p><strong>Configurer un seuil :</strong> Ouvrez la fiche d'un produit → cliquez ✏️ Éditer → champ <strong>"🔔 Seuil alerte stock min"</strong>. Ou utilisez le bouton <strong>"⚙️ Configurer seuils en lot"</strong> pour appliquer un seuil à tous les produits d'un coup.</p>
+                                <p><strong>Niveaux d'alerte :</strong></p>
+                                <div class="help-grid">
+                                    <div class="help-feature"><div class="help-feature-title">🔴 Critique (rupture)</div>Stock = 0 — vous ne pouvez plus vendre</div>
+                                    <div class="help-feature"><div class="help-feature-title">🟠 Stock bas</div>Stock > 0 mais ≤ seuil — pensez à recommander</div>
+                                    <div class="help-feature"><div class="help-feature-title">🟢 OK</div>Stock au-dessus du seuil</div>
+                                    <div class="help-feature"><div class="help-feature-title">⚪ Sans seuil</div>Pas de seuil configuré — pas d'alerte</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 9. Inventaire -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">📊</span> Inventaire / Comptage physique</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text"><strong>Lancer un inventaire</strong> — Cliquez "🆕 Nouvel inventaire". Tous les produits en stock sont chargés avec leur quantité théorique.</div></div>
+                                <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text"><strong>Compter</strong> — Soit scannez les codes-barres (chaque scan = +1 unité comptée), soit saisissez les quantités manuellement dans la colonne "Compté".</div></div>
+                                <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text"><strong>Vérifier les écarts</strong> — Le tableau affiche en rouge les produits dont le comptage diffère du stock théorique. Filtrez par "⚠️ Écarts seulement" pour les voir rapidement.</div></div>
+                                <div class="help-step"><div class="help-step-num">4</div><div class="help-step-text"><strong>Valider</strong> — Cliquez "✅ Valider & ajuster". Les quantités en stock sont mises à jour automatiquement et chaque ajustement est enregistré dans le journal des mouvements.</div></div>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> Exportez les résultats en Excel avant de valider pour garder une trace de l'inventaire. Les écarts sont ajustés sur la quantité entrepôt.</div>
+                            </div>
+                        </div>
+
+                        <!-- 10. Export & Sauvegarde -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">📤</span> Export & Sauvegarde</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p><strong>Export avancé :</strong> Choisissez ce que vous voulez exporter (stock complet, filtré, achats, vendus, rapport de marge...) et le format (Excel ou CSV).</p>
+                                <p><strong>Sauvegarde :</strong> Téléchargez un fichier JSON contenant <strong>toutes</strong> vos données (fournisseurs, achats, produits, factures). Utile avant une grosse modification.</p>
+                                <p><strong>Restauration :</strong> Rechargez un fichier de sauvegarde pour restaurer toutes les données. Attention : cela <strong>remplace</strong> les données actuelles.</p>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> Faites une sauvegarde régulière, surtout avant de valider un inventaire ou de faire des modifications en masse.</div>
+                            </div>
+                        </div>
+
+                        <!-- 11. Raccourcis clavier -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">⌨️</span> Raccourcis clavier</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <div style="display:grid;gap:10px;max-width:400px;">
+                                    <div class="help-shortcut"><kbd>Ctrl</kbd> + <kbd>N</kbd> <span style="color:var(--text-secondary);margin-left:8px;">Nouveau produit</span></div>
+                                    <div class="help-shortcut"><kbd>Ctrl</kbd> + <kbd>F</kbd> <span style="color:var(--text-secondary);margin-left:8px;">Recherche globale</span></div>
+                                    <div class="help-shortcut"><kbd>Ctrl</kbd> + <kbd>S</kbd> <span style="color:var(--text-secondary);margin-left:8px;">Lancer le scanner</span></div>
+                                    <div class="help-shortcut"><kbd>Ctrl</kbd> + <kbd>D</kbd> <span style="color:var(--text-secondary);margin-left:8px;">Dashboard</span></div>
+                                    <div class="help-shortcut"><kbd>Ctrl</kbd> + <kbd>K</kbd> <span style="color:var(--text-secondary);margin-left:8px;">Mon Stock</span></div>
+                                    <div class="help-shortcut"><kbd>Ctrl</kbd> + <kbd>E</kbd> <span style="color:var(--text-secondary);margin-left:8px;">Export Excel rapide</span></div>
+                                    <div class="help-shortcut"><kbd>Escape</kbd> <span style="color:var(--text-secondary);margin-left:8px;">Fermer la fenêtre/modale</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 12. Multi-utilisateur -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">👥</span> Multi-utilisateur & Admin</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p>Stock Radar supporte <strong>plusieurs utilisateurs</strong>. Chaque utilisateur ne voit que ses propres données (fournisseurs, achats, stock, factures).</p>
+                                <p><strong>Compte administrateur :</strong> L'admin voit un badge <span style="background:#e74c3c;color:white;padding:2px 8px;border-radius:10px;font-size:12px;">ADMIN</span> et un <strong>sélecteur de compte</strong> dans le header pour basculer entre les comptes des différents utilisateurs.</p>
+                                <p><strong>Créer un nouvel utilisateur :</strong> L'admin va dans Supabase → Authentication → Add User, crée un compte email/mot de passe. Le profil sera créé automatiquement à la première connexion.</p>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> L'admin peut consulter les données d'un utilisateur spécifique sans modifier ses données. C'est utile pour superviser l'activité de chaque collaborateur.</div>
+                            </div>
+                        </div>
+
+                        <!-- 13. Ventes & Plateformes -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">💰</span> Ventes & Plateformes</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p><strong>Enregistrer une vente :</strong> Cliquez sur 💰 dans le tableau stock ou dans la fiche produit. Renseignez le prix de vente réel, la date, la quantité vendue et le canal.</p>
+                                <p><strong>Canaux supportés :</strong> Amazon FBA, Amazon FBM, Vinted, Leboncoin, Autre. La quantité est déduite automatiquement du bon emplacement (FBA, FBM ou entrepôt selon le canal).</p>
+                                <p><strong>Générer une annonce :</strong> Dans la fiche produit, les boutons 📝 Vinted et 📝 Leboncoin génèrent un texte d'annonce prêt à copier-coller avec le nom, l'état, le prix et les détails du produit.</p>
+                                <p><strong>Suivi des performances :</strong> Le Dashboard affiche le CA réalisé, le bénéfice total, la marge moyenne et la répartition du CA par canal.</p>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Footer aide -->
+                    <div style="background:var(--card-bg);border-radius:15px;padding:22px;box-shadow:0 2px 10px rgba(0,0,0,0.06);text-align:center;margin-top:10px;">
+                        <p style="font-size:15px;font-weight:700;margin-bottom:8px;">🛡️ Stock Radar v2</p>
+                        <p style="color:var(--text-secondary);font-size:13px;">Application de gestion de stock e-commerce · Données synchronisées en temps réel via Supabase · Hébergé sur GitHub Pages</p>
+                        <p style="color:var(--text-secondary);font-size:13px;margin-top:8px;">Un problème ? Contactez l'administrateur de votre compte.</p>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
-
-    <!-- Modal Fiche Fournisseur -->
     <div id="fournisseur-modal" class="modal">
         <div class="modal-content wide">
             <span class="close-modal" onclick="closeFournisseurModal()">&times;</span>

@@ -2162,6 +2162,14 @@ async function restoreData(event) {
     event.target.value = '';
 }
 
+// ═══════ AIDE ACCORDÉON ═══════
+function toggleHelp(header) {
+    const body = header.nextElementSibling;
+    const isOpen = header.classList.contains('open');
+    header.classList.toggle('open');
+    body.classList.toggle('open');
+}
+
 // ═══════ KEYBOARD SHORTCUTS ═══════
 document.addEventListener('keydown', (e) => {
     // Ignorer si on est dans un input/textarea
