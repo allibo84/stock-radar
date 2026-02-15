@@ -60,6 +60,7 @@ async function loadProducts() {
         etat_stock: p.etat_stock || 'neuf',
         statut: p.statut || 'recu',
         emplacement: p.emplacement || '',
+        seuil_stock: p.seuil_stock || 0,
         qte_fba: p.qte_fba || 0,
         qte_fbm: p.qte_fbm || 0,
         qte_entrepot: p.qte_entrepot || (p.quantite || 1),
@@ -69,6 +70,7 @@ async function loadProducts() {
     }));
     displayStock();
     updateDashboard();
+    displayAlertes();
 }
 
 async function loadMouvements() {
@@ -761,6 +763,11 @@ function displayStock() {
         let riskBadge = '';
         if (age > 60) riskBadge = ' <span class="badge-risk">⚠️ ' + age + 'j</span>';
         else if (age > 30) riskBadge = ' <span class="badge-slow">🕐 ' + age + 'j</span>';
+        
+        // Alerte stock bas
+        if ((p.seuil_stock || 0) > 0 && (p.quantite || 0) <= (p.seuil_stock || 0)) {
+            riskBadge += (p.quantite || 0) === 0 ? ' <span class="alert-critique">🔴</span>' : ' <span class="alert-bas">🟠</span>';
+        }
 
         let margeDisplay = '-';
         if (marge !== null) {
@@ -926,6 +933,10 @@ function openProductModal(id) {
                 <div class="detail-label">📍 Emplacement (zone/étagère/bac)</div>
                 <input type="text" id="edit-emplacement-${p.id}" class="form-input" style="padding:8px;" value="${escapeHtml(p.emplacement||'')}" placeholder="Ex: A-03-2">
             </div>
+            <div class="detail-item">
+                <div class="detail-label">🔔 Seuil alerte stock min</div>
+                <input type="number" id="edit-seuil-${p.id}" class="form-input" style="padding:8px;" value="${p.seuil_stock||0}" min="0" placeholder="0">
+            </div>
         </div>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;">
@@ -970,6 +981,7 @@ async function saveEditProduct(id) {
         invendable: document.getElementById('edit-etat-stock-' + id).value === 'rebut',
         notes: document.getElementById('edit-notes-' + id).value.trim(),
         emplacement: document.getElementById('edit-emplacement-' + id).value.trim(),
+        seuil_stock: parseInt(document.getElementById('edit-seuil-' + id).value) || 0,
     };
 
     const { error } = await sb.from('produits').update(update).eq('id', id);
@@ -1424,6 +1436,296 @@ async function mouvementManuel(productId) {
     
     await logMouvement(productId, 'transfert', qte, de, vers, 'Transfert manuel', '');
     await loadProducts();
+}
+
+// ═══════ ALERTES STOCK BAS ═══════
+function displayAlertes() {
+    const c = document.getElementById('alertes-container');
+    if (!c) return;
+    
+    const enStock = products.filter(p => !p.vendu && !p.invendable);
+    const avecSeuil = enStock.filter(p => (p.seuil_stock || 0) > 0);
+    const critiques = avecSeuil.filter(p => (p.quantite || 0) === 0);
+    const basses = avecSeuil.filter(p => (p.quantite || 0) > 0 && (p.quantite || 0) <= (p.seuil_stock || 0));
+    const ok = avecSeuil.filter(p => (p.quantite || 0) > (p.seuil_stock || 0));
+    const sansSeuil = enStock.filter(p => !(p.seuil_stock > 0));
+
+    const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    el('alertes-critiques', critiques.length);
+    el('alertes-basses', basses.length);
+    el('alertes-ok', ok.length);
+    el('alertes-sans-seuil', sansSeuil.length);
+
+    const alertes = [...critiques, ...basses].sort((a, b) => (a.quantite || 0) - (b.quantite || 0));
+    
+    if (!alertes.length) {
+        c.innerHTML = '<div class="empty-state"><h3>✅ Aucune alerte</h3><p>Tous les produits avec seuil sont en stock suffisant.<br>Configurez des seuils depuis la fiche produit ou le bouton "Configurer seuils en lot".</p></div>';
+        return;
+    }
+
+    let h = '<div class="products-table"><table><thead><tr><th>Produit</th><th>EAN</th><th>Stock actuel</th><th>Seuil min</th><th>Écart</th><th>Statut</th><th>Action</th></tr></thead><tbody>';
+    
+    alertes.forEach(p => {
+        const ecart = (p.quantite || 0) - (p.seuil_stock || 0);
+        const isCritique = (p.quantite || 0) === 0;
+        const badge = isCritique ? '<span class="alert-critique">🔴 Rupture</span>' : '<span class="alert-bas">🟠 Stock bas</span>';
+        
+        h += `<tr style="cursor:pointer" onclick="openProductModal(${p.id})">
+            <td><strong>${escapeHtml(p.nom||'')}</strong></td>
+            <td>${escapeHtml(p.ean||'')}</td>
+            <td style="font-weight:700;color:${isCritique ? '#e74c3c' : '#f39c12'};">${p.quantite || 0}</td>
+            <td>${p.seuil_stock || 0}</td>
+            <td style="font-weight:700;color:#e74c3c;">${ecart}</td>
+            <td>${badge}</td>
+            <td onclick="event.stopPropagation()">
+                <button class="btn-small" style="background:#3498db;color:white;padding:5px 10px;border-radius:6px;" onclick="modifierSeuil(${p.id})">⚙️</button>
+            </td>
+        </tr>`;
+    });
+    c.innerHTML = h + '</tbody></table></div>';
+}
+
+async function modifierSeuil(productId) {
+    const p = products.find(x => x.id === productId);
+    if (!p) return;
+    const seuil = prompt(`Seuil minimum pour "${p.nom}" (stock actuel: ${p.quantite}) :`, p.seuil_stock || 0);
+    if (seuil === null) return;
+    const val = parseInt(seuil) || 0;
+    const { error } = await sb.from('produits').update({ seuil_stock: val }).eq('id', productId);
+    if (error) return alert('Erreur: ' + error.message);
+    await loadProducts();
+    displayAlertes();
+}
+
+async function configurerSeuilsEnLot() {
+    const seuil = prompt('Définir un seuil minimum pour TOUS les produits qui n\'en ont pas encore :', '2');
+    if (seuil === null) return;
+    const val = parseInt(seuil) || 0;
+    if (val <= 0) return;
+    
+    const sansSeuil = products.filter(p => !p.vendu && !p.invendable && !(p.seuil_stock > 0));
+    if (!sansSeuil.length) return alert('Tous les produits ont déjà un seuil.');
+    
+    if (!confirm(`Mettre le seuil à ${val} pour ${sansSeuil.length} produits ?`)) return;
+    
+    for (const p of sansSeuil) {
+        await sb.from('produits').update({ seuil_stock: val }).eq('id', p.id);
+    }
+    alert(`✅ Seuil mis à ${val} pour ${sansSeuil.length} produits.`);
+    await loadProducts();
+    displayAlertes();
+}
+
+// ═══════ INVENTAIRE / COMPTAGE ═══════
+let inventaireData = []; // { id, ean, nom, theorique, compte, ecart }
+let inventaireActif = false;
+let invCodeReader = null;
+let inventaireFilter = 'all';
+
+function startInventaire() {
+    if (inventaireActif && !confirm('Un inventaire est déjà en cours. Recommencer ?')) return;
+    
+    const enStock = products.filter(p => !p.vendu && !p.invendable);
+    inventaireData = enStock.map(p => ({
+        id: p.id,
+        ean: p.ean || '',
+        nom: p.nom || '',
+        categorie: p.categorie || '',
+        emplacement: p.emplacement || '',
+        theorique: p.quantite || 0,
+        compte: null,
+        ecart: null
+    }));
+    
+    inventaireActif = true;
+    document.getElementById('inventaire-vide').style.display = 'none';
+    document.getElementById('inventaire-mode').style.display = 'block';
+    document.getElementById('btn-export-inventaire').style.display = 'inline-flex';
+    displayInventaire();
+}
+
+function displayInventaire() {
+    const c = document.getElementById('inventaire-container');
+    if (!c) return;
+    
+    let list = inventaireData;
+    if (inventaireFilter === 'ecarts') list = list.filter(i => i.compte !== null && i.ecart !== 0);
+    else if (inventaireFilter === 'non-comptes') list = list.filter(i => i.compte === null);
+    
+    const comptes = inventaireData.filter(i => i.compte !== null).length;
+    const ecarts = inventaireData.filter(i => i.compte !== null && i.ecart !== 0).length;
+    const conformes = inventaireData.filter(i => i.compte !== null && i.ecart === 0).length;
+    
+    const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    el('inv-total-produits', inventaireData.length);
+    el('inv-comptes', comptes);
+    el('inv-ok', conformes);
+    el('inv-ecarts', ecarts);
+    
+    if (!list.length) {
+        c.innerHTML = '<div class="empty-state"><h3>Aucun produit dans ce filtre</h3></div>';
+        return;
+    }
+
+    let h = '<div style="background:var(--card-bg);border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.08);">';
+    h += '<div class="inv-row" style="font-weight:700;background:var(--filter-bg);font-size:13px;"><div>EAN</div><div>Produit</div><div>Théorique</div><div>Compté</div><div>Écart</div><div>Statut</div></div>';
+    
+    list.forEach(item => {
+        const ecartClass = item.compte === null ? '' : (item.ecart !== 0 ? 'ecart' : 'ok');
+        const inputClass = item.compte === null ? '' : (item.ecart !== 0 ? 'ecart' : 'ok');
+        const ecartText = item.compte === null ? '-' : (item.ecart > 0 ? `<span style="color:#27ae60;font-weight:700;">+${item.ecart}</span>` : item.ecart < 0 ? `<span style="color:#e74c3c;font-weight:700;">${item.ecart}</span>` : '<span style="color:#27ae60;">0</span>');
+        const statusBadge = item.compte === null ? '<span style="color:var(--text-secondary);">❓</span>' : (item.ecart === 0 ? '<span class="alert-ok">✅</span>' : '<span class="alert-critique">⚠️</span>');
+        
+        h += `<div class="inv-row ${ecartClass}">
+            <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(item.ean)}</div>
+            <div><strong>${escapeHtml(item.nom)}</strong>${item.emplacement ? `<br><span style="font-size:11px;color:var(--text-secondary);">📍 ${escapeHtml(item.emplacement)}</span>` : ''}</div>
+            <div style="font-weight:700;text-align:center;">${item.theorique}</div>
+            <div><input type="number" class="inv-input ${inputClass}" value="${item.compte !== null ? item.compte : ''}" min="0" placeholder="-" onchange="updateInventaireCount(${item.id}, this.value)"></div>
+            <div style="text-align:center;">${ecartText}</div>
+            <div style="text-align:center;">${statusBadge}</div>
+        </div>`;
+    });
+    
+    c.innerHTML = h + '</div>';
+}
+
+function filterInventaire(filter) {
+    inventaireFilter = filter;
+    displayInventaire();
+}
+
+function updateInventaireCount(productId, value) {
+    const item = inventaireData.find(i => i.id === productId);
+    if (!item) return;
+    
+    if (value === '' || value === null) {
+        item.compte = null;
+        item.ecart = null;
+    } else {
+        item.compte = parseInt(value) || 0;
+        item.ecart = item.compte - item.theorique;
+    }
+    displayInventaire();
+}
+
+function inventaireScanEAN() {
+    const input = document.getElementById('inv-scan-ean');
+    const ean = input.value.trim();
+    if (!ean) return;
+    
+    const item = inventaireData.find(i => i.ean === ean);
+    const feedback = document.getElementById('inv-scan-feedback');
+    
+    if (!item) {
+        playSound('ko');
+        if (feedback) { feedback.textContent = '❌ EAN non trouvé dans le stock : ' + ean; feedback.style.color = '#e74c3c'; feedback.style.display = 'block'; }
+    } else {
+        // Incrémenter le comptage
+        if (item.compte === null) item.compte = 0;
+        item.compte++;
+        item.ecart = item.compte - item.theorique;
+        
+        playSound('ok');
+        if (feedback) { feedback.textContent = `✅ ${item.nom} — compté : ${item.compte} / théorique : ${item.theorique}`; feedback.style.color = '#27ae60'; feedback.style.display = 'block'; }
+        displayInventaire();
+    }
+    
+    input.value = '';
+    input.focus();
+}
+
+// Scanner inventaire
+async function startInventaireScanner() {
+    try {
+        invCodeReader = new ZXing.BrowserMultiFormatReader();
+        const video = document.getElementById('inv-video');
+        video.style.display = 'block';
+        document.getElementById('inv-stop-scanner').style.display = 'inline-flex';
+        const devices = await invCodeReader.listVideoInputDevices();
+        const back = devices.find(d => d.label.toLowerCase().includes('back')) || devices[0];
+        
+        let cooldown = false;
+        invCodeReader.decodeFromVideoDevice(back?.deviceId, 'inv-video', (result) => {
+            if (result && !cooldown) {
+                cooldown = true;
+                setTimeout(() => { cooldown = false; }, 1500);
+                document.getElementById('inv-scan-ean').value = result.getText();
+                inventaireScanEAN();
+            }
+        });
+    } catch (e) { alert('Erreur caméra: ' + e.message); }
+}
+
+function stopInventaireScanner() {
+    if (invCodeReader) { invCodeReader.reset(); invCodeReader = null; }
+    document.getElementById('inv-video').style.display = 'none';
+    document.getElementById('inv-stop-scanner').style.display = 'none';
+}
+
+async function validerInventaire() {
+    const ecarts = inventaireData.filter(i => i.compte !== null && i.ecart !== 0);
+    const comptes = inventaireData.filter(i => i.compte !== null);
+    
+    if (!comptes.length) return alert('Aucun produit compté.');
+    
+    const msg = `Résumé de l'inventaire :\n- ${comptes.length} produits comptés\n- ${comptes.length - ecarts.length} conformes\n- ${ecarts.length} écarts\n\n${ecarts.length > 0 ? 'Les écarts vont ajuster les quantités en stock.\n\n' : ''}Valider et appliquer ?`;
+    if (!confirm(msg)) return;
+    
+    for (const item of ecarts) {
+        const p = products.find(x => x.id === item.id);
+        if (!p) continue;
+        
+        // Ajuster la quantité entrepôt (on suppose l'écart est en entrepôt)
+        const newEntrepot = Math.max(0, (p.qte_entrepot || 0) + item.ecart);
+        const newTotal = newEntrepot + (p.qte_fba || 0) + (p.qte_fbm || 0);
+        
+        await sb.from('produits').update({
+            qte_entrepot: newEntrepot,
+            quantite: newTotal,
+            vendu: newTotal <= 0
+        }).eq('id', item.id);
+        
+        await logMouvement(item.id, 'ajustement', Math.abs(item.ecart),
+            'inventaire', 'entrepot',
+            `Inventaire: ${item.ecart > 0 ? '+' : ''}${item.ecart} (théo: ${item.theorique}, réel: ${item.compte})`,
+            ''
+        );
+    }
+    
+    alert(`✅ Inventaire validé ! ${ecarts.length} ajustement(s) appliqué(s).`);
+    inventaireActif = false;
+    inventaireData = [];
+    document.getElementById('inventaire-mode').style.display = 'none';
+    document.getElementById('inventaire-vide').style.display = 'block';
+    document.getElementById('btn-export-inventaire').style.display = 'none';
+    await loadProducts();
+}
+
+function annulerInventaire() {
+    if (!confirm('Annuler l\'inventaire en cours ? Les comptages seront perdus.')) return;
+    inventaireActif = false;
+    inventaireData = [];
+    document.getElementById('inventaire-mode').style.display = 'none';
+    document.getElementById('inventaire-vide').style.display = 'block';
+    document.getElementById('btn-export-inventaire').style.display = 'none';
+}
+
+function exportInventaire() {
+    if (!inventaireData.length) return alert('Pas d\'inventaire en cours.');
+    
+    const data = inventaireData.map(i => ({
+        'EAN': i.ean, 'Produit': i.nom, 'Catégorie': i.categorie,
+        'Emplacement': i.emplacement,
+        'Stock théorique': i.theorique,
+        'Compté': i.compte !== null ? i.compte : 'Non compté',
+        'Écart': i.ecart !== null ? i.ecart : '-',
+        'Statut': i.compte === null ? 'Non compté' : (i.ecart === 0 ? 'Conforme' : 'ÉCART')
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventaire');
+    XLSX.writeFile(wb, `inventaire-${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 // ═══════ ADVANCED EXPORT ═══════

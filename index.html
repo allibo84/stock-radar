@@ -189,6 +189,19 @@
         /* Risk badge */
         .badge-risk { background: #e74c3c; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
         .badge-slow { background: #f39c12; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        /* Alert badges */
+        .alert-critique { background: #e74c3c; color: white; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+        .alert-bas { background: #f39c12; color: white; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+        .alert-ok { background: #27ae60; color: white; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+        /* Inventory */
+        .inv-row { display: grid; grid-template-columns: 1fr 2fr 80px 80px 80px 100px; gap: 10px; align-items: center; padding: 12px 15px; border-bottom: 1px solid var(--table-border); }
+        .inv-row:hover { background: var(--table-hover); }
+        .inv-row.ecart { background: rgba(231,76,60,0.08); }
+        .inv-row.ok { background: rgba(39,174,96,0.05); }
+        .inv-input { width: 70px; padding: 6px; text-align: center; border: 2px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--text-color); font-weight: 700; font-size: 14px; }
+        .inv-input:focus { border-color: #3498db; outline: none; }
+        .inv-input.ecart { border-color: #e74c3c; background: rgba(231,76,60,0.1); }
+        .inv-input.ok { border-color: #27ae60; }
         @media (max-width: 768px) {
             .header h1 { font-size: 16px; }
             .header-center { display: none; }
@@ -268,6 +281,12 @@
                 </div>
                 <div class="menu-item" data-tab="mouvements">
                     <span class="menu-item-icon">📋</span><span>Journal Mouvements</span>
+                </div>
+                <div class="menu-item" data-tab="alertes">
+                    <span class="menu-item-icon">🔔</span><span>Alertes Stock</span>
+                </div>
+                <div class="menu-item" data-tab="inventaire">
+                    <span class="menu-item-icon">📊</span><span>Inventaire</span>
                 </div>
                 <div class="menu-section-label">Outils</div>
                 <div class="menu-item" data-tab="outils-export">
@@ -593,6 +612,72 @@
                     <div class="section-header"><h2>📋 Journal des mouvements</h2></div>
                     <p style="color:var(--text-secondary);margin-bottom:20px;">Historique de tous les mouvements de stock : réceptions, transferts, ventes, ajustements.</p>
                     <div id="mouvements-container"></div>
+                </div>
+
+                <!-- ══════ ALERTES STOCK ══════ -->
+                <div id="alertes" class="tab-content">
+                    <div class="section-header">
+                        <h2>🔔 Alertes Stock Bas</h2>
+                        <button class="scan-button" onclick="configurerSeuilsEnLot()">⚙️ Configurer seuils en lot</button>
+                    </div>
+                    <p style="color:var(--text-secondary);margin-bottom:20px;">Produits dont la quantité est en dessous ou égale au seuil minimum défini.</p>
+                    
+                    <div class="stats" id="alertes-stats">
+                        <div class="stat-card" style="border-left:4px solid #e74c3c;"><div class="stat-number" id="alertes-critiques">0</div><div class="stat-label">🔴 Critiques (= 0)</div></div>
+                        <div class="stat-card" style="border-left:4px solid #f39c12;"><div class="stat-number" id="alertes-basses">0</div><div class="stat-label">🟠 Stock bas</div></div>
+                        <div class="stat-card" style="border-left:4px solid #27ae60;"><div class="stat-number" id="alertes-ok">0</div><div class="stat-label">🟢 OK</div></div>
+                        <div class="stat-card"><div class="stat-number" id="alertes-sans-seuil">0</div><div class="stat-label">⚪ Sans seuil</div></div>
+                    </div>
+                    <div id="alertes-container"></div>
+                </div>
+
+                <!-- ══════ INVENTAIRE ══════ -->
+                <div id="inventaire" class="tab-content">
+                    <div class="section-header">
+                        <h2>📊 Inventaire / Comptage</h2>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <button class="scan-button" onclick="startInventaire()">🆕 Nouvel inventaire</button>
+                            <button class="scan-button export" id="btn-export-inventaire" onclick="exportInventaire()" style="display:none;">📥 Exporter écarts</button>
+                        </div>
+                    </div>
+                    <p style="color:var(--text-secondary);margin-bottom:20px;">Comparez le stock théorique avec un comptage physique. Scannez ou saisissez les quantités réelles.</p>
+                    
+                    <div id="inventaire-mode" style="display:none;">
+                        <div class="stats" id="inventaire-stats">
+                            <div class="stat-card"><div class="stat-number" id="inv-total-produits">0</div><div class="stat-label">Produits à compter</div></div>
+                            <div class="stat-card"><div class="stat-number" id="inv-comptes">0</div><div class="stat-label">Comptés</div></div>
+                            <div class="stat-card" style="border-left:4px solid #27ae60;"><div class="stat-number" id="inv-ok">0</div><div class="stat-label">✅ Conformes</div></div>
+                            <div class="stat-card" style="border-left:4px solid #e74c3c;"><div class="stat-number" id="inv-ecarts">0</div><div class="stat-label">⚠️ Écarts</div></div>
+                        </div>
+
+                        <div style="background:var(--card-bg);padding:20px;border-radius:15px;margin-bottom:20px;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                            <h3 style="margin-bottom:15px;">📷 Scan rapide</h3>
+                            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                                <input type="text" id="inv-scan-ean" placeholder="Scanner ou saisir un EAN..." style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-color);" onkeydown="if(event.key==='Enter'){inventaireScanEAN();}">
+                                <button class="scan-button" onclick="inventaireScanEAN()">✅ Compter</button>
+                                <button class="scan-button" onclick="startInventaireScanner()">📷 Scanner</button>
+                                <button class="scan-button stop" id="inv-stop-scanner" style="display:none;" onclick="stopInventaireScanner()">⏹️ Stop</button>
+                            </div>
+                            <div id="inv-video-container" style="margin-top:10px;"><video id="inv-video" autoplay playsinline style="display:none;width:100%;max-width:400px;border-radius:10px;"></video></div>
+                            <div id="inv-scan-feedback" style="margin-top:10px;font-weight:600;display:none;"></div>
+                        </div>
+
+                        <div style="display:flex;gap:10px;margin-bottom:15px;">
+                            <button class="btn-toggle-filters" onclick="filterInventaire('all')">📦 Tous</button>
+                            <button class="btn-toggle-filters" onclick="filterInventaire('ecarts')">⚠️ Écarts seulement</button>
+                            <button class="btn-toggle-filters" onclick="filterInventaire('non-comptes')">❓ Non comptés</button>
+                        </div>
+                        <div id="inventaire-container"></div>
+
+                        <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+                            <button class="scan-button" style="background:#27ae60;" onclick="validerInventaire()">✅ Valider & ajuster le stock</button>
+                            <button class="scan-button danger" onclick="annulerInventaire()">❌ Annuler</button>
+                        </div>
+                    </div>
+
+                    <div id="inventaire-vide">
+                        <div class="empty-state"><h3>Pas d'inventaire en cours</h3><p>Cliquez sur "Nouvel inventaire" pour démarrer un comptage.</p></div>
+                    </div>
                 </div>
 
                 <!-- ══════ EXPORT & SAUVEGARDE ══════ -->
