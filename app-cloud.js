@@ -1219,6 +1219,14 @@ function openVenteModal(id) {
     currentVenteProductId = id;
     const p = products.find(x => x.id === id);
     if (!p) return;
+    
+    // Product info
+    const info = document.getElementById('vente-product-info');
+    if (info) {
+        info.innerHTML = `<strong>${escapeHtml(p.nom)}</strong><br>
+            <span style="color:var(--text-secondary);">EAN: ${escapeHtml(p.ean||'-')} · Stock: <strong>${p.quantite||0}</strong> (FBA: ${p.qte_fba||0} · FBM: ${p.qte_fbm||0} · Entrepôt: ${p.qte_entrepot||0}) · Prix achat: ${(p.prix_achat||0).toFixed(2)}€</span>`;
+    }
+    
     document.getElementById('vente-prix').value = (p.prix_revente || 0).toFixed(2);
     document.getElementById('vente-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('vente-qte').value = 1;
@@ -1226,8 +1234,25 @@ function openVenteModal(id) {
     document.getElementById('vente-plateforme').value = '';
     if (p.amazon_fba && !p.amazon_fbm) document.getElementById('vente-plateforme').value = 'Amazon FBA';
     else if (p.amazon_fbm && !p.amazon_fba) document.getElementById('vente-plateforme').value = 'Amazon FBM';
+    
+    updateVenteTotal();
     document.getElementById('vente-modal').style.display = 'block';
 }
+
+function updateVenteTotal() {
+    const prix = parseFloat(document.getElementById('vente-prix')?.value) || 0;
+    const qte = parseInt(document.getElementById('vente-qte')?.value) || 1;
+    const total = prix * qte;
+    const p = products.find(x => x.id === currentVenteProductId);
+    const marge = p ? (total - (p.prix_achat || 0) * qte) : 0;
+    const margeColor = marge > 0 ? '#27ae60' : marge < 0 ? '#e74c3c' : 'var(--text-secondary)';
+    const disp = document.getElementById('vente-total-display');
+    if (disp) disp.innerHTML = `Total : ${total.toFixed(2)}€ · <span style="color:${margeColor};">Bénéfice : ${marge >= 0 ? '+' : ''}${marge.toFixed(2)}€</span>`;
+}
+
+// Attach live calculation
+document.getElementById('vente-prix')?.addEventListener('input', updateVenteTotal);
+document.getElementById('vente-qte')?.addEventListener('input', updateVenteTotal);
 
 function closeVenteModal() { document.getElementById('vente-modal').style.display = 'none'; currentVenteProductId = null; }
 
