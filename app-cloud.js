@@ -1106,6 +1106,9 @@ function openProductModal(id) {
                         <option value="Sport" ${p.categorie==='Sport'?'selected':''}>Sport</option>
                         <option value="Mode" ${p.categorie==='Mode'?'selected':''}>Mode</option>
                         <option value="Beauté" ${p.categorie==='Beauté'?'selected':''}>Beauté</option>
+                        <option value="Livres" ${p.categorie==='Livres'?'selected':''}>Livres</option>
+                        <option value="Auto" ${p.categorie==='Auto'?'selected':''}>Auto</option>
+                        <option value="Bricolage" ${p.categorie==='Bricolage'?'selected':''}>Bricolage</option>
                         <option value="Alimentation" ${p.categorie==='Alimentation'?'selected':''}>Alimentation</option>
                         <option value="Autre" ${p.categorie==='Autre'?'selected':''}>Autre</option>
                     </select>
