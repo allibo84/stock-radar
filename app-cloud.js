@@ -2195,6 +2195,112 @@ function toggleHelp(header) {
     body.classList.toggle('open');
 }
 
+// ═══════ QUICK SCAN (MOBILE) ═══════
+let quickScanReader = null;
+let quickScanLastEAN = '';
+let quickScanCooldown = false;
+let quickScanHistory = [];
+
+function openQuickScan() {
+    const overlay = document.getElementById('quick-scan-overlay');
+    overlay.classList.add('active');
+    document.getElementById('quick-scan-result').textContent = 'Démarrage de la caméra...';
+    document.getElementById('quick-scan-result').className = 'quick-scan-result';
+    quickScanLastEAN = '';
+    startQuickScanner();
+}
+
+function closeQuickScan() {
+    stopQuickScanner();
+    document.getElementById('quick-scan-overlay').classList.remove('active');
+}
+
+async function startQuickScanner() {
+    try {
+        quickScanReader = new ZXing.BrowserMultiFormatReader();
+        const video = document.getElementById('quick-scan-video');
+        const devices = await quickScanReader.listVideoInputDevices();
+        const back = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('arrière') || d.label.toLowerCase().includes('environment')) || devices[0];
+
+        quickScanReader.decodeFromVideoDevice(back?.deviceId, 'quick-scan-video', (result) => {
+            if (result && !quickScanCooldown) {
+                const ean = result.getText();
+                quickScanCooldown = true;
+                setTimeout(() => { quickScanCooldown = false; }, 1500);
+
+                quickScanLastEAN = ean;
+                const existant = products.find(p => p.ean === ean && !p.vendu);
+                const resultEl = document.getElementById('quick-scan-result');
+
+                if (existant) {
+                    playSound('doublon');
+                    resultEl.textContent = '📦 En stock : ' + existant.nom + ' (qté: ' + existant.quantite + ')';
+                    resultEl.className = 'quick-scan-result doublon';
+                } else {
+                    playSound('ok');
+                    resultEl.textContent = '✅ Scanné : ' + ean + ' (pas en stock)';
+                    resultEl.className = 'quick-scan-result ok';
+                }
+
+                // Vibrer si supporté
+                if (navigator.vibrate) navigator.vibrate(100);
+
+                // Historique
+                quickScanHistory.unshift({
+                    ean: ean,
+                    nom: existant ? existant.nom : 'Nouveau',
+                    enStock: !!existant,
+                    time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                });
+                if (quickScanHistory.length > 10) quickScanHistory.pop();
+                displayQuickScanHistory();
+            }
+        });
+
+        document.getElementById('quick-scan-result').textContent = 'Pointez la caméra vers un code-barres...';
+    } catch (e) {
+        playSound('ko');
+        document.getElementById('quick-scan-result').textContent = '❌ Erreur caméra : ' + e.message;
+        document.getElementById('quick-scan-result').className = 'quick-scan-result ko';
+    }
+}
+
+function stopQuickScanner() {
+    if (quickScanReader) { quickScanReader.reset(); quickScanReader = null; }
+}
+
+function displayQuickScanHistory() {
+    const c = document.getElementById('quick-scan-history');
+    if (!c || !quickScanHistory.length) return;
+    c.innerHTML = quickScanHistory.map(h =>
+        `<div class="quick-scan-history-item">
+            <span>${h.enStock ? '📦' : '🆕'} ${h.ean} ${h.nom ? '— ' + h.nom : ''}</span>
+            <span style="opacity:0.6;">${h.time}</span>
+        </div>`
+    ).join('');
+}
+
+function quickScanAction(action) {
+    if (!quickScanLastEAN) return alert('Scannez d\'abord un code-barres.');
+    closeQuickScan();
+
+    if (action === 'nouveau') {
+        switchTab('nouveau-produit');
+        document.getElementById('ean').value = quickScanLastEAN;
+        checkPurchaseHistory();
+    } else if (action === 'stock') {
+        switchTab('stock');
+        const input = document.getElementById('search-input');
+        if (input) { input.value = quickScanLastEAN; applyFilters(); }
+    } else if (action === 'inventaire') {
+        switchTab('inventaire');
+        if (inventaireActif) {
+            document.getElementById('inv-scan-ean').value = quickScanLastEAN;
+            inventaireScanEAN();
+        }
+    }
+}
+
 // ═══════ KEYBOARD SHORTCUTS ═══════
 document.addEventListener('keydown', (e) => {
     // Ignorer si on est dans un input/textarea

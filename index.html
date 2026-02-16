@@ -311,6 +311,27 @@
             body { padding-top: env(safe-area-inset-top); }
             .header { padding-top: env(safe-area-inset-top); }
         }
+        /* Floating scan button mobile */
+        .fab-scan { display: none; position: fixed; bottom: 25px; right: 20px; width: 60px; height: 60px; border-radius: 50%; background: #27352a; color: white; border: none; font-size: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 200; cursor: pointer; transition: transform 0.2s; }
+        .fab-scan:active { transform: scale(0.9); }
+        @media (max-width: 768px) { .fab-scan { display: flex; align-items: center; justify-content: center; } }
+        /* Quick scan overlay */
+        .quick-scan-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.95); z-index: 400; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: env(safe-area-inset-top, 20px); }
+        .quick-scan-overlay.active { display: flex; }
+        .quick-scan-header { width: 100%; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; color: white; }
+        .quick-scan-header h3 { font-size: 18px; }
+        .quick-scan-close { background: none; border: none; color: white; font-size: 32px; cursor: pointer; padding: 5px; }
+        .quick-scan-video-box { width: 100%; max-width: 500px; position: relative; border-radius: 15px; overflow: hidden; margin: 10px 20px; }
+        .quick-scan-video-box video { width: 100%; display: block; border-radius: 15px; }
+        .quick-scan-viewfinder { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 70%; height: 40%; border: 3px solid rgba(39,174,96,0.8); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.3); }
+        .quick-scan-result { width: 100%; padding: 15px 20px; text-align: center; color: white; font-size: 16px; font-weight: 700; min-height: 60px; display: flex; align-items: center; justify-content: center; }
+        .quick-scan-result.ok { color: #2ecc71; }
+        .quick-scan-result.doublon { color: #f39c12; }
+        .quick-scan-result.ko { color: #e74c3c; }
+        .quick-scan-actions { padding: 10px 20px; width: 100%; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        .quick-scan-actions button { padding: 12px 20px; border-radius: 10px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; }
+        .quick-scan-history { width: 100%; padding: 10px 20px; max-height: 200px; overflow-y: auto; }
+        .quick-scan-history-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; margin-bottom: 4px; border-radius: 8px; background: rgba(255,255,255,0.08); color: white; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -604,8 +625,9 @@
                     <div class="section-header">
                         <h2>📦 Mon Stock</h2>
                         <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                            <button class="scan-button" onclick="switchTab('nouveau-produit')">➕ Nouveau Produit</button>
-                            <button class="scan-button export" onclick="exportStockExcel()">📊 Export Excel</button>
+                            <button class="scan-button" onclick="openQuickScan()">📷 Scanner</button>
+                            <button class="scan-button" onclick="switchTab('nouveau-produit')">➕ Nouveau</button>
+                            <button class="scan-button export" onclick="exportStockExcel()">📊 Export</button>
                         </div>
                     </div>
                     <!-- Pills sous-catégories -->
@@ -713,9 +735,14 @@
                     <div class="info-message" id="info-achat" style="display:none;">💡 <span id="info-achat-text"></span></div>
                     <div class="scan-section">
                         <h2>Scanner le code-barres</h2>
-                        <button class="scan-button" onclick="startScanner()">📷 Scanner</button>
-                        <button class="scan-button stop" id="stop-scanner" style="display:none;" onclick="stopScanner()">⏹️ Stop</button>
-                        <div id="video-container"><video id="video" autoplay playsinline></video></div>
+                        <p style="color:var(--text-secondary);font-size:13px;margin-bottom:15px;">Utilisez la caméra de votre téléphone ou saisissez l'EAN manuellement</p>
+                        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                            <button class="scan-button" onclick="startScanner()" style="padding:12px 25px;font-size:16px;">📷 Scanner avec la caméra</button>
+                            <button class="scan-button stop" id="stop-scanner" style="display:none;padding:12px 25px;font-size:16px;" onclick="stopScanner()">⏹️ Arrêter</button>
+                        </div>
+                        <div id="video-container" style="margin-top:15px;position:relative;">
+                            <video id="video" autoplay playsinline style="max-width:100%;border-radius:12px;"></video>
+                        </div>
                     </div>
                     <form id="product-form">
                         <div class="form-group">
@@ -1171,6 +1198,28 @@
             </div>
         </div>
     </div>
+    <!-- Floating scan button (mobile) -->
+    <button class="fab-scan" id="fab-scan" onclick="openQuickScan()">📷</button>
+
+    <!-- Quick Scan Overlay -->
+    <div class="quick-scan-overlay" id="quick-scan-overlay">
+        <div class="quick-scan-header">
+            <h3>📷 Scan rapide</h3>
+            <button class="quick-scan-close" onclick="closeQuickScan()">✕</button>
+        </div>
+        <div class="quick-scan-video-box">
+            <video id="quick-scan-video" autoplay playsinline></video>
+            <div class="quick-scan-viewfinder"></div>
+        </div>
+        <div class="quick-scan-result" id="quick-scan-result">Pointez la caméra vers un code-barres...</div>
+        <div class="quick-scan-actions">
+            <button style="background:#27352a;color:white;" onclick="quickScanAction('nouveau')">➕ Nouveau produit</button>
+            <button style="background:#3498db;color:white;" onclick="quickScanAction('stock')">📦 Voir en stock</button>
+            <button style="background:#f39c12;color:white;" onclick="quickScanAction('inventaire')">📊 Inventaire</button>
+        </div>
+        <div class="quick-scan-history" id="quick-scan-history"></div>
+    </div>
+
     <div id="fournisseur-modal" class="modal">
         <div class="modal-content wide">
             <span class="close-modal" onclick="closeFournisseurModal()">&times;</span>
