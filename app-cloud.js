@@ -647,6 +647,10 @@ function showScanFeedback(text, type) {
 }
 
 async function startScanner() {
+    if (typeof ZXing === 'undefined') {
+        alert('Le scanner n\'est pas encore chargé. Vérifiez votre connexion internet et rechargez la page.');
+        return;
+    }
     try {
         codeReader = new ZXing.BrowserMultiFormatReader();
         const video = document.getElementById('video');
@@ -1882,6 +1886,10 @@ function inventaireScanEAN() {
 
 // Scanner inventaire
 async function startInventaireScanner() {
+    if (typeof ZXing === 'undefined') {
+        alert('Scanner non chargé. Vérifiez votre connexion internet.');
+        return;
+    }
     try {
         invCodeReader = new ZXing.BrowserMultiFormatReader();
         const video = document.getElementById('inv-video');
@@ -2216,6 +2224,11 @@ function closeQuickScan() {
 }
 
 async function startQuickScanner() {
+    if (typeof ZXing === 'undefined') {
+        document.getElementById('quick-scan-result').textContent = '❌ Scanner non chargé. Vérifiez votre connexion internet.';
+        document.getElementById('quick-scan-result').className = 'quick-scan-result ko';
+        return;
+    }
     try {
         quickScanReader = new ZXing.BrowserMultiFormatReader();
         const video = document.getElementById('quick-scan-video');
