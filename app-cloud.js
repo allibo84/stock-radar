@@ -333,6 +333,17 @@ function displayFactures() {
     c.innerHTML = h + '</tbody></table></div>';
 }
 
+function toggleFactureForm() {
+    const section = document.getElementById('facture-form-section');
+    if (section.style.display === 'none' || !section.style.display) {
+        document.getElementById('facture-form').reset();
+        document.getElementById('fac-date').value = new Date().toISOString().split('T')[0];
+        section.style.display = 'block';
+    } else {
+        section.style.display = 'none';
+    }
+}
+
 document.getElementById('facture-form')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const fId = parseInt(document.getElementById('fac-fournisseur').value);
@@ -408,12 +419,21 @@ document.getElementById('achat-form')?.addEventListener('submit', async function
         prix_ttc: parseFloat(document.getElementById('a-prix-ttc').value) || 0,
         quantite: parseInt(document.getElementById('a-quantite').value) || 1,
         notes: document.getElementById('a-notes').value.trim(),
-        date_achat: document.getElementById('a-date').value || new Date().toISOString(),
+        date_achat: document.getElementById('a-date').value || new Date().toISOString().split('T')[0],
     };
     if (!a.ean || !a.nom) return alert('EAN et Nom requis');
-    const { error } = await sb.from('achats').insert([a]);
-    if (error) return alert('Erreur: ' + error.message);
-    this.reset();
+    
+    if (editingAchatId) {
+        // Mode modification
+        const { error } = await sb.from('achats').update(a).eq('id', editingAchatId);
+        if (error) return alert('Erreur: ' + error.message);
+    } else {
+        // Mode création
+        const { error } = await sb.from('achats').insert([a]);
+        if (error) return alert('Erreur: ' + error.message);
+    }
+    
+    resetAchatForm();
     document.getElementById('achat-form-section').style.display = 'none';
     await loadAchats();
 });
@@ -427,7 +447,7 @@ function displayAchats() {
     filtered.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
         const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>' : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
-        h += `<tr><td>${d}</td><td>${escapeHtml(a.ean)}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td><button class="btn-small btn-delete" onclick="deleteAchat(${a.id})">🗑️</button></td></tr>`;
+        h += `<tr><td>${d}</td><td>${escapeHtml(a.ean)}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td><div class="action-buttons"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="editAchat(${a.id})">✏️</button><button class="btn-small btn-delete" onclick="deleteAchat(${a.id})">🗑️</button></div></td></tr>`;
     });
     c.innerHTML = h + '</tbody></table></div>';
 }
@@ -510,6 +530,53 @@ async function deleteAchat(id) {
     if (!confirm('Supprimer cet achat ?')) return;
     await sb.from('achats').delete().eq('id', id);
     await loadAchats();
+}
+
+let editingAchatId = null;
+
+function editAchat(id) {
+    const a = achats.find(x => x.id === id);
+    if (!a) return;
+    editingAchatId = id;
+    
+    // Remplir le formulaire avec les données de l'achat
+    document.getElementById('a-ean').value = a.ean || '';
+    document.getElementById('a-nom').value = a.nom || '';
+    document.getElementById('a-categorie').value = a.categorie || '';
+    document.getElementById('a-fournisseur').value = a.fournisseur_id || '';
+    document.getElementById('a-prix-ht').value = a.prix_ht || '';
+    document.getElementById('a-prix-ttc').value = a.prix_ttc || '';
+    document.getElementById('a-quantite').value = a.quantite || 1;
+    document.getElementById('a-date').value = a.date_achat ? a.date_achat.split('T')[0] : '';
+    document.getElementById('a-notes').value = a.notes || '';
+    
+    // Changer le bouton submit
+    const btn = document.querySelector('#achat-form .submit-button');
+    if (btn) btn.innerHTML = '💾 Modifier l\'achat';
+    
+    // Afficher le formulaire
+    document.getElementById('achat-form-section').style.display = 'block';
+    document.getElementById('achat-form-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+function resetAchatForm() {
+    editingAchatId = null;
+    document.getElementById('achat-form').reset();
+    // Remettre la date du jour
+    document.getElementById('a-date').value = new Date().toISOString().split('T')[0];
+    const btn = document.querySelector('#achat-form .submit-button');
+    if (btn) btn.innerHTML = '💾 Enregistrer';
+}
+
+function toggleAchatForm() {
+    const section = document.getElementById('achat-form-section');
+    if (section.style.display === 'none' || !section.style.display) {
+        resetAchatForm();
+        section.style.display = 'block';
+    } else {
+        section.style.display = 'none';
+        resetAchatForm();
+    }
 }
 
 function exportAchatsCSV() {

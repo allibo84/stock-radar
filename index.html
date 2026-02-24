@@ -524,7 +524,7 @@
                     <div class="section-header">
                         <h2>🛒 Mes Achats</h2>
                         <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                            <button class="scan-button" onclick="document.getElementById('achat-form-section').style.display=document.getElementById('achat-form-section').style.display==='none'?'block':'none'">➕ Nouvel achat</button>
+                            <button class="scan-button" onclick="toggleAchatForm()">➕ Nouvel achat</button>
                             <button class="scan-button export" onclick="exportAchatsCSV()">📊 Export CSV</button>
                         </div>
                     </div>
@@ -560,7 +560,7 @@
                 <div id="factures" class="tab-content">
                     <div class="section-header">
                         <h2>🧾 Factures</h2>
-                        <button class="scan-button" onclick="document.getElementById('facture-form-section').style.display=document.getElementById('facture-form-section').style.display==='none'?'block':'none'">➕ Nouvelle facture</button>
+                        <button class="scan-button" onclick="toggleFactureForm()">➕ Nouvelle facture</button>
                     </div>
                     <div id="facture-form-section" style="display:none; background:var(--card-bg); padding:25px; border-radius:15px; margin-bottom:20px; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
                         <form id="facture-form">
