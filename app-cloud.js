@@ -447,7 +447,7 @@ function displayAchats() {
     filtered.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
         const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>' : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
-        h += `<tr><td>${d}</td><td>${escapeHtml(a.ean)}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td><div class="action-buttons"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="editAchat(${a.id})">✏️</button><button class="btn-small btn-delete" onclick="deleteAchat(${a.id})">🗑️</button></div></td></tr>`;
+        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td>${d}</td><td>${escapeHtml(a.ean)}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons"><button class="btn-small btn-delete" onclick="deleteAchat(${a.id})">🗑️</button></div></td></tr>`;
     });
     c.innerHTML = h + '</tbody></table></div>';
 }
