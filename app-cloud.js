@@ -19,6 +19,7 @@ async function loadAllData() {
             loadProducts().catch(e => console.warn('Produits:', e)),
             loadMouvements().catch(e => console.warn('Mouvements:', e)),
             loadFactures().catch(e => console.warn('Factures:', e)),
+            loadFournitures().catch(e => console.warn('Fournitures:', e)),
         ]);
     } catch (e) { console.error('Erreur chargement:', e); }
     document.getElementById('loading').style.display = 'none';
@@ -95,6 +96,7 @@ function setupRealtimeSync() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fournisseurs' }, () => loadFournisseurs())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'mouvements' }, () => loadMouvements())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'factures' }, () => loadFactures())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'fournitures' }, () => loadFournitures())
         .subscribe();
 }
 
@@ -442,7 +444,7 @@ function displayAchats() {
     const c = document.getElementById('achats-container');
     if (!c) return;
     const filtered = filterAchats();
-    if (!filtered.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun achat</h3></div>'; return; }
+    if (!filtered.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun achat</h3></div>'; updateAchatsStats(); return; }
     let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>EAN</th><th>Produit</th><th>Fournisseur</th><th>Qté</th><th>Prix HT</th><th>Prix TTC</th><th>Reçu</th><th>Actions</th></tr></thead><tbody>';
     filtered.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
@@ -450,6 +452,7 @@ function displayAchats() {
         h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td>${d}</td><td>${escapeHtml(a.ean)}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons"><button class="btn-small btn-delete" onclick="deleteAchat(${a.id})">🗑️</button></div></td></tr>`;
     });
     c.innerHTML = h + '</tbody></table></div>';
+    updateAchatsStats();
 }
 
 function filterAchats() {
@@ -476,8 +479,13 @@ function populateAchatsFilters() {
 
 function updateAchatsStats() {
     const filtered = filterAchats();
+    const isFiltered = (document.getElementById('search-achats')?.value || '') !== '' ||
+                       (document.getElementById('filter-achat-fournisseur')?.value || '') !== '' ||
+                       (document.getElementById('filter-achat-recu')?.value || '') !== '';
     const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
-    el('achats-total', filtered.length);
+    el('achats-total', filtered.length + (isFiltered ? ' / ' + achats.length : ''));
+    el('achats-total-label', isFiltered ? 'Achats filtrés' : 'Total achats');
+    el('achats-qte', filtered.reduce((s, a) => s + (a.quantite || 1), 0));
     el('achats-montant', filtered.reduce((s, a) => s + ((a.prix_ttc || 0) * (a.quantite || 1)), 0).toFixed(2) + '€');
     el('achats-en-attente', filtered.filter(a => !a.recu).length);
 }
@@ -1758,6 +1766,139 @@ async function mouvementManuel(productId) {
     await loadProducts();
 }
 
+// ═══════ FOURNITURES & FRAIS ═══════
+let fournitures = [];
+
+async function loadFournitures() {
+    let query = sb.from('fournitures').select('*').order('date_achat', { ascending: false });
+    const uid = getUserFilter();
+    if (uid) query = query.eq('user_id', uid);
+    const { data, error } = await query;
+    if (error) console.warn('Erreur fournitures:', error.message);
+    fournitures = data || [];
+    displayFournitures();
+    updateFournituresSelect();
+}
+
+function updateFournituresSelect() {
+    const sel = document.getElementById('four-fournisseur');
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">--</option>';
+    fournisseurs.forEach(f => sel.innerHTML += `<option value="${f.id}">${escapeHtml(f.nom)}</option>`);
+    sel.value = cur;
+}
+
+function toggleFournitureForm() {
+    const section = document.getElementById('fourniture-form-section');
+    if (section.style.display === 'none' || !section.style.display) {
+        document.getElementById('fourniture-form').reset();
+        document.getElementById('four-date').value = new Date().toISOString().split('T')[0];
+        editingFournitureId = null;
+        const btn = document.querySelector('#fourniture-form .submit-button');
+        if (btn) btn.innerHTML = '💾 Enregistrer';
+        section.style.display = 'block';
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+let editingFournitureId = null;
+
+function editFourniture(id) {
+    const f = fournitures.find(x => x.id === id);
+    if (!f) return;
+    editingFournitureId = id;
+    document.getElementById('four-nom').value = f.nom || '';
+    document.getElementById('four-categorie').value = f.categorie || '';
+    document.getElementById('four-fournisseur').value = f.fournisseur_id || '';
+    document.getElementById('four-qte').value = f.quantite || 1;
+    document.getElementById('four-prix-ht').value = f.prix_ht || '';
+    document.getElementById('four-prix-ttc').value = f.prix_ttc || '';
+    document.getElementById('four-date').value = f.date_achat ? f.date_achat.split('T')[0] : '';
+    document.getElementById('four-recurrent').value = f.recurrent || '';
+    document.getElementById('four-notes').value = f.notes || '';
+    const btn = document.querySelector('#fourniture-form .submit-button');
+    if (btn) btn.innerHTML = '💾 Modifier';
+    document.getElementById('fourniture-form-section').style.display = 'block';
+    document.getElementById('fourniture-form-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+document.getElementById('fourniture-form')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const fId = document.getElementById('four-fournisseur').value;
+    const fObj = fournisseurs.find(f => f.id == fId);
+    const f = {
+        nom: document.getElementById('four-nom').value.trim(),
+        categorie: document.getElementById('four-categorie').value,
+        fournisseur_id: fId ? parseInt(fId) : null,
+        fournisseur_nom: fObj ? fObj.nom : '',
+        quantite: parseInt(document.getElementById('four-qte').value) || 1,
+        prix_ht: parseFloat(document.getElementById('four-prix-ht').value) || 0,
+        prix_ttc: parseFloat(document.getElementById('four-prix-ttc').value) || 0,
+        date_achat: document.getElementById('four-date').value || new Date().toISOString().split('T')[0],
+        recurrent: document.getElementById('four-recurrent').value,
+        notes: document.getElementById('four-notes').value.trim(),
+    };
+    if (!f.nom) return alert('Désignation requise');
+
+    if (editingFournitureId) {
+        const { error } = await sb.from('fournitures').update(f).eq('id', editingFournitureId);
+        if (error) return alert('Erreur: ' + error.message);
+    } else {
+        const { error } = await sb.from('fournitures').insert([f]);
+        if (error) return alert('Erreur: ' + error.message);
+    }
+    editingFournitureId = null;
+    this.reset();
+    document.getElementById('fourniture-form-section').style.display = 'none';
+    await loadFournitures();
+});
+
+async function deleteFourniture(id) {
+    if (!confirm('Supprimer cette fourniture ?')) return;
+    await sb.from('fournitures').delete().eq('id', id);
+    await loadFournitures();
+}
+
+function displayFournitures() {
+    const c = document.getElementById('fournitures-container');
+    if (!c) return;
+
+    const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    el('four-total', fournitures.length);
+    el('four-montant', fournitures.reduce((s, f) => s + ((f.prix_ttc || 0) * (f.quantite || 1)), 0).toFixed(2) + '€');
+    const now = new Date();
+    const moisCourant = fournitures.filter(f => {
+        if (!f.date_achat) return false;
+        const d = new Date(f.date_achat);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+    el('four-mois', moisCourant.reduce((s, f) => s + ((f.prix_ttc || 0) * (f.quantite || 1)), 0).toFixed(2) + '€');
+
+    if (!fournitures.length) { c.innerHTML = '<div class="empty-state"><h3>Aucune fourniture</h3><p>Ajoutez vos frais d\'emballage, d\'expédition et consommables.</p></div>'; return; }
+
+    let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>Désignation</th><th>Catégorie</th><th>Fournisseur</th><th>Qté</th><th>Prix HT</th><th>Prix TTC</th><th>Total TTC</th><th>Actions</th></tr></thead><tbody>';
+    fournitures.forEach(f => {
+        const d = f.date_achat ? new Date(f.date_achat).toLocaleDateString('fr-FR') : '-';
+        const catBadge = f.categorie ? `<span style="background:var(--filter-bg);padding:2px 8px;border-radius:8px;font-size:11px;">${f.categorie}</span>` : '-';
+        const total = ((f.prix_ttc || 0) * (f.quantite || 1)).toFixed(2);
+        const recBadge = f.recurrent ? ` <span style="background:#3498db;color:white;padding:1px 6px;border-radius:6px;font-size:10px;">🔄 ${f.recurrent}</span>` : '';
+        h += `<tr style="cursor:pointer" onclick="editFourniture(${f.id})">
+            <td>${d}</td>
+            <td><strong>${escapeHtml(f.nom)}</strong>${recBadge}</td>
+            <td>${catBadge}</td>
+            <td>${escapeHtml(f.fournisseur_nom||'-')}</td>
+            <td>${f.quantite||1}</td>
+            <td>${(f.prix_ht||0).toFixed(2)}€</td>
+            <td>${(f.prix_ttc||0).toFixed(2)}€</td>
+            <td><strong>${total}€</strong></td>
+            <td onclick="event.stopPropagation()"><button class="btn-small btn-delete" onclick="deleteFourniture(${f.id})">🗑️</button></td>
+        </tr>`;
+    });
+    c.innerHTML = h + '</tbody></table></div>';
+}
+
 // ═══════ ALERTES STOCK BAS ═══════
 function displayAlertes() {
     const c = document.getElementById('alertes-container');
@@ -2178,7 +2319,8 @@ async function backupData() {
         fournisseurs: fournisseurs,
         achats: achats,
         produits: products,
-        factures: factures
+        factures: factures,
+        fournitures: fournitures
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -2206,10 +2348,11 @@ async function restoreData(event) {
         }
 
         // Confirmation finale
-        const info = `Données du fichier :\n- ${(backup.fournisseurs||[]).length} fournisseurs\n- ${(backup.achats||[]).length} achats\n- ${(backup.produits||[]).length} produits\n\nDate de sauvegarde : ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'inconnue'}\n\nConfirmer la restauration ?`;
+        const info = `Données du fichier :\n- ${(backup.fournisseurs||[]).length} fournisseurs\n- ${(backup.achats||[]).length} achats\n- ${(backup.produits||[]).length} produits\n- ${(backup.fournitures||[]).length} fournitures\n\nDate de sauvegarde : ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'inconnue'}\n\nConfirmer la restauration ?`;
         if (!confirm(info)) return;
 
         // Supprimer les données actuelles
+        await sb.from('fournitures').delete().neq('id', 0);
         await sb.from('factures').delete().neq('id', 0);
         await sb.from('produits').delete().neq('id', 0);
         await sb.from('achats').delete().neq('id', 0);
@@ -2253,6 +2396,16 @@ async function restoreData(event) {
             }));
             for (let i = 0; i < faClean.length; i += 50) {
                 await sb.from('factures').insert(faClean.slice(i, i+50));
+            }
+        }
+        if (backup.fournitures?.length) {
+            const foClean = backup.fournitures.map(fo => ({
+                nom: fo.nom, categorie: fo.categorie||'', fournisseur_nom: fo.fournisseur_nom||'',
+                quantite: fo.quantite||1, prix_ht: fo.prix_ht||0, prix_ttc: fo.prix_ttc||0,
+                date_achat: fo.date_achat, recurrent: fo.recurrent||'', notes: fo.notes||''
+            }));
+            for (let i = 0; i < foClean.length; i += 50) {
+                await sb.from('fournitures').insert(foClean.slice(i, i+50));
             }
         }
 
