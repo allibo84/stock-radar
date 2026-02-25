@@ -46,9 +46,8 @@ async function loadAchats() {
     const { data, error } = await query;
     if (error) console.warn('Erreur achats:', error.message);
     achats = data || [];
-    displayAchats();
     populateAchatsFilters();
-    updateAchatsStats();
+    displayAchats();
 }
 
 async function loadProducts() {
@@ -461,7 +460,7 @@ function filterAchats() {
     const r = document.getElementById('filter-achat-recu')?.value || '';
     return achats.filter(a => {
         if (s && !(a.nom||'').toLowerCase().includes(s) && !(a.ean||'').toLowerCase().includes(s)) return false;
-        if (f && a.fournisseur_id != f) return false;
+        if (f && String(a.fournisseur_id) !== String(f)) return false;
         if (r === 'oui' && !a.recu) return false;
         if (r === 'non' && a.recu) return false;
         return true;
