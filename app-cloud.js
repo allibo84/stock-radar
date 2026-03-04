@@ -382,7 +382,7 @@ async function deleteFacture(id) {
 }
 
 function updateFournisseursSelect() {
-    ['a-fournisseur', 'filter-achat-fournisseur'].forEach(sid => {
+    ['a-fournisseur', 'filter-achat-fournisseur', 'four-fournisseur'].forEach(sid => {
         const sel = document.getElementById(sid);
         if (!sel) return;
         const val = sel.value;
@@ -391,6 +391,18 @@ function updateFournisseursSelect() {
         fournisseurs.forEach(f => sel.innerHTML += `<option value="${f.id}">${escapeHtml(f.nom)}</option>`);
         sel.value = val;
     });
+}
+
+async function quickAddFournisseur() {
+    const nom = prompt('Nom du nouveau fournisseur :');
+    if (!nom || !nom.trim()) return;
+    const { data, error } = await sb.from('fournisseurs').insert([{ nom: nom.trim() }]).select();
+    if (error) return alert('Erreur: ' + error.message);
+    await loadFournisseurs();
+    // Sélectionner automatiquement le nouveau fournisseur
+    if (data && data[0]) {
+        document.getElementById('a-fournisseur').value = data[0].id;
+    }
 }
 
 // ═══════ ACHATS ═══════
@@ -448,7 +460,7 @@ function displayAchats() {
     filtered.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
         const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>' : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
-        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td>${d}</td><td>${escapeHtml(a.ean)}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons"><button class="btn-small btn-delete" onclick="deleteAchat(${a.id})">🗑️</button></div></td></tr>`;
+        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td>${d}</td><td>${escapeHtml(a.ean)}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button><button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
     });
     c.innerHTML = h + '</tbody></table></div>';
     updateAchatsStats();
@@ -485,6 +497,7 @@ function updateAchatsStats() {
     el('achats-total', filtered.length + (isFiltered ? ' / ' + achats.length : ''));
     el('achats-total-label', isFiltered ? 'Achats filtrés' : 'Total achats');
     el('achats-qte', filtered.reduce((s, a) => s + (a.quantite || 1), 0));
+    el('achats-montant-ht', filtered.reduce((s, a) => s + ((a.prix_ht || 0) * (a.quantite || 1)), 0).toFixed(2) + '€');
     el('achats-montant', filtered.reduce((s, a) => s + ((a.prix_ttc || 0) * (a.quantite || 1)), 0).toFixed(2) + '€');
     el('achats-en-attente', filtered.filter(a => !a.recu).length);
 }
@@ -540,6 +553,28 @@ async function deleteAchat(id) {
 }
 
 let editingAchatId = null;
+
+function duplicateAchat(id) {
+    const a = achats.find(x => x.id === id);
+    if (!a) return;
+    editingAchatId = null; // Mode création, pas modification
+    
+    document.getElementById('a-ean').value = a.ean || '';
+    document.getElementById('a-nom').value = a.nom || '';
+    document.getElementById('a-categorie').value = a.categorie || '';
+    document.getElementById('a-fournisseur').value = a.fournisseur_id || '';
+    document.getElementById('a-prix-ht').value = '';
+    document.getElementById('a-prix-ttc').value = '';
+    document.getElementById('a-quantite').value = a.quantite || 1;
+    document.getElementById('a-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('a-notes').value = a.notes || '';
+    
+    const btn = document.querySelector('#achat-form .submit-button');
+    if (btn) btn.innerHTML = '💾 Enregistrer (copie)';
+    
+    document.getElementById('achat-form-section').style.display = 'block';
+    document.getElementById('achat-form-section').scrollIntoView({ behavior: 'smooth' });
+}
 
 function editAchat(id) {
     const a = achats.find(x => x.id === id);

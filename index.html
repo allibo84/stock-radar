@@ -534,7 +534,7 @@
                     <div id="achat-form-section" style="display:none; background:var(--card-bg); padding:25px; border-radius:15px; margin-bottom:20px; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
                         <form id="achat-form">
                             <div class="form-row"><div class="form-group"><label>EAN *</label><input type="text" id="a-ean" required></div><div class="form-group"><label>Nom *</label><input type="text" id="a-nom" required></div></div>
-                            <div class="form-row"><div class="form-group"><label>Catégorie</label><select id="a-categorie"><option value="">--</option><option>Électronique</option><option>Informatique</option><option>Mode</option><option>Maison</option><option>Beauté</option><option>Sport</option><option>Jouets</option><option>Livres</option><option>Auto</option><option>Bricolage</option><option>Autre</option></select></div><div class="form-group"><label>Fournisseur</label><select id="a-fournisseur"><option value="">--</option></select></div></div>
+                            <div class="form-row"><div class="form-group"><label>Catégorie</label><select id="a-categorie"><option value="">--</option><option>Électronique</option><option>Informatique</option><option>Mode</option><option>Maison</option><option>Beauté</option><option>Sport</option><option>Jouets</option><option>Livres</option><option>Auto</option><option>Bricolage</option><option>Autre</option></select></div><div class="form-group"><label>Fournisseur</label><div style="display:flex;gap:8px;"><select id="a-fournisseur" style="flex:1;"><option value="">--</option></select><button type="button" onclick="quickAddFournisseur()" style="background:#27352a;color:white;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px;white-space:nowrap;" title="Nouveau fournisseur">➕</button></div></div></div>
                             <div class="form-row">
                                 <div class="form-group"><label>Prix unitaire HT</label><input type="number" id="a-prix-ht" step="0.01" oninput="calculateTTC()" placeholder="Prix par unité HT"></div>
                                 <div class="form-group"><label>Prix unitaire TTC</label><input type="number" id="a-prix-ttc" step="0.01" oninput="calculateHT()" placeholder="Prix par unité TTC"></div>
@@ -554,6 +554,7 @@
                     <div class="stats" id="achats-stats">
                         <div class="stat-card"><div class="stat-number" id="achats-total">0</div><div class="stat-label" id="achats-total-label">Total achats</div></div>
                         <div class="stat-card"><div class="stat-number" id="achats-qte">0</div><div class="stat-label">Unités</div></div>
+                        <div class="stat-card"><div class="stat-number" id="achats-montant-ht">0€</div><div class="stat-label">Montant HT</div></div>
                         <div class="stat-card"><div class="stat-number" id="achats-montant">0€</div><div class="stat-label">Montant TTC</div></div>
                         <div class="stat-card" style="border-left:4px solid #f39c12;"><div class="stat-number" id="achats-en-attente">0</div><div class="stat-label">En attente</div></div>
                     </div>
@@ -1000,13 +1001,14 @@
                         <h3 style="margin-bottom:15px;font-size:18px;">🗺️ Vue d'ensemble</h3>
                         <div style="background:var(--card-bg);border-radius:15px;padding:22px;box-shadow:0 2px 10px rgba(0,0,0,0.06);margin-bottom:20px;">
                             <p style="line-height:1.8;color:var(--text-secondary);font-size:14px;">
-                                <strong style="color:var(--text-color);">Stock Radar</strong> est votre outil complet de gestion de stock pour le e-commerce. Il vous permet de gérer vos <strong style="color:var(--text-color);">achats</strong>, votre <strong style="color:var(--text-color);">stock</strong> (neuf, occasion, entrepôt, rebut), vos <strong style="color:var(--text-color);">ventes</strong> sur différentes plateformes (Amazon FBA/FBM, Vinted, Leboncoin), vos <strong style="color:var(--text-color);">fournisseurs</strong> et vos <strong style="color:var(--text-color);">factures</strong>. Toutes les données sont synchronisées en temps réel dans le cloud.
+                                <strong style="color:var(--text-color);">Stock Radar</strong> est votre outil complet de gestion de stock pour le e-commerce. Il vous permet de gérer vos <strong style="color:var(--text-color);">achats</strong>, votre <strong style="color:var(--text-color);">stock</strong> (neuf, occasion, entrepôt, rebut), vos <strong style="color:var(--text-color);">ventes</strong> sur différentes plateformes (Amazon FBA/FBM, Vinted, Leboncoin), vos <strong style="color:var(--text-color);">fournisseurs</strong>, vos <strong style="color:var(--text-color);">factures</strong> et vos <strong style="color:var(--text-color);">fournitures</strong>. Toutes les données sont synchronisées en temps réel dans le cloud.
                             </p>
                             <div class="help-grid">
                                 <div class="help-feature"><div class="help-feature-title">📊 Dashboard</div>Vue d'ensemble : valeur du stock, CA réalisé, bénéfice, répartition FBA/FBM/Entrepôt, graphiques.</div>
                                 <div class="help-feature"><div class="help-feature-title">🏪 Fournisseurs</div>Fiches complètes avec contacts, conditions, historique prix et achats.</div>
-                                <div class="help-feature"><div class="help-feature-title">🛒 Achats</div>Suivi des commandes, réception automatique vers le stock.</div>
+                                <div class="help-feature"><div class="help-feature-title">🛒 Achats</div>Suivi des commandes, duplication, stats dynamiques par filtre, réception vers le stock.</div>
                                 <div class="help-feature"><div class="help-feature-title">🧾 Factures</div>Gestion des factures fournisseurs, suivi des échéances et paiements.</div>
+                                <div class="help-feature"><div class="help-feature-title">📎 Fournitures</div>Suivi des frais opérationnels : cartons, scotch, étiquettes, expédition, abonnements.</div>
                                 <div class="help-feature"><div class="help-feature-title">📦 Stock</div>Vue complète avec filtres avancés, tri par marge/ROI, alertes stock bas.</div>
                                 <div class="help-feature"><div class="help-feature-title">📋 Mouvements</div>Journal automatique de toutes les entrées, sorties, transferts.</div>
                                 <div class="help-feature"><div class="help-feature-title">🔔 Alertes</div>Détection automatique des produits en rupture ou en stock bas.</div>
@@ -1060,10 +1062,14 @@
                             </div>
                             <div class="help-card-body">
                                 <p>La section Achats vous permet de suivre toutes vos commandes fournisseur.</p>
-                                <p><strong>Créer un achat :</strong> Renseignez l'EAN, le nom, le fournisseur, le <strong>prix unitaire</strong> HT ou TTC (la conversion est automatique), et la quantité.</p>
-                                <p><strong>Réception :</strong> Quand vous recevez la marchandise, cliquez sur le badge du statut pour basculer de <strong>⏳ En attente</strong> à <strong>✅ Reçu</strong>. Cela crée automatiquement le produit dans votre stock avec le bon prix d'achat et la bonne quantité en entrepôt.</p>
-                                <p><strong>Import grossiste :</strong> Vous pouvez importer un fichier Excel ou CSV depuis la section <strong>📥 Import Grossiste</strong> pour enregistrer plusieurs achats en une fois.</p>
-                                <div class="help-tip"><strong>💡 Astuce :</strong> Utilisez les filtres pour voir uniquement les achats en attente de réception, ou filtrer par fournisseur. Exportez vos achats en CSV avec le bouton 📊 Export.</div>
+                                <p><strong>Créer un achat :</strong> Renseignez l'EAN, le nom, le fournisseur, le <strong>prix unitaire</strong> HT ou TTC (la conversion est automatique), et la quantité. La date du jour est pré-remplie mais modifiable.</p>
+                                <p><strong>Ajouter un fournisseur rapidement :</strong> Si votre fournisseur n'existe pas encore, cliquez sur le bouton <strong>➕</strong> à côté du menu déroulant. Saisissez le nom et il sera créé et sélectionné automatiquement.</p>
+                                <p><strong>Modifier un achat :</strong> Cliquez sur n'importe quelle ligne du tableau pour ouvrir le formulaire pré-rempli et modifier les informations.</p>
+                                <p><strong>Dupliquer un achat :</strong> Cliquez sur le bouton <strong>📋</strong> dans les actions pour dupliquer un achat. La date passe au jour actuel et le prix est vidé pour que vous puissiez saisir le nouveau. Pratique quand vous achetez régulièrement les mêmes produits.</p>
+                                <p><strong>Réception :</strong> Quand vous recevez la marchandise, cliquez sur le badge du statut pour basculer de <strong>⏳ En attente</strong> à <strong>✅ Reçu</strong>. Cela crée automatiquement le produit dans votre stock.</p>
+                                <p><strong>Statistiques dynamiques :</strong> Les compteurs en haut (nombre d'achats, unités, montant HT, montant TTC, en attente) s'adaptent en temps réel aux filtres sélectionnés (fournisseur, recherche, statut).</p>
+                                <p><strong>Import grossiste :</strong> Importez un fichier Excel ou CSV depuis la section <strong>📥 Import Grossiste</strong> pour enregistrer plusieurs achats en une fois.</p>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> Utilisez les filtres pour voir uniquement les achats en attente, ou filtrer par fournisseur. Les stats afficheront les totaux correspondant au filtre actif.</div>
                             </div>
                         </div>
 
@@ -1075,7 +1081,7 @@
                             </div>
                             <div class="help-card-body">
                                 <p>Enregistrez vos factures fournisseur pour suivre ce que vous devez payer.</p>
-                                <p><strong>Créer une facture :</strong> Numéro de facture, fournisseur, date, échéance, montant HT/TTC.</p>
+                                <p><strong>Créer une facture :</strong> Numéro de facture, fournisseur, date, échéance, montant HT/TTC. La date du jour est pré-remplie.</p>
                                 <p><strong>Statuts automatiques :</strong></p>
                                 <div class="help-grid">
                                     <div class="help-feature"><div class="help-feature-title">✅ Payée</div>La facture a été réglée. Cliquez sur 💰 pour marquer comme payée.</div>
@@ -1083,6 +1089,22 @@
                                     <div class="help-feature"><div class="help-feature-title">⚠️ En retard</div>La date d'échéance est dépassée et la facture n'est toujours pas payée.</div>
                                 </div>
                                 <div class="help-tip"><strong>💡 Astuce :</strong> Les stats en haut vous montrent le montant total dû et le nombre de factures impayées. Consultez aussi la fiche fournisseur pour voir ses factures.</div>
+                            </div>
+                        </div>
+
+                        <!-- 4b. Fournitures -->
+                        <div class="help-card">
+                            <div class="help-card-header" onclick="toggleHelp(this)">
+                                <span><span class="help-icon">📎</span> Fournitures & Frais</span>
+                                <span class="help-chevron">▼</span>
+                            </div>
+                            <div class="help-card-body">
+                                <p>La section Fournitures permet de suivre tous vos frais opérationnels séparément de vos achats produits : cartons, scotch, étiquettes, frais d'expédition, abonnements, etc.</p>
+                                <p><strong>Créer une fourniture :</strong> Désignation, catégorie (Emballage, Expédition, Étiquettes, Bureau, Abonnement, Outillage, Autre), fournisseur, quantité, prix HT/TTC, et date.</p>
+                                <p><strong>Récurrence :</strong> Indiquez si la dépense est récurrente (mensuelle ou annuelle) — un badge 🔄 apparaîtra sur la ligne.</p>
+                                <p><strong>Modifier :</strong> Cliquez sur une ligne du tableau pour la modifier.</p>
+                                <p><strong>Statistiques :</strong> En haut : nombre total, montant total TTC, et montant dépensé ce mois-ci.</p>
+                                <div class="help-tip"><strong>💡 Astuce :</strong> Séparer les fournitures des achats produits vous permet de mieux calculer votre marge réelle et vos coûts opérationnels.</div>
                             </div>
                         </div>
 
