@@ -688,8 +688,13 @@
                         <button class="stock-pill active" data-stock="all" onclick="switchStockView('all')">📦 Tout</button>
                         <button class="stock-pill" data-stock="neuf" onclick="switchStockView('neuf')">🆕 Neuf</button>
                         <button class="stock-pill" data-stock="occasion" onclick="switchStockView('occasion')">♻️ Occasion</button>
-                        <button class="stock-pill" data-stock="entrepot" onclick="switchStockView('entrepot')">🏭 Entrepôt</button>
                         <button class="stock-pill" data-stock="rebut" onclick="switchStockView('rebut')">🗑️ Rebut</button>
+                    </div>
+                    <div class="stock-pills" style="margin-top:-10px;">
+                        <span style="color:var(--text-secondary);font-size:13px;padding:8px 0;">Emplacement :</span>
+                        <button class="stock-pill" data-stock="entrepot" onclick="switchStockView('entrepot')">🏭 Entrepôt seul</button>
+                        <button class="stock-pill" data-stock="fba" onclick="switchStockView('fba')">📦 FBA</button>
+                        <button class="stock-pill" data-stock="fbm" onclick="switchStockView('fbm')">🏠 FBM</button>
                     </div>
                     <!-- Filtres -->
                     <div class="search-filters">

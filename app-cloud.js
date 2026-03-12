@@ -937,7 +937,9 @@ function getFilteredStock() {
     // Filtre sous-catégorie
     if (activeStockView === 'neuf') list = list.filter(p => (p.etat_stock || 'neuf') === 'neuf' && !p.invendable);
     else if (activeStockView === 'occasion') list = list.filter(p => (p.etat_stock || '') === 'occasion' && !p.invendable);
-    else if (activeStockView === 'entrepot') list = list.filter(p => (p.qte_entrepot || 0) > 0 && !p.invendable);
+    else if (activeStockView === 'entrepot') list = list.filter(p => (p.qte_entrepot || 0) > 0 && (p.qte_fba || 0) === 0 && (p.qte_fbm || 0) === 0 && !p.invendable);
+    else if (activeStockView === 'fba') list = list.filter(p => (p.qte_fba || 0) > 0 && !p.invendable);
+    else if (activeStockView === 'fbm') list = list.filter(p => (p.qte_fbm || 0) > 0 && !p.invendable);
     else if (activeStockView === 'rebut') list = list.filter(p => (p.etat_stock || '') === 'rebut' || p.invendable);
 
     // Recherche étendue (nom, EAN, catégorie, notes, fournisseur)
@@ -1080,7 +1082,7 @@ function displayStock() {
     if (!list.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun produit</h3><p>Ajoutez des produits depuis le menu</p></div>'; return; }
 
     let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>EAN</th><th>Produit</th><th>Cat.</th><th>Type</th>';
-    if (activeStockView === 'neuf' || activeStockView === 'all') h += '<th>FBA</th><th>FBM</th>';
+    if (activeStockView === 'neuf' || activeStockView === 'all' || activeStockView === 'fba' || activeStockView === 'fbm') h += '<th>FBA</th><th>FBM</th>';
     h += '<th>Entrep.</th><th>Total</th><th>Achat</th><th>Revente</th><th>Marge</th><th>Actions</th></tr></thead><tbody>';
 
     list.forEach(p => {
@@ -1114,7 +1116,7 @@ function displayStock() {
             <td><strong>${escapeHtml(p.nom||'')}</strong></td>
             <td>${escapeHtml(p.categorie||'-')}</td>
             <td>${typeBadge}</td>`;
-        if (activeStockView === 'neuf' || activeStockView === 'all') {
+        if (activeStockView === 'neuf' || activeStockView === 'all' || activeStockView === 'fba' || activeStockView === 'fbm') {
             h += `<td>${p.qte_fba||0}</td><td>${p.qte_fbm||0}</td>`;
         }
         h += `<td>${p.qte_entrepot||0}</td>
@@ -1546,7 +1548,7 @@ async function exportStockExcel() {
     const list = getFilteredStock();
     if (!list.length) return alert('Aucun produit à exporter');
 
-    const viewLabel = {all:'Tout',neuf:'Neuf',occasion:'Occasion',entrepot:'Entrepot',rebut:'Rebut'}[activeStockView] || 'Stock';
+    const viewLabel = {all:'Tout',neuf:'Neuf',occasion:'Occasion',entrepot:'Entrepot',fba:'FBA',fbm:'FBM',rebut:'Rebut'}[activeStockView] || 'Stock';
     const data = list.map(p => ({
         'Date': p.date_ajout ? new Date(p.date_ajout).toLocaleDateString('fr-FR') : '',
         'EAN': p.ean || '',
