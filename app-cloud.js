@@ -1614,11 +1614,102 @@ function updateDashboard() {
     const marges = vendus.filter(p => p.prix_achat > 0).map(p => (((p.prix_vente_reel||0)-p.prix_achat)/p.prix_achat*100));
     el('dash-marge-moyenne', (marges.length ? (marges.reduce((a,b)=>a+b,0)/marges.length) : 0).toFixed(1) + '%');
 
+    // Bénéfice potentiel avec explication
+    const valRevente = enStock.reduce((s,p) => s + ((p.prix_revente||0)*(p.quantite||0)), 0);
+    const benefPot = valRevente - valStockAchat;
+    const sansRevente = enStock.filter(p => !p.prix_revente || p.prix_revente <= 0);
+    el('dash-benefice-potentiel', benefPot.toFixed(2) + '€');
+    const benefCard = document.getElementById('dash-benef-potentiel-card');
+    const benefDetail = document.getElementById('dash-benef-detail');
+    if (benefCard) {
+        benefCard.style.borderLeft = benefPot < 0 ? '4px solid #e74c3c' : benefPot > 0 ? '4px solid #27ae60' : '';
+    }
+    if (benefDetail) {
+        if (sansRevente.length > 0) {
+            benefDetail.innerHTML = `⚠️ ${sansRevente.length} produit${sansRevente.length>1?'s':''} sans prix de revente`;
+        } else {
+            benefDetail.textContent = '';
+        }
+    }
+
     // Sub-stats
     el('dash-qte-fba', enStock.reduce((s,p)=>s+(p.qte_fba||0),0));
     el('dash-qte-fbm', enStock.reduce((s,p)=>s+(p.qte_fbm||0),0));
     el('dash-qte-entrepot', enStock.reduce((s,p)=>s+(p.qte_entrepot||0),0));
     el('dash-qte-rebut', products.filter(p => !p.vendu && ((p.etat_stock||'')==='rebut' || p.invendable)).reduce((s,p)=>s+(p.quantite||0),0));
+
+    // Dashboard alerts
+    const alertsDiv = document.getElementById('dash-alerts');
+    if (alertsDiv) {
+        let alerts = '';
+        
+        // Achats en attente
+        const enAttente = achats.filter(a => !a.recu);
+        if (enAttente.length > 0) {
+            const montantAttente = enAttente.reduce((s,a) => s + ((a.prix_ttc||0)*(a.quantite||1)), 0);
+            alerts += `<div class="dash-alert warning" onclick="switchTab('achats')">
+                <span class="dash-alert-icon">📦</span>
+                <div class="dash-alert-text"><strong>${enAttente.length} achat${enAttente.length>1?'s':''} en attente de réception</strong>Montant : ${montantAttente.toFixed(2)}€ TTC</div>
+                <span class="dash-alert-action">→</span>
+            </div>`;
+        }
+
+        // Produits sans prix de revente
+        if (sansRevente.length > 0) {
+            alerts += `<div class="dash-alert danger" onclick="switchTab('stock')">
+                <span class="dash-alert-icon">💰</span>
+                <div class="dash-alert-text"><strong>${sansRevente.length} produit${sansRevente.length>1?'s':''} sans prix de revente</strong>Le bénéfice potentiel est faussé — renseignez les prix pour un calcul fiable</div>
+                <span class="dash-alert-action">→</span>
+            </div>`;
+        }
+
+        // Produits sans seuil d'alerte
+        const sansSeuil = enStock.filter(p => !p.seuil_stock || p.seuil_stock <= 0);
+        if (sansSeuil.length > 0) {
+            alerts += `<div class="dash-alert info" onclick="switchTab('alertes')">
+                <span class="dash-alert-icon">🔔</span>
+                <div class="dash-alert-text"><strong>${sansSeuil.length} produit${sansSeuil.length>1?'s':''} sans seuil d'alerte stock</strong>Configurez les seuils pour être alerté en cas de rupture</div>
+                <span class="dash-alert-action">→</span>
+            </div>`;
+        }
+
+        // Stock critique (quantité = 0 mais pas vendu)
+        const critique = enStock.filter(p => (p.quantite||0) === 0);
+        if (critique.length > 0) {
+            alerts += `<div class="dash-alert danger" onclick="switchTab('alertes')">
+                <span class="dash-alert-icon">🔴</span>
+                <div class="dash-alert-text"><strong>${critique.length} produit${critique.length>1?'s':''} en rupture de stock</strong>Quantité à zéro — réapprovisionnement nécessaire</div>
+                <span class="dash-alert-action">→</span>
+            </div>`;
+        }
+
+        // Factures en retard
+        const today = new Date().toISOString().split('T')[0];
+        const facturesRetard = (typeof factures !== 'undefined' ? factures : []).filter(f => !f.payee && f.date_echeance && f.date_echeance < today);
+        if (facturesRetard.length > 0) {
+            const montantRetard = facturesRetard.reduce((s,f) => s + (f.montant_ttc||0), 0);
+            alerts += `<div class="dash-alert danger" onclick="switchTab('factures')">
+                <span class="dash-alert-icon">🧾</span>
+                <div class="dash-alert-text"><strong>${facturesRetard.length} facture${facturesRetard.length>1?'s':''} en retard</strong>Montant dû : ${montantRetard.toFixed(2)}€</div>
+                <span class="dash-alert-action">→</span>
+            </div>`;
+        }
+
+        // Stock vieillissant (> 60 jours sans vente)
+        const oldStock = enStock.filter(p => {
+            if (!p.date_ajout) return false;
+            return (Date.now() - new Date(p.date_ajout)) / 86400000 > 60;
+        });
+        if (oldStock.length > 5) {
+            alerts += `<div class="dash-alert warning" onclick="switchTab('stock')">
+                <span class="dash-alert-icon">⏰</span>
+                <div class="dash-alert-text"><strong>${oldStock.length} produit${oldStock.length>1?'s':''} en stock depuis plus de 60 jours</strong>Pensez à ajuster les prix ou changer de canal de vente</div>
+                <span class="dash-alert-action">→</span>
+            </div>`;
+        }
+
+        alertsDiv.innerHTML = alerts;
+    }
 
     createCharts();
 }

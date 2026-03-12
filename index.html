@@ -313,6 +313,16 @@
         }
         /* Transfer modal */
         .transfert-loc-btn { flex:1; padding:15px 10px; border-radius:12px; border:2px solid var(--input-border); background:var(--card-bg); color:var(--text-color); cursor:pointer; text-align:center; font-size:13px; transition:all 0.2s; line-height:1.4; }
+        /* Dashboard alerts */
+        .dash-alert { display:flex; align-items:center; gap:12px; padding:14px 18px; border-radius:12px; margin-bottom:8px; font-size:14px; cursor:pointer; transition:all 0.2s; }
+        .dash-alert:hover { transform:translateX(4px); }
+        .dash-alert-icon { font-size:22px; flex-shrink:0; }
+        .dash-alert-text { flex:1; }
+        .dash-alert-text strong { display:block; margin-bottom:2px; }
+        .dash-alert-action { font-size:20px; color:var(--text-secondary); }
+        .dash-alert.warning { background:rgba(243,156,18,0.1); border-left:4px solid #f39c12; }
+        .dash-alert.danger { background:rgba(231,76,60,0.1); border-left:4px solid #e74c3c; }
+        .dash-alert.info { background:rgba(52,152,219,0.1); border-left:4px solid #3498db; }
         .transfert-loc-btn:hover { border-color:#3498db; background:var(--filter-bg); }
         .transfert-loc-btn.selected { border-color:#27352a; background:rgba(39,53,42,0.15); box-shadow:0 0 0 2px #27352a; }
         .transfert-loc-btn.disabled { opacity:0.3; pointer-events:none; }
@@ -452,14 +462,19 @@
                 <!-- ══════ DASHBOARD ══════ -->
                 <div id="dashboard" class="tab-content active">
                     <div class="section-header"><h2>📊 Vue d'ensemble</h2></div>
+                    
+                    <!-- Alertes rapides -->
+                    <div id="dash-alerts" style="margin-bottom:20px;"></div>
+                    
                     <div class="stats">
                         <div class="stat-card"><div class="stat-number" id="dash-total-produits">0</div><div class="stat-label">Produits en stock</div></div>
                         <div class="stat-card"><div class="stat-number" id="dash-total-vendus">0</div><div class="stat-label">Vendus</div></div>
                         <div class="stat-card"><div class="stat-number" id="dash-valeur-stock">0€</div><div class="stat-label">Valeur stock (coût)</div></div>
                         <div class="stat-card"><div class="stat-number" id="dash-valeur-entrepot">0€</div><div class="stat-label">Valeur entrepôt</div></div>
                         <div class="stat-card"><div class="stat-number" id="dash-ca-realise">0€</div><div class="stat-label">CA réalisé</div></div>
-                        <div class="stat-card"><div class="stat-number" id="dash-benefice">0€</div><div class="stat-label">Bénéfice</div></div>
+                        <div class="stat-card"><div class="stat-number" id="dash-benefice">0€</div><div class="stat-label">Bénéfice ventes</div></div>
                         <div class="stat-card"><div class="stat-number" id="dash-marge-moyenne">0%</div><div class="stat-label">Marge moyenne</div></div>
+                        <div class="stat-card" id="dash-benef-potentiel-card"><div class="stat-number" id="dash-benefice-potentiel">0€</div><div class="stat-label">Bénéfice potentiel</div><div id="dash-benef-detail" style="font-size:11px;color:var(--text-secondary);margin-top:4px;"></div></div>
                     </div>
                     <div class="stats" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
                         <div class="stat-card" style="border-left:4px solid #ff9900;"><div class="stat-number" id="dash-qte-fba">0</div><div class="stat-label">FBA</div></div>
