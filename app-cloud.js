@@ -937,7 +937,7 @@ function getFilteredStock() {
     // Filtre sous-catégorie
     if (activeStockView === 'neuf') list = list.filter(p => (p.etat_stock || 'neuf') === 'neuf' && !p.invendable);
     else if (activeStockView === 'occasion') list = list.filter(p => (p.etat_stock || '') === 'occasion' && !p.invendable);
-    else if (activeStockView === 'entrepot') list = list.filter(p => (p.qte_entrepot || 0) > 0 && (p.qte_fba || 0) === 0 && (p.qte_fbm || 0) === 0 && !p.invendable);
+    else if (activeStockView === 'entrepot') list = list.filter(p => (p.qte_entrepot || 0) > 0 && !p.invendable);
     else if (activeStockView === 'fba') list = list.filter(p => (p.qte_fba || 0) > 0 && !p.invendable);
     else if (activeStockView === 'fbm') list = list.filter(p => (p.qte_fbm || 0) > 0 && !p.invendable);
     else if (activeStockView === 'rebut') list = list.filter(p => (p.etat_stock || '') === 'rebut' || p.invendable);
