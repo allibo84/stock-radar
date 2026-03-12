@@ -1280,7 +1280,7 @@ function openProductModal(id) {
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;">
             <button class="scan-button" id="btn-edit-${p.id}" onclick="toggleEditProduct(${p.id})">✏️ Éditer</button>
             <button class="scan-button" id="btn-save-${p.id}" style="display:none;background:#00b894;" onclick="saveEditProduct(${p.id})">💾 Sauvegarder</button>
-            <button class="scan-button" style="background:#3498db;" onclick="mouvementManuel(${p.id}); closeProductModal();">🔄 Transférer</button>
+            <button class="scan-button" style="background:#3498db;" onclick="openTransfertModal(${p.id}); closeProductModal();">🔄 Transférer</button>
             <button class="scan-button" onclick="openVenteModal(${p.id}); closeProductModal();">💰 Vendre</button>
             <button class="scan-button" style="background:#00b4b6;" onclick="generateAnnonce(${p.id},'vinted')">📝 Vinted</button>
             <button class="scan-button" style="background:#f56b2a;" onclick="generateAnnonce(${p.id},'leboncoin')">📝 Leboncoin</button>
@@ -1774,31 +1774,137 @@ async function changeEmplacement(productId, newEmplacement) {
 }
 
 // Mouvement de stock manuel (transfert de quantité entre emplacements)
-async function mouvementManuel(productId) {
+let transfertProductId = null;
+let transfertFrom = null;
+let transfertTo = null;
+
+function openTransfertModal(productId) {
     const p = products.find(x => x.id === productId);
     if (!p) return;
-    
-    const qte = parseInt(prompt(`Quantité à déplacer (stock total: ${p.quantite||0}) :`));
-    if (!qte || qte <= 0) return;
-    
-    const de = prompt('De quel emplacement ? (entrepot / fba / fbm)');
-    const vers = prompt('Vers quel emplacement ? (entrepot / fba / fbm)');
-    if (!de || !vers || de === vers) return alert('Emplacements invalides');
-    
+    transfertProductId = productId;
+    transfertFrom = null;
+    transfertTo = null;
+
+    // Product info
+    document.getElementById('transfert-product-info').innerHTML = 
+        `<strong>${escapeHtml(p.nom)}</strong><br>
+        <span style="color:var(--text-secondary);">Stock total : <strong>${p.quantite||0}</strong> · Entrepôt: ${p.qte_entrepot||0} · FBA: ${p.qte_fba||0} · FBM: ${p.qte_fbm||0}</span>`;
+
+    // Set quantities on FROM buttons
+    document.getElementById('tf-from-entrepot').textContent = (p.qte_entrepot||0) + ' u.';
+    document.getElementById('tf-from-fba').textContent = (p.qte_fba||0) + ' u.';
+    document.getElementById('tf-from-fbm').textContent = (p.qte_fbm||0) + ' u.';
+
+    // Reset selections
+    document.querySelectorAll('#transfert-from-btns .transfert-loc-btn').forEach(b => {
+        b.classList.remove('selected', 'disabled');
+        const loc = b.dataset.loc;
+        const qty = loc === 'entrepot' ? (p.qte_entrepot||0) : loc === 'fba' ? (p.qte_fba||0) : (p.qte_fbm||0);
+        if (qty === 0) b.classList.add('disabled');
+    });
+    document.querySelectorAll('#transfert-to-btns .transfert-loc-btn').forEach(b => {
+        b.classList.remove('selected', 'disabled');
+    });
+
+    document.getElementById('transfert-qte').value = 1;
+    document.getElementById('transfert-summary').style.display = 'none';
+    document.getElementById('transfert-confirm-btn').disabled = true;
+    document.getElementById('transfert-confirm-btn').style.opacity = '0.5';
+    document.getElementById('transfert-modal').style.display = 'block';
+}
+
+function closeTransfertModal() {
+    document.getElementById('transfert-modal').style.display = 'none';
+    transfertProductId = null;
+}
+
+function selectTransfertFrom(loc) {
+    transfertFrom = loc;
+    document.querySelectorAll('#transfert-from-btns .transfert-loc-btn').forEach(b => {
+        b.classList.toggle('selected', b.dataset.loc === loc);
+    });
+    // Disable same location in TO
+    document.querySelectorAll('#transfert-to-btns .transfert-loc-btn').forEach(b => {
+        b.classList.remove('selected', 'disabled');
+        if (b.dataset.loc === loc) b.classList.add('disabled');
+    });
+    transfertTo = null;
+    // Set max quantity
+    const p = products.find(x => x.id === transfertProductId);
+    if (p) {
+        const champs = { entrepot: 'qte_entrepot', fba: 'qte_fba', fbm: 'qte_fbm' };
+        const max = p[champs[loc]] || 0;
+        document.getElementById('transfert-qte').max = max;
+        document.getElementById('transfert-qte').value = Math.min(parseInt(document.getElementById('transfert-qte').value)||1, max);
+    }
+    updateTransfertSummary();
+}
+
+function selectTransfertTo(loc) {
+    if (loc === transfertFrom) return;
+    transfertTo = loc;
+    document.querySelectorAll('#transfert-to-btns .transfert-loc-btn').forEach(b => {
+        b.classList.toggle('selected', b.dataset.loc === loc);
+    });
+    updateTransfertSummary();
+}
+
+function adjustTransfertQte(delta) {
+    const input = document.getElementById('transfert-qte');
+    const newVal = Math.max(1, (parseInt(input.value)||1) + delta);
+    const max = parseInt(input.max) || 999;
+    input.value = Math.min(newVal, max);
+    updateTransfertSummary();
+}
+
+function setTransfertQteMax() {
+    const input = document.getElementById('transfert-qte');
+    input.value = input.max || 1;
+    updateTransfertSummary();
+}
+
+function updateTransfertSummary() {
+    const summary = document.getElementById('transfert-summary');
+    const btn = document.getElementById('transfert-confirm-btn');
+    const qte = parseInt(document.getElementById('transfert-qte').value) || 0;
+    const labels = { entrepot: '🏭 Entrepôt', fba: '📦 FBA', fbm: '🏠 FBM' };
+
+    if (transfertFrom && transfertTo && qte > 0) {
+        summary.innerHTML = `${labels[transfertFrom]} → <strong>${qte}</strong> unité${qte > 1 ? 's' : ''} → ${labels[transfertTo]}`;
+        summary.style.display = 'block';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+    } else {
+        summary.style.display = 'none';
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+    }
+}
+
+// Listen to qte input changes
+document.getElementById('transfert-qte')?.addEventListener('input', updateTransfertSummary);
+
+async function confirmTransfert() {
+    if (!transfertProductId || !transfertFrom || !transfertTo) return;
+    const p = products.find(x => x.id === transfertProductId);
+    if (!p) return;
+
+    const qte = parseInt(document.getElementById('transfert-qte').value) || 0;
+    if (qte <= 0) return;
+
     const champs = { entrepot: 'qte_entrepot', fba: 'qte_fba', fbm: 'qte_fbm' };
-    if (!champs[de] || !champs[vers]) return alert('Emplacement non reconnu (entrepot, fba, fbm)');
-    
-    const qteDe = p[champs[de]] || 0;
-    if (qte > qteDe) return alert(`Stock insuffisant en ${de} (${qteDe} disponible)`);
-    
+    const qteDe = p[champs[transfertFrom]] || 0;
+    if (qte > qteDe) return alert(`Stock insuffisant en ${transfertFrom} (${qteDe} disponible)`);
+
     const update = {};
-    update[champs[de]] = qteDe - qte;
-    update[champs[vers]] = (p[champs[vers]] || 0) + qte;
-    
-    const { error } = await sb.from('produits').update(update).eq('id', productId);
+    update[champs[transfertFrom]] = qteDe - qte;
+    update[champs[transfertTo]] = (p[champs[transfertTo]] || 0) + qte;
+
+    const { error } = await sb.from('produits').update(update).eq('id', transfertProductId);
     if (error) return alert('Erreur: ' + error.message);
-    
-    await logMouvement(productId, 'transfert', qte, de, vers, 'Transfert manuel', '');
+
+    await logMouvement(transfertProductId, 'transfert', qte, transfertFrom, transfertTo, 'Transfert manuel', '');
+    closeTransfertModal();
     await loadProducts();
 }
 
