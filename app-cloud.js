@@ -1987,9 +1987,18 @@ async function confirmTransfert() {
     const qteDe = p[champs[transfertFrom]] || 0;
     if (qte > qteDe) return alert(`Stock insuffisant en ${transfertFrom} (${qteDe} disponible)`);
 
+    const newFrom = qteDe - qte;
+    const newTo = (p[champs[transfertTo]] || 0) + qte;
+
     const update = {};
-    update[champs[transfertFrom]] = qteDe - qte;
-    update[champs[transfertTo]] = (p[champs[transfertTo]] || 0) + qte;
+    update[champs[transfertFrom]] = newFrom;
+    update[champs[transfertTo]] = newTo;
+    
+    // Recalculer quantite totale
+    const allQtes = { qte_entrepot: p.qte_entrepot || 0, qte_fba: p.qte_fba || 0, qte_fbm: p.qte_fbm || 0 };
+    allQtes[champs[transfertFrom]] = newFrom;
+    allQtes[champs[transfertTo]] = newTo;
+    update.quantite = allQtes.qte_entrepot + allQtes.qte_fba + allQtes.qte_fbm;
 
     const { error } = await sb.from('produits').update(update).eq('id', transfertProductId);
     if (error) return alert('Erreur: ' + error.message);
