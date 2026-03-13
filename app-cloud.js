@@ -58,16 +58,16 @@ async function loadProducts() {
     if (error) console.warn('Erreur produits:', error.message);
     products = (data || []).map(p => ({
         ...p,
-        etat_stock: p.etat_stock || 'neuf',
-        statut: p.statut || 'recu',
-        emplacement: p.emplacement || '',
-        seuil_stock: p.seuil_stock || 0,
-        qte_fba: p.qte_fba || 0,
-        qte_fbm: p.qte_fbm || 0,
-        qte_entrepot: p.qte_entrepot || (p.quantite || 1),
-        quantite: p.quantite || 1,
-        amazon_fba: p.amazon_fba || false,
-        amazon_fbm: p.amazon_fbm || false,
+        etat_stock: p.etat_stock ?? 'neuf',
+        statut: p.statut ?? 'recu',
+        emplacement: p.emplacement ?? '',
+        seuil_stock: p.seuil_stock ?? 0,
+        qte_fba: p.qte_fba ?? 0,
+        qte_fbm: p.qte_fbm ?? 0,
+        qte_entrepot: p.qte_entrepot ?? (p.quantite ?? 1),
+        quantite: p.quantite ?? ((p.qte_fba ?? 0) + (p.qte_fbm ?? 0) + (p.qte_entrepot ?? 0)),
+        amazon_fba: p.amazon_fba ?? false,
+        amazon_fbm: p.amazon_fbm ?? false,
     }));
     displayStock();
     updateDashboard();
@@ -1996,7 +1996,7 @@ async function confirmTransfert() {
     update[champs[transfertTo]] = newTo;
     
     // Recalculer quantite totale
-    const allQtes = { qte_entrepot: p.qte_entrepot || 0, qte_fba: p.qte_fba || 0, qte_fbm: p.qte_fbm || 0 };
+    const allQtes = { qte_entrepot: p.qte_entrepot ?? 0, qte_fba: p.qte_fba ?? 0, qte_fbm: p.qte_fbm ?? 0 };
     allQtes[champs[transfertFrom]] = newFrom;
     allQtes[champs[transfertTo]] = newTo;
     update.quantite = allQtes.qte_entrepot + allQtes.qte_fba + allQtes.qte_fbm;
@@ -2618,8 +2618,8 @@ async function restoreData(event) {
             const pClean = backup.produits.map(p => ({
                 ean: p.ean, nom: p.nom, categorie: p.categorie||'', etat: p.etat||'Neuf', etat_stock: p.etat_stock||'neuf',
                 prix_achat: p.prix_achat||0, prix_revente: p.prix_revente||0,
-                qte_fba: p.qte_fba||0, qte_fbm: p.qte_fbm||0, qte_entrepot: p.qte_entrepot||0, quantite: p.quantite||0,
-                amazon_fba: p.amazon_fba||false, amazon_fbm: p.amazon_fbm||false,
+                qte_fba: p.qte_fba ?? 0, qte_fbm: p.qte_fbm ?? 0, qte_entrepot: p.qte_entrepot ?? 0, quantite: p.quantite ?? 0,
+                amazon_fba: p.amazon_fba ?? false, amazon_fbm: p.amazon_fbm ?? false,
                 vinted: p.vinted||false, leboncoin: p.leboncoin||false,
                 invendable: p.invendable||false, vendu: p.vendu||false,
                 date_vente: p.date_vente||null, prix_vente_reel: p.prix_vente_reel||0,
