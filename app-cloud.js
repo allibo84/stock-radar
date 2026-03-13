@@ -1244,15 +1244,15 @@ function openProductModal(id) {
             <h3 style="margin:20px 0 10px;">📦 Répartition des quantités</h3>
             <div class="qte-grid">
                 <div class="qte-card" style="border-top:3px solid #ff9900;">
-                    <input type="number" min="0" id="edit-qte-fba-${p.id}" value="${p.qte_fba||0}" style="width:60px;text-align:center;font-size:24px;font-weight:700;border:1px solid #555;border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:5px;">
+                    <input type="number" min="0" id="edit-qte-fba-${p.id}" value="${p.qte_fba||0}" style="width:70px;text-align:center;font-size:24px;font-weight:700;border:2px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-color);padding:8px;">
                     <div class="qte-label">Amazon FBA</div>
                 </div>
                 <div class="qte-card" style="border-top:3px solid #3f51b5;">
-                    <input type="number" min="0" id="edit-qte-fbm-${p.id}" value="${p.qte_fbm||0}" style="width:60px;text-align:center;font-size:24px;font-weight:700;border:1px solid #555;border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:5px;">
+                    <input type="number" min="0" id="edit-qte-fbm-${p.id}" value="${p.qte_fbm||0}" style="width:70px;text-align:center;font-size:24px;font-weight:700;border:2px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-color);padding:8px;">
                     <div class="qte-label">Amazon FBM</div>
                 </div>
                 <div class="qte-card" style="border-top:3px solid #9c27b0;">
-                    <input type="number" min="0" id="edit-qte-entrepot-${p.id}" value="${p.qte_entrepot||0}" style="width:60px;text-align:center;font-size:24px;font-weight:700;border:1px solid #555;border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:5px;">
+                    <input type="number" min="0" id="edit-qte-entrepot-${p.id}" value="${p.qte_entrepot||0}" style="width:70px;text-align:center;font-size:24px;font-weight:700;border:2px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-color);padding:8px;">
                     <div class="qte-label">Entrepôt</div>
                 </div>
             </div>
@@ -1298,32 +1298,33 @@ function toggleEditProduct(id) {
 }
 
 async function saveEditProduct(id) {
-    const qFba = parseInt(document.getElementById('edit-qte-fba-' + id).value) || 0;
-    const qFbm = parseInt(document.getElementById('edit-qte-fbm-' + id).value) || 0;
-    const qEnt = parseInt(document.getElementById('edit-qte-entrepot-' + id).value) || 0;
+    const qFba = parseInt(document.getElementById('edit-qte-fba-' + id)?.value) || 0;
+    const qFbm = parseInt(document.getElementById('edit-qte-fbm-' + id)?.value) || 0;
+    const qEnt = parseInt(document.getElementById('edit-qte-entrepot-' + id)?.value) || 0;
     const totalQte = qFba + qFbm + qEnt;
 
     const update = {
-        categorie: document.getElementById('edit-categorie-' + id).value,
-        etat_stock: document.getElementById('edit-etat-stock-' + id).value,
-        prix_achat: parseFloat(document.getElementById('edit-prix-achat-' + id).value) || 0,
-        prix_revente: parseFloat(document.getElementById('edit-prix-revente-' + id).value) || 0,
+        categorie: document.getElementById('edit-categorie-' + id)?.value || '',
+        etat_stock: document.getElementById('edit-etat-stock-' + id)?.value || 'neuf',
+        prix_achat: parseFloat(document.getElementById('edit-prix-achat-' + id)?.value) || 0,
+        prix_revente: parseFloat(document.getElementById('edit-prix-revente-' + id)?.value) || 0,
         qte_fba: qFba,
         qte_fbm: qFbm,
         qte_entrepot: qEnt,
         quantite: totalQte,
-        amazon_fba: document.getElementById('edit-amazon-fba-' + id).checked,
-        amazon_fbm: document.getElementById('edit-amazon-fbm-' + id).checked,
-        vinted: document.getElementById('edit-vinted-' + id).checked,
-        leboncoin: document.getElementById('edit-leboncoin-' + id).checked,
-        invendable: document.getElementById('edit-etat-stock-' + id).value === 'rebut',
-        notes: document.getElementById('edit-notes-' + id).value.trim(),
-        emplacement: document.getElementById('edit-emplacement-' + id).value.trim(),
-        seuil_stock: parseInt(document.getElementById('edit-seuil-' + id).value) || 0,
+        amazon_fba: document.getElementById('edit-amazon-fba-' + id)?.checked || false,
+        amazon_fbm: document.getElementById('edit-amazon-fbm-' + id)?.checked || false,
+        vinted: document.getElementById('edit-vinted-' + id)?.checked || false,
+        leboncoin: document.getElementById('edit-leboncoin-' + id)?.checked || false,
+        invendable: (document.getElementById('edit-etat-stock-' + id)?.value || '') === 'rebut',
+        notes: document.getElementById('edit-notes-' + id)?.value?.trim() || '',
+        emplacement: document.getElementById('edit-emplacement-' + id)?.value?.trim() || '',
+        seuil_stock: parseInt(document.getElementById('edit-seuil-' + id)?.value) || 0,
     };
 
+    console.log('Saving product', id, 'update:', update);
     const { error } = await sb.from('produits').update(update).eq('id', id);
-    if (error) return alert('Erreur: ' + error.message);
+    if (error) { console.error('Save error:', error); return alert('Erreur: ' + error.message); }
     
     closeProductModal();
     await loadProducts();
