@@ -424,6 +424,7 @@ document.getElementById('achat-form')?.addEventListener('submit', async function
     const fObj = fournisseurs.find(f => f.id == fId);
     const a = {
         ean: document.getElementById('a-ean').value.trim(),
+        asin: (document.getElementById('a-asin')?.value || '').trim().toUpperCase(),
         nom: document.getElementById('a-nom').value.trim(),
         categorie: document.getElementById('a-categorie').value,
         fournisseur_id: fId ? parseInt(fId) : null,
@@ -456,11 +457,16 @@ function displayAchats() {
     if (!c) return;
     const filtered = filterAchats();
     if (!filtered.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun achat</h3></div>'; updateAchatsStats(); return; }
-    let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>EAN</th><th>Produit</th><th>Fournisseur</th><th>Qté</th><th>Prix HT</th><th>Prix TTC</th><th>Reçu</th><th>Actions</th></tr></thead><tbody>';
+    let h = `<div style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;" id="achats-selection-bar" style="display:none;">
+        <button class="scan-button" style="padding:6px 14px;font-size:13px;" onclick="copySelectedCodes('ean')">📋 Copier EAN sélectionnés</button>
+        <button class="scan-button" style="padding:6px 14px;font-size:13px;background:#ff9900;" onclick="copySelectedCodes('asin')">📋 Copier ASIN sélectionnés</button>
+        <span id="achats-selected-count" style="font-size:13px;color:var(--text-secondary);padding:8px 0;"></span>
+    </div>`;
+    h += '<div class="products-table"><table><thead><tr><th style="width:30px;"><input type="checkbox" id="achats-select-all" onchange="toggleAllAchats(this.checked)"></th><th>Date</th><th>EAN</th><th>ASIN</th><th>Produit</th><th>Fournisseur</th><th>Qté</th><th>Prix HT</th><th>Prix TTC</th><th>Reçu</th><th>Actions</th></tr></thead><tbody>';
     filtered.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
         const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>' : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
-        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td>${d}</td><td>${escapeHtml(a.ean)}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button><button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
+        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td onclick="event.stopPropagation()"><input type="checkbox" class="achat-check" data-id="${a.id}" data-ean="${escapeHtml(a.ean||'')}" data-asin="${escapeHtml(a.asin||'')}" onchange="updateAchatsSelection()"></td><td>${d}</td><td>${escapeHtml(a.ean)}</td><td>${escapeHtml(a.asin||'-')}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button><button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
     });
     c.innerHTML = h + '</tbody></table></div>';
     updateAchatsStats();
@@ -512,6 +518,46 @@ function resetAchatsFilters() {
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     document.getElementById('filter-achat-tri').value = 'recent';
     displayAchats();
+}
+
+function toggleAllAchats(checked) {
+    document.querySelectorAll('.achat-check').forEach(cb => cb.checked = checked);
+    updateAchatsSelection();
+}
+
+function updateAchatsSelection() {
+    const checked = document.querySelectorAll('.achat-check:checked');
+    const count = checked.length;
+    const countEl = document.getElementById('achats-selected-count');
+    if (countEl) countEl.textContent = count > 0 ? `${count} sélectionné${count > 1 ? 's' : ''}` : '';
+}
+
+function copySelectedCodes(type) {
+    const checked = document.querySelectorAll('.achat-check:checked');
+    if (!checked.length) return alert('Sélectionnez au moins un achat');
+    
+    const codes = [];
+    checked.forEach(cb => {
+        const code = type === 'asin' ? cb.dataset.asin : cb.dataset.ean;
+        if (code && code !== '-' && code.trim()) codes.push(code.trim());
+    });
+
+    if (!codes.length) return alert(`Aucun ${type.toUpperCase()} trouvé dans la sélection`);
+
+    const text = codes.join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+        const msg = `✅ ${codes.length} ${type.toUpperCase()} copié${codes.length > 1 ? 's' : ''} !`;
+        alert(msg);
+    }).catch(() => {
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        alert(`✅ ${codes.length} ${type.toUpperCase()} copié${codes.length > 1 ? 's' : ''} !`);
+    });
 }
 
 function updateAchatsStats() {
@@ -588,6 +634,7 @@ function duplicateAchat(id) {
     editingAchatId = null; // Mode création, pas modification
     
     document.getElementById('a-ean').value = a.ean || '';
+    document.getElementById('a-asin').value = a.asin || '';
     document.getElementById('a-nom').value = a.nom || '';
     document.getElementById('a-categorie').value = a.categorie || '';
     document.getElementById('a-fournisseur').value = a.fournisseur_id || '';
@@ -611,6 +658,7 @@ function editAchat(id) {
     
     // Remplir le formulaire avec les données de l'achat
     document.getElementById('a-ean').value = a.ean || '';
+    document.getElementById('a-asin').value = a.asin || '';
     document.getElementById('a-nom').value = a.nom || '';
     document.getElementById('a-categorie').value = a.categorie || '';
     document.getElementById('a-fournisseur').value = a.fournisseur_id || '';
@@ -651,9 +699,9 @@ function toggleAchatForm() {
 
 function exportAchatsCSV() {
     if (!achats.length) return alert('Aucun achat');
-    let csv = '\uFEFFDate,EAN,Nom,Fournisseur,Qté,Prix HT,Prix TTC,Reçu,Notes\n';
+    let csv = '\uFEFFDate,EAN,ASIN,Nom,Fournisseur,Qté,Prix HT,Prix TTC,Reçu,Notes\n';
     achats.forEach(a => {
-        csv += `"${a.date_achat?new Date(a.date_achat).toLocaleDateString('fr-FR'):'-'}","${a.ean}","${a.nom}","${a.fournisseur_nom||''}",${a.quantite||1},${(a.prix_ht||0).toFixed(2)},${(a.prix_ttc||0).toFixed(2)},"${a.recu?'Oui':'Non'}","${(a.notes||'').replace(/"/g,'""')}"\n`;
+        csv += `"${a.date_achat?new Date(a.date_achat).toLocaleDateString('fr-FR'):'-'}","${a.ean}","${a.asin||''}","${a.nom}","${a.fournisseur_nom||''}",${a.quantite||1},${(a.prix_ht||0).toFixed(2)},${(a.prix_ttc||0).toFixed(2)},"${a.recu?'Oui':'Non'}","${(a.notes||'').replace(/"/g,'""')}"\n`;
     });
     downloadCSV(csv, 'achats.csv');
 }
@@ -865,6 +913,7 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
     if (totalQte <= 0) return alert('Quantité totale doit être > 0');
     const pr = {
         ean: document.getElementById('ean').value.trim(),
+        asin: (document.getElementById('asin')?.value || '').trim().toUpperCase(),
         nom: document.getElementById('product-name').value.trim(),
         categorie: document.getElementById('categorie').value,
         etat: document.getElementById('etat').value,
@@ -1191,7 +1240,7 @@ function openProductModal(id) {
 
     body.innerHTML = `
         <h2 style="margin-bottom:5px;">${escapeHtml(p.nom)}</h2>
-        <p style="color:var(--text-secondary);margin-bottom:20px;">EAN: ${escapeHtml(p.ean||'-')} · ${typeBadge}</p>
+        <p style="color:var(--text-secondary);margin-bottom:20px;">EAN: ${escapeHtml(p.ean||'-')}${p.asin ? ' / ASIN: ' + escapeHtml(p.asin) : ''} · ${typeBadge}</p>
         
         <!-- Zone lecture -->
         <div id="product-view-${p.id}">
@@ -2637,14 +2686,14 @@ async function restoreData(event) {
             }
         }
         if (backup.achats?.length) {
-            const aClean = backup.achats.map(a => ({ ean: a.ean, nom: a.nom, categorie: a.categorie||'', fournisseur_nom: a.fournisseur_nom||'', prix_ht: a.prix_ht||0, prix_ttc: a.prix_ttc||0, quantite: a.quantite||1, recu: a.recu||false, notes: a.notes||'', date_achat: a.date_achat }));
+            const aClean = backup.achats.map(a => ({ ean: a.ean, asin: a.asin||'', nom: a.nom, categorie: a.categorie||'', fournisseur_nom: a.fournisseur_nom||'', prix_ht: a.prix_ht||0, prix_ttc: a.prix_ttc||0, quantite: a.quantite||1, recu: a.recu||false, notes: a.notes||'', date_achat: a.date_achat }));
             for (let i = 0; i < aClean.length; i += 50) {
                 await sb.from('achats').insert(aClean.slice(i, i+50));
             }
         }
         if (backup.produits?.length) {
             const pClean = backup.produits.map(p => ({
-                ean: p.ean, nom: p.nom, categorie: p.categorie||'', etat: p.etat||'Neuf', etat_stock: p.etat_stock||'neuf',
+                ean: p.ean, asin: p.asin||'', nom: p.nom, categorie: p.categorie||'', etat: p.etat||'Neuf', etat_stock: p.etat_stock||'neuf',
                 prix_achat: p.prix_achat||0, prix_revente: p.prix_revente||0,
                 qte_fba: p.qte_fba ?? 0, qte_fbm: p.qte_fbm ?? 0, qte_entrepot: p.qte_entrepot ?? 0, quantite: p.quantite ?? 0,
                 amazon_fba: p.amazon_fba ?? false, amazon_fbm: p.amazon_fbm ?? false,
