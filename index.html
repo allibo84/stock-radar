@@ -571,6 +571,25 @@
                             <select class="search-input" id="filter-achat-fournisseur"><option value="">Tous fournisseurs</option></select>
                             <select class="search-input" id="filter-achat-recu"><option value="">Tous</option><option value="oui">✅ Reçu</option><option value="non">⏳ En attente</option></select>
                         </div>
+                        <div class="search-row" style="margin-top:8px;">
+                            <div style="display:flex;align-items:center;gap:6px;flex:1;">
+                                <label style="font-size:13px;color:var(--text-secondary);white-space:nowrap;">Du</label>
+                                <input type="date" class="search-input" id="filter-achat-date-debut" style="flex:1;">
+                            </div>
+                            <div style="display:flex;align-items:center;gap:6px;flex:1;">
+                                <label style="font-size:13px;color:var(--text-secondary);white-space:nowrap;">Au</label>
+                                <input type="date" class="search-input" id="filter-achat-date-fin" style="flex:1;">
+                            </div>
+                            <select class="search-input" id="filter-achat-tri" style="flex:1;">
+                                <option value="recent">📅 Plus récent</option>
+                                <option value="ancien">📅 Plus ancien</option>
+                                <option value="nom">🔤 Nom A→Z</option>
+                                <option value="prix-desc">💰 Prix ↓</option>
+                                <option value="prix-asc">💰 Prix ↑</option>
+                                <option value="qte-desc">📦 Qté ↓</option>
+                            </select>
+                            <button class="scan-button" style="padding:8px 14px;font-size:13px;" onclick="resetAchatsFilters()">✖ Reset</button>
+                        </div>
                     </div>
                     <div class="stats" id="achats-stats">
                         <div class="stat-card"><div class="stat-number" id="achats-total">0</div><div class="stat-label" id="achats-total-label">Total achats</div></div>

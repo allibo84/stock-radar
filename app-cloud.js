@@ -470,13 +470,29 @@ function filterAchats() {
     const s = document.getElementById('search-achats')?.value.toLowerCase() || '';
     const f = document.getElementById('filter-achat-fournisseur')?.value || '';
     const r = document.getElementById('filter-achat-recu')?.value || '';
-    return achats.filter(a => {
-        if (s && !(a.nom||'').toLowerCase().includes(s) && !(a.ean||'').toLowerCase().includes(s)) return false;
+    const dateDebut = document.getElementById('filter-achat-date-debut')?.value || '';
+    const dateFin = document.getElementById('filter-achat-date-fin')?.value || '';
+    const tri = document.getElementById('filter-achat-tri')?.value || 'recent';
+
+    let result = achats.filter(a => {
+        if (s && !(a.nom||'').toLowerCase().includes(s) && !(a.ean||'').toLowerCase().includes(s) && !(a.fournisseur_nom||'').toLowerCase().includes(s)) return false;
         if (f && String(a.fournisseur_id) !== String(f)) return false;
         if (r === 'oui' && !a.recu) return false;
         if (r === 'non' && a.recu) return false;
+        if (dateDebut && a.date_achat && a.date_achat.split('T')[0] < dateDebut) return false;
+        if (dateFin && a.date_achat && a.date_achat.split('T')[0] > dateFin) return false;
         return true;
     });
+
+    // Tri
+    if (tri === 'recent') result.sort((a, b) => (b.date_achat || '').localeCompare(a.date_achat || ''));
+    else if (tri === 'ancien') result.sort((a, b) => (a.date_achat || '').localeCompare(b.date_achat || ''));
+    else if (tri === 'nom') result.sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
+    else if (tri === 'prix-desc') result.sort((a, b) => ((b.prix_ttc || 0) * (b.quantite || 1)) - ((a.prix_ttc || 0) * (a.quantite || 1)));
+    else if (tri === 'prix-asc') result.sort((a, b) => ((a.prix_ttc || 0) * (a.quantite || 1)) - ((b.prix_ttc || 0) * (b.quantite || 1)));
+    else if (tri === 'qte-desc') result.sort((a, b) => (b.quantite || 1) - (a.quantite || 1));
+
+    return result;
 }
 
 function populateAchatsFilters() {
@@ -484,15 +500,27 @@ function populateAchatsFilters() {
         document.getElementById('search-achats')?.addEventListener('input', displayAchats);
         document.getElementById('filter-achat-fournisseur')?.addEventListener('change', displayAchats);
         document.getElementById('filter-achat-recu')?.addEventListener('change', displayAchats);
+        document.getElementById('filter-achat-date-debut')?.addEventListener('change', displayAchats);
+        document.getElementById('filter-achat-date-fin')?.addEventListener('change', displayAchats);
+        document.getElementById('filter-achat-tri')?.addEventListener('change', displayAchats);
         achatsFiltersInit = true;
     }
+}
+
+function resetAchatsFilters() {
+    const ids = ['search-achats', 'filter-achat-fournisseur', 'filter-achat-recu', 'filter-achat-date-debut', 'filter-achat-date-fin'];
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.getElementById('filter-achat-tri').value = 'recent';
+    displayAchats();
 }
 
 function updateAchatsStats() {
     const filtered = filterAchats();
     const isFiltered = (document.getElementById('search-achats')?.value || '') !== '' ||
                        (document.getElementById('filter-achat-fournisseur')?.value || '') !== '' ||
-                       (document.getElementById('filter-achat-recu')?.value || '') !== '';
+                       (document.getElementById('filter-achat-recu')?.value || '') !== '' ||
+                       (document.getElementById('filter-achat-date-debut')?.value || '') !== '' ||
+                       (document.getElementById('filter-achat-date-fin')?.value || '') !== '';
     const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
     el('achats-total', filtered.length + (isFiltered ? ' / ' + achats.length : ''));
     el('achats-total-label', isFiltered ? 'Achats filtrés' : 'Total achats');
