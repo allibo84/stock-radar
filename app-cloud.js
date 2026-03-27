@@ -6,6 +6,8 @@
 let fournisseurs = [], achats = [], products = [], mouvements = [];
 let currentPhotos = [], currentVenteProductId = null;
 let activeStockView = 'all';
+let stockCurrentPage = 1;
+let stockPerPage = 25;
 let charts = {};
 let achatsFiltersInit = false, grossisteData = null;
 let realtimeChannel = null;
@@ -995,7 +997,23 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
 // ═══════ STOCK DISPLAY ═══════
 function switchStockView(view) {
     activeStockView = view;
+    stockCurrentPage = 1;
     document.querySelectorAll('.stock-pill').forEach(p => p.classList.toggle('active', p.dataset.stock === view));
+    displayStock();
+}
+
+function stockGoPage(p) {
+    const list = getFilteredStock();
+    const total = Math.max(1, Math.ceil(list.length / stockPerPage));
+    if (p < 1 || p > total) return;
+    stockCurrentPage = p;
+    displayStock();
+}
+
+function stockChangePerPage() {
+    const sel = document.getElementById('stock-per-page');
+    if (sel) stockPerPage = parseInt(sel.value);
+    stockCurrentPage = 1;
     displayStock();
 }
 
@@ -1015,8 +1033,10 @@ function getFilteredStock() {
     if (activeStockView === 'neuf') list = list.filter(p => (p.etat_stock || 'neuf') === 'neuf' && !p.invendable);
     else if (activeStockView === 'occasion') list = list.filter(p => (p.etat_stock || '') === 'occasion' && !p.invendable);
     else if (activeStockView === 'entrepot') list = list.filter(p => (p.qte_entrepot || 0) > 0 && !p.invendable);
+    else if (activeStockView === 'fba_attente') list = list.filter(p => p.fba_attente === true || (p.statut || '') === 'fba_attente');
     else if (activeStockView === 'fba') list = list.filter(p => (p.qte_fba || 0) > 0 && !p.invendable);
     else if (activeStockView === 'fbm') list = list.filter(p => (p.qte_fbm || 0) > 0 && !p.invendable);
+    else if (activeStockView === 'vinted_stock') list = list.filter(p => p.vinted === true && !p.invendable);
     else if (activeStockView === 'rebut') list = list.filter(p => (p.etat_stock || '') === 'rebut' || p.invendable);
 
     // Recherche étendue (nom, EAN, catégorie, notes, fournisseur)
@@ -1040,8 +1060,10 @@ function getFilteredStock() {
 
     // Emplacement
     if (emplacement === 'entrepot') list = list.filter(p => (p.qte_entrepot || 0) > 0);
+    else if (emplacement === 'fba_attente') list = list.filter(p => p.fba_attente === true || (p.statut || '') === 'fba_attente');
     else if (emplacement === 'fba') list = list.filter(p => (p.qte_fba || 0) > 0);
     else if (emplacement === 'fbm') list = list.filter(p => (p.qte_fbm || 0) > 0);
+    else if (emplacement === 'vinted') list = list.filter(p => p.vinted === true);
 
     // Dates
     if (dateFrom) list = list.filter(p => p.date_ajout && new Date(p.date_ajout) >= new Date(dateFrom));
@@ -1113,6 +1135,7 @@ function resetFilters() {
     document.getElementById('stock-filter-fournisseur').value = '';
     document.getElementById('stock-filter-statut').value = '';
     document.getElementById('stock-search').value = '';
+    stockCurrentPage = 1;
     displayStock();
 }
 
@@ -1158,15 +1181,23 @@ function displayStock() {
 
     if (!list.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun produit</h3><p>Ajoutez des produits depuis le menu</p></div>'; return; }
 
+    // — Pagination —
+    const totalItems = list.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / stockPerPage));
+    if (stockCurrentPage > totalPages) stockCurrentPage = totalPages;
+    const startIdx = (stockCurrentPage - 1) * stockPerPage;
+    const pageList = list.slice(startIdx, startIdx + stockPerPage);
+
+    const showFbaFbm = ['neuf','all','fba','fbm','fba_attente'].includes(activeStockView);
     let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>EAN</th><th>Produit</th><th>Cat.</th><th>Type</th>';
-    if (activeStockView === 'neuf' || activeStockView === 'all' || activeStockView === 'fba' || activeStockView === 'fbm') h += '<th>FBA</th><th>FBM</th>';
+    if (showFbaFbm) h += '<th>FBA</th><th>FBM</th>';
     h += '<th>Entrep.</th><th>Total</th><th>Achat</th><th>Revente</th><th>Marge</th><th>Actions</th></tr></thead><tbody>';
 
-    list.forEach(p => {
+    pageList.forEach(p => {
         const date = p.date_ajout ? new Date(p.date_ajout).toLocaleDateString('fr-FR') : '-';
         const age = p.date_ajout ? Math.floor((Date.now() - new Date(p.date_ajout)) / 86400000) : 0;
         const marge = (p.prix_achat > 0 && p.prix_revente > 0) ? ((p.prix_revente - p.prix_achat) / p.prix_achat * 100) : null;
-        
+
         const typeBadge = p.invendable ? '<span class="badge badge-rebut">Rebut</span>'
             : (p.etat_stock === 'occasion') ? '<span class="badge badge-occasion">Occasion</span>'
             : (p.etat_stock === 'rebut') ? '<span class="badge badge-rebut">Rebut</span>'
@@ -1175,8 +1206,7 @@ function displayStock() {
         let riskBadge = '';
         if (age > 60) riskBadge = ' <span class="badge-risk">⚠️ ' + age + 'j</span>';
         else if (age > 30) riskBadge = ' <span class="badge-slow">🕐 ' + age + 'j</span>';
-        
-        // Alerte stock bas
+
         if ((p.seuil_stock || 0) > 0 && (p.quantite || 0) <= (p.seuil_stock || 0)) {
             riskBadge += (p.quantite || 0) === 0 ? ' <span class="alert-critique">🔴</span>' : ' <span class="alert-bas">🟠</span>';
         }
@@ -1193,9 +1223,7 @@ function displayStock() {
             <td><strong>${escapeHtml(p.nom||'')}</strong></td>
             <td>${escapeHtml(p.categorie||'-')}</td>
             <td>${typeBadge}</td>`;
-        if (activeStockView === 'neuf' || activeStockView === 'all' || activeStockView === 'fba' || activeStockView === 'fbm') {
-            h += `<td>${p.qte_fba||0}</td><td>${p.qte_fbm||0}</td>`;
-        }
+        if (showFbaFbm) h += `<td>${p.qte_fba||0}</td><td>${p.qte_fbm||0}</td>`;
         h += `<td>${p.qte_entrepot||0}</td>
             <td><strong>${p.quantite||0}</strong></td>
             <td>${(p.prix_achat||0).toFixed(2)}€</td>
@@ -1207,7 +1235,38 @@ function displayStock() {
                 <button class="btn-small btn-delete" onclick="deleteProduct(${p.id})">🗑️</button>
             </div></td></tr>`;
     });
-    c.innerHTML = h + '</tbody></table></div>';
+    h += '</tbody></table></div>';
+
+    // — Barre de pagination —
+    const from = startIdx + 1;
+    const to = Math.min(startIdx + stockPerPage, totalItems);
+
+    let pageButtons = `<button class="page-btn" onclick="stockGoPage(${stockCurrentPage - 1})" ${stockCurrentPage === 1 ? 'disabled' : ''}>‹</button>`;
+    let pages = [];
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= stockCurrentPage - 1 && i <= stockCurrentPage + 1)) pages.push(i);
+        else if (pages[pages.length - 1] !== '…') pages.push('…');
+    }
+    pages.forEach(pg => {
+        if (pg === '…') pageButtons += `<span class="page-btn" style="cursor:default;border:none">…</span>`;
+        else pageButtons += `<button class="page-btn ${pg === stockCurrentPage ? 'active' : ''}" onclick="stockGoPage(${pg})">${pg}</button>`;
+    });
+    pageButtons += `<button class="page-btn" onclick="stockGoPage(${stockCurrentPage + 1})" ${stockCurrentPage === totalPages ? 'disabled' : ''}>›</button>`;
+
+    h += `<div class="pagination-bar">
+        <div class="pagination-info">${from}–${to} sur ${totalItems} produits</div>
+        <div class="pagination-controls">${pageButtons}</div>
+        <div class="per-page-wrap">
+            <span class="per-page-label">Lignes par page :</span>
+            <select class="per-page-select" id="stock-per-page" onchange="stockChangePerPage()">
+                <option value="25" ${stockPerPage === 25 ? 'selected' : ''}>25</option>
+                <option value="50" ${stockPerPage === 50 ? 'selected' : ''}>50</option>
+                <option value="100" ${stockPerPage === 100 ? 'selected' : ''}>100</option>
+            </select>
+        </div>
+    </div>`;
+
+    c.innerHTML = h;
 }
 
 // ═══════ FICHE PRODUIT (MODAL) ═══════

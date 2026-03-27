@@ -164,6 +164,21 @@
         .stock-pill { padding: 10px 20px; border-radius: 25px; border: 2px solid var(--input-border); background: var(--card-bg); color: var(--text-color); cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; }
         .stock-pill:hover { border-color: #9fdd65; }
         .stock-pill.active { background: #27352a; color: white; border-color: #27352a; }
+        .stock-pill-fba-attente { background: #fff8e1; border-color: #f59f00; color: #8a6000; }
+        .stock-pill-fba-attente.active { background: #f59f00; color: white; border-color: #f59f00; }
+        .stock-pill-vinted { background: #e0f2f1; border-color: #009688; color: #00695c; }
+        .stock-pill-vinted.active { background: #009688; color: white; border-color: #009688; }
+        /* Pagination */
+        .pagination-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: var(--card-bg); border-top: 2px solid var(--table-border); border-radius: 0 0 12px 12px; flex-wrap: wrap; gap: 10px; }
+        .pagination-info { font-size: 13px; color: var(--text-secondary); }
+        .pagination-controls { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+        .page-btn { border: 1px solid var(--input-border); background: var(--card-bg); border-radius: 6px; padding: 5px 11px; font-size: 13px; cursor: pointer; color: var(--text-color); min-width: 34px; text-align: center; }
+        .page-btn:hover { border-color: #9fdd65; }
+        .page-btn.active { background: #27352a; color: white; border-color: #27352a; }
+        .page-btn:disabled { opacity: 0.35; cursor: default; }
+        .per-page-wrap { display: flex; align-items: center; gap: 8px; }
+        .per-page-label { font-size: 13px; color: var(--text-secondary); }
+        .per-page-select { border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color); border-radius: 6px; padding: 5px 10px; font-size: 13px; cursor: pointer; outline: none; }
         /* Global search */
         .header-center { flex: 1; max-width: 450px; margin: 0 15px; }
         .global-search-wrapper { position: relative; }
@@ -733,8 +748,10 @@
                     <div class="stock-pills" style="margin-top:-10px;">
                         <span style="color:var(--text-secondary);font-size:13px;padding:8px 0;">Emplacement :</span>
                         <button class="stock-pill" data-stock="entrepot" onclick="switchStockView('entrepot')">🏭 En entrepôt</button>
+                        <button class="stock-pill stock-pill-fba-attente" data-stock="fba_attente" onclick="switchStockView('fba_attente')">⏳ FBA en attente</button>
                         <button class="stock-pill" data-stock="fba" onclick="switchStockView('fba')">📦 FBA</button>
                         <button class="stock-pill" data-stock="fbm" onclick="switchStockView('fbm')">🏠 FBM</button>
+                        <button class="stock-pill stock-pill-vinted" data-stock="vinted_stock" onclick="switchStockView('vinted_stock')">👗 Vinted</button>
                     </div>
                     <!-- Filtres -->
                     <div class="search-filters">
@@ -779,8 +796,10 @@
                                     <select id="stock-filter-emplacement" onchange="displayStock()">
                                         <option value="">Tous</option>
                                         <option value="entrepot">Entrepôt seulement</option>
+                                        <option value="fba_attente">FBA en attente</option>
                                         <option value="fba">FBA seulement</option>
                                         <option value="fbm">FBM seulement</option>
+                                        <option value="vinted">Vinted seulement</option>
                                     </select>
                                 </div>
                                 <div class="filter-group">
