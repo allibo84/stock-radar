@@ -481,7 +481,7 @@ function filterAchats() {
     const tri = document.getElementById('filter-achat-tri')?.value || 'recent';
 
     let result = achats.filter(a => {
-        if (s && !(a.nom||'').toLowerCase().includes(s) && !(a.ean||'').toLowerCase().includes(s) && !(a.fournisseur_nom||'').toLowerCase().includes(s)) return false;
+        if (s && !(a.nom||'').toLowerCase().includes(s) && !(a.ean||'').toLowerCase().includes(s) && !(a.asin||'').toLowerCase().includes(s) && !(a.fournisseur_nom||'').toLowerCase().includes(s)) return false;
         if (f && String(a.fournisseur_id) !== String(f)) return false;
         if (r === 'oui' && !a.recu) return false;
         if (r === 'non' && a.recu) return false;
@@ -2948,8 +2948,9 @@ function globalSearch(query, isMobile = false) {
         // Chercher dans les achats
         achats.forEach(a => {
             if ((a.nom||'').toLowerCase().includes(q) || (a.ean||'').toLowerCase().includes(q) || 
+                (a.asin||'').toLowerCase().includes(q) ||
                 (a.fournisseur_nom||'').toLowerCase().includes(q)) {
-                results.push({ type: 'achat', id: a.id, nom: a.nom, detail: `EAN: ${a.ean||'-'} · ${a.fournisseur_nom||'?'} · ${(a.prix_ttc||0).toFixed(2)}€`, badge: a.recu ? 'Reçu' : 'Attente' });
+                results.push({ type: 'achat', id: a.id, nom: a.nom, detail: `EAN: ${a.ean||'-'} · ASIN: ${a.asin||'-'} · ${a.fournisseur_nom||'?'} · ${(a.prix_ttc||0).toFixed(2)}€`, badge: a.recu ? 'Reçu' : 'Attente' });
             }
         });
         
