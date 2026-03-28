@@ -22,9 +22,13 @@ CREATE TABLE IF NOT EXISTS mouvements (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- RLS pour mouvements
+-- RLS pour mouvements (policy stricte par user_id)
 ALTER TABLE mouvements ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "auth_mouvements" ON mouvements FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "auth_mouvements" ON mouvements;
+DROP POLICY IF EXISTS "user_mouvements" ON mouvements;
+CREATE POLICY "user_mouvements" ON mouvements FOR ALL TO authenticated
+    USING (user_id = auth.uid() OR auth.uid() IN (SELECT user_id FROM app_admins))
+    WITH CHECK (user_id = auth.uid() OR auth.uid() IN (SELECT user_id FROM app_admins));
 
 -- Realtime pour mouvements
 ALTER PUBLICATION supabase_realtime ADD TABLE mouvements;

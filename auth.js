@@ -121,6 +121,15 @@ function getUserFilter() {
     return currentUser?.id || null;
 }
 
+// Retourne le user_id à utiliser pour les ÉCRITURES (insert/update/delete)
+// En mode admin qui consulte un autre compte → écrit sur ce compte
+// En mode admin "Tous" → écrit sur son propre compte
+// En mode utilisateur normal → écrit sur son propre compte
+function getEffectiveUserId() {
+    if (isAdmin && viewingUserId && viewingUserId !== currentUser?.id) return viewingUserId;
+    return currentUser?.id || null;
+}
+
 function showLogin() {
     document.getElementById('app-container').style.display = 'none';
     document.getElementById('login-container').style.display = 'flex';

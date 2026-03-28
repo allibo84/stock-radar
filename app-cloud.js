@@ -179,6 +179,7 @@ document.getElementById('fournisseur-form')?.addEventListener('submit', async fu
         notes: document.getElementById('f-notes').value.trim()
     };
     if (!f.nom) return alert('Nom requis');
+    f.user_id = getEffectiveUserId();
     const { error } = await sb.from('fournisseurs').insert([f]);
     if (error) return alert('Erreur: ' + error.message);
     this.reset();
@@ -364,6 +365,7 @@ document.getElementById('facture-form')?.addEventListener('submit', async functi
         payee: false
     };
     if (!fa.numero) return alert('N° facture requis');
+    fa.user_id = getEffectiveUserId();
     const { error } = await sb.from('factures').insert([fa]);
     if (error) return alert('Erreur: ' + error.message);
     this.reset();
@@ -438,7 +440,8 @@ document.getElementById('achat-form')?.addEventListener('submit', async function
         date_achat: document.getElementById('a-date').value || new Date().toISOString().split('T')[0],
     };
     if (!a.ean || !a.nom) return alert('EAN et Nom requis');
-    
+    a.user_id = getEffectiveUserId();
+
     if (editingAchatId) {
         // Mode modification
         const { error } = await sb.from('achats').update(a).eq('id', editingAchatId);
@@ -579,13 +582,29 @@ function updateAchatsStats() {
 }
 
 async function toggleRecu(id, v) {
+    // Empêcher la double création de stock si déjà marqué reçu
+    const achat = achats.find(a => a.id === id);
+    if (v === true && achat?.recu === true) return; // déjà reçu, on ignore
+
     await sb.from('achats').update({ recu: v }).eq('id', id);
-    
-    // Si on marque comme reçu → créer le produit dans le stock
+
     if (v === true) {
-        const achat = achats.find(a => a.id === id);
         if (achat) {
+            // Vérifier si un produit a déjà été créé pour cet achat (même EAN + même date + même prix)
+            const dejaExistant = products.find(p =>
+                p.ean === achat.ean &&
+                !p.vendu &&
+                Math.abs((p.prix_achat || 0) - (achat.prix_ttc || achat.prix_ht || 0)) < 0.01 &&
+                p.notes?.includes('[achat#' + id + ']')
+            );
+            if (dejaExistant) {
+                console.warn('Produit déjà créé pour cet achat, skip.');
+                await loadAchats();
+                return;
+            }
+
             const pr = {
+                user_id: getEffectiveUserId(),
                 ean: achat.ean,
                 nom: achat.nom,
                 categorie: achat.categorie || '',
@@ -606,7 +625,7 @@ async function toggleRecu(id, v) {
                 invendable: false,
                 vendu: false,
                 photos: [],
-                notes: achat.notes || '',
+                notes: (achat.notes ? achat.notes + ' ' : '') + '[achat#' + id + ']',
                 date_ajout: new Date().toISOString(),
             };
             const { data: inserted, error } = await sb.from('produits').insert([pr]).select();
@@ -618,7 +637,7 @@ async function toggleRecu(id, v) {
             updateDashboard();
         }
     }
-    
+
     await loadAchats();
 }
 
@@ -934,6 +953,7 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
         date_ajout: new Date().toISOString(),
     };
     if (!pr.ean || !pr.nom) return alert('EAN et Nom requis');
+    pr.user_id = getEffectiveUserId();
     
     // Si on ajoute en occasion ou rebut → déduire du stock neuf
     if (pr.etat_stock === 'occasion' || pr.etat_stock === 'rebut') {
@@ -1521,17 +1541,33 @@ document.getElementById('vente-form')?.addEventListener('submit', async function
     const canal = document.getElementById('vente-plateforme').value;
     if (isNaN(prixVente) || prixVente <= 0) return alert('Prix de vente invalide');
 
-    const newTotal = (p.quantite || 0) - qteVendue;
+    // Validation : quantité vendue ne peut pas dépasser le stock du canal choisi
+    const stockCanal = canal === 'Amazon FBA' ? (p.qte_fba || 0)
+        : canal === 'Amazon FBM' ? (p.qte_fbm || 0)
+        : (p.qte_entrepot || 0);
+
+    if (qteVendue > stockCanal) {
+        return alert(`❌ Quantité insuffisante pour ce canal.\n\nStock ${canal === 'Amazon FBA' ? 'FBA' : canal === 'Amazon FBM' ? 'FBM' : 'entrepôt'} disponible : ${stockCanal} unité(s)\nQuantité demandée : ${qteVendue} unité(s)`);
+    }
+
+    if (qteVendue > (p.quantite || 0)) {
+        return alert(`❌ Quantité vendue (${qteVendue}) supérieure au stock total (${p.quantite || 0}).`);
+    }
+
+    const newFba = canal === 'Amazon FBA' ? Math.max(0, (p.qte_fba || 0) - qteVendue) : (p.qte_fba || 0);
+    const newFbm = canal === 'Amazon FBM' ? Math.max(0, (p.qte_fbm || 0) - qteVendue) : (p.qte_fbm || 0);
+    const newEnt = (canal !== 'Amazon FBA' && canal !== 'Amazon FBM') ? Math.max(0, (p.qte_entrepot || 0) - qteVendue) : (p.qte_entrepot || 0);
+    const newTotal = newFba + newFbm + newEnt;
+
     const update = {
         prix_vente_reel: prixVente,
         date_vente: document.getElementById('vente-date').value,
         plateforme_vente: canal,
-        quantite: Math.max(0, newTotal),
+        quantite: newTotal,
+        qte_fba: newFba,
+        qte_fbm: newFbm,
+        qte_entrepot: newEnt,
     };
-    // Decrease from appropriate location
-    if (canal === 'Amazon FBA') update.qte_fba = Math.max(0, (p.qte_fba || 0) - qteVendue);
-    else if (canal === 'Amazon FBM') update.qte_fbm = Math.max(0, (p.qte_fbm || 0) - qteVendue);
-    else update.qte_entrepot = Math.max(0, (p.qte_entrepot || 0) - qteVendue);
 
     if (newTotal <= 0) update.vendu = true;
 
@@ -1635,7 +1671,9 @@ function previewGrossisteImport(input) {
 async function confirmGrossisteImport() {
     if (!grossisteData || !grossisteData.length) return;
     const emplacement = document.getElementById('grossiste-emplacement').value;
+    const uid = getEffectiveUserId();
     const batch = grossisteData.map(r => ({
+        user_id: uid,
         ean: r.ean, nom: r.nom, categorie: r.categorie,
         etat: 'Neuf', etat_stock: 'neuf',
         prix_achat: r.prix, prix_revente: 0,
@@ -1919,7 +1957,7 @@ function updateDarkModeIcon() {
 async function logMouvement(produitId, type, quantite, de, vers, raison, notes) {
     const p = products.find(x => x.id === produitId);
     const mvt = {
-        user_id: currentUser?.id || null,
+        user_id: getEffectiveUserId(),
         produit_id: produitId,
         produit_ean: p?.ean || '',
         produit_nom: p?.nom || '',
@@ -2221,6 +2259,7 @@ document.getElementById('fourniture-form')?.addEventListener('submit', async fun
         notes: document.getElementById('four-notes').value.trim(),
     };
     if (!f.nom) return alert('Désignation requise');
+    f.user_id = getEffectiveUserId();
 
     if (editingFournitureId) {
         const { error } = await sb.from('fournitures').update(f).eq('id', editingFournitureId);
@@ -2693,11 +2732,22 @@ function formatAchatExport(a) {
 
 // ═══════ BACKUP / RESTORE ═══════
 async function backupData() {
+    // Bloquer le backup en mode admin "Tous les comptes" — données mélangées non fiables
+    if (isAdmin && !viewingUserId) {
+        alert('⚠️ Backup impossible en mode "Tous les comptes".\n\nSélectionnez un compte spécifique dans le sélecteur en haut, puis relancez le backup.');
+        return;
+    }
+
+    const effectiveUid = getEffectiveUserId();
+    const effectiveEmail = isAdmin && viewingUserId !== currentUser?.id
+        ? (allUsers.find(u => u.user_id === viewingUserId)?.email || viewingUserId)
+        : currentUser?.email;
+
     const backup = {
         version: 'stock-radar-v2',
         date: new Date().toISOString(),
-        user_id: currentUser?.id || null,
-        user_email: currentUser?.email || null,
+        user_id: effectiveUid,
+        user_email: effectiveEmail,
         fournisseurs: fournisseurs,
         achats: achats,
         produits: products,
@@ -2708,7 +2758,8 @@ async function backupData() {
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `stock-radar-backup-${new Date().toISOString().split('T')[0]}.json`;
+    const safeName = (effectiveEmail || 'compte').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    a.download = `stock-radar-backup-${safeName}-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
 }
 
@@ -2932,8 +2983,12 @@ function quickScanAction(action) {
         checkPurchaseHistory();
     } else if (action === 'stock') {
         switchTab('stock');
-        const input = document.getElementById('search-input');
-        if (input) { input.value = quickScanLastEAN; applyFilters(); }
+        const input = document.getElementById('stock-search');
+        if (input) {
+            input.value = quickScanLastEAN;
+            stockCurrentPage = 1;
+            displayStock();
+        }
     } else if (action === 'inventaire') {
         switchTab('inventaire');
         if (inventaireActif) {
