@@ -464,8 +464,9 @@ function updateFournisseursSelect() {
 async function quickAddFournisseur() {
     const nom = prompt('Nom du nouveau fournisseur :');
     if (!nom || !nom.trim()) return;
-    const { data, error } = await sb.from('fournisseurs').insert([{ nom: nom.trim() }]).select();
+    const { data, error } = await sb.from('fournisseurs').insert([{ nom: nom.trim(), user_id: getEffectiveUserId() }]).select();
     if (error) return toastError('Erreur', error.message);
+    toastSuccess('Fournisseur créé', nom.trim());
     await loadFournisseurs();
     // Sélectionner automatiquement le nouveau fournisseur
     if (data && data[0]) {
