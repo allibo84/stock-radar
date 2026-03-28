@@ -1919,6 +1919,7 @@ function updateDarkModeIcon() {
 async function logMouvement(produitId, type, quantite, de, vers, raison, notes) {
     const p = products.find(x => x.id === produitId);
     const mvt = {
+        user_id: currentUser?.id || null,
         produit_id: produitId,
         produit_ean: p?.ean || '',
         produit_nom: p?.nom || '',
@@ -2695,11 +2696,14 @@ async function backupData() {
     const backup = {
         version: 'stock-radar-v2',
         date: new Date().toISOString(),
+        user_id: currentUser?.id || null,
+        user_email: currentUser?.email || null,
         fournisseurs: fournisseurs,
         achats: achats,
         produits: products,
         factures: factures,
-        fournitures: fournitures
+        fournitures: fournitures,
+        mouvements: mouvements
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -2711,8 +2715,16 @@ async function backupData() {
 async function restoreData(event) {
     const file = event.target.files[0];
     if (!file) return;
-    
-    if (!confirm('⚠️ ATTENTION : Cela va SUPPRIMER toutes les données actuelles et les remplacer par celles du fichier de sauvegarde.\n\nÊtes-vous sûr ?')) {
+
+    // Sécurité : on doit avoir un utilisateur connecté
+    if (!currentUser?.id) {
+        alert('❌ Vous devez être connecté pour effectuer une restauration.');
+        event.target.value = '';
+        return;
+    }
+    const uid = currentUser.id;
+
+    if (!confirm('⚠️ ATTENTION : Cela va SUPPRIMER toutes vos données actuelles et les remplacer par celles du fichier de sauvegarde.\n\nSeules VOS données seront supprimées (les autres comptes ne seront pas affectés).\n\nÊtes-vous sûr ?')) {
         event.target.value = '';
         return;
     }
@@ -2720,38 +2732,43 @@ async function restoreData(event) {
     try {
         const text = await file.text();
         const backup = JSON.parse(text);
-        
+
         if (!backup.version || !backup.version.startsWith('stock-radar')) {
             alert('❌ Fichier de sauvegarde non reconnu');
             return;
         }
 
-        // Confirmation finale
-        const info = `Données du fichier :\n- ${(backup.fournisseurs||[]).length} fournisseurs\n- ${(backup.achats||[]).length} achats\n- ${(backup.produits||[]).length} produits\n- ${(backup.fournitures||[]).length} fournitures\n\nDate de sauvegarde : ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'inconnue'}\n\nConfirmer la restauration ?`;
-        if (!confirm(info)) return;
-
-        // Supprimer les données actuelles
-        await sb.from('fournitures').delete().neq('id', 0);
-        await sb.from('factures').delete().neq('id', 0);
-        await sb.from('produits').delete().neq('id', 0);
-        await sb.from('achats').delete().neq('id', 0);
-        await sb.from('fournisseurs').delete().neq('id', 0);
-
-        // Insérer les données de la sauvegarde par lots
-        if (backup.fournisseurs?.length) {
-            const fClean = backup.fournisseurs.map(f => ({ nom: f.nom, contact: f.contact||'', email: f.email||'', tel: f.tel||'', adresse: f.adresse||'', notes: f.notes||'' }));
-            for (let i = 0; i < fClean.length; i += 50) {
-                await sb.from('fournisseurs').insert(fClean.slice(i, i+50));
+        // Vérifier que la sauvegarde appartient bien à cet utilisateur
+        if (backup.user_id && backup.user_id !== uid) {
+            if (!confirm('⚠️ Ce fichier de sauvegarde appartient à un autre compte.\n\nVoulez-vous quand même restaurer ces données sur votre compte ?')) {
+                event.target.value = '';
+                return;
             }
         }
+
+        const info = `Données du fichier :\n- ${(backup.fournisseurs||[]).length} fournisseurs\n- ${(backup.achats||[]).length} achats\n- ${(backup.produits||[]).length} produits\n- ${(backup.fournitures||[]).length} fournitures\n- ${(backup.mouvements||[]).length} mouvements\n\nDate de sauvegarde : ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'inconnue'}\n\nConfirmer la restauration ?`;
+        if (!confirm(info)) return;
+
+        // ✅ Suppression filtrée sur user_id uniquement — les autres comptes ne sont PAS touchés
+        await sb.from('fournitures').delete().eq('user_id', uid);
+        await sb.from('factures').delete().eq('user_id', uid);
+        await sb.from('mouvements').delete().eq('user_id', uid);
+        await sb.from('produits').delete().eq('user_id', uid);
+        await sb.from('achats').delete().eq('user_id', uid);
+        await sb.from('fournisseurs').delete().eq('user_id', uid);
+
+        // ✅ Insertion avec user_id explicite sur chaque ligne
+        if (backup.fournisseurs?.length) {
+            const fClean = backup.fournisseurs.map(f => ({ user_id: uid, nom: f.nom, contact: f.contact||'', email: f.email||'', tel: f.tel||'', adresse: f.adresse||'', notes: f.notes||'' }));
+            for (let i = 0; i < fClean.length; i += 50) await sb.from('fournisseurs').insert(fClean.slice(i, i+50));
+        }
         if (backup.achats?.length) {
-            const aClean = backup.achats.map(a => ({ ean: a.ean, asin: a.asin||'', nom: a.nom, categorie: a.categorie||'', fournisseur_nom: a.fournisseur_nom||'', prix_ht: a.prix_ht||0, prix_ttc: a.prix_ttc||0, quantite: a.quantite||1, recu: a.recu||false, notes: a.notes||'', date_achat: a.date_achat }));
-            for (let i = 0; i < aClean.length; i += 50) {
-                await sb.from('achats').insert(aClean.slice(i, i+50));
-            }
+            const aClean = backup.achats.map(a => ({ user_id: uid, ean: a.ean, asin: a.asin||'', nom: a.nom, categorie: a.categorie||'', fournisseur_nom: a.fournisseur_nom||'', prix_ht: a.prix_ht||0, prix_ttc: a.prix_ttc||0, quantite: a.quantite||1, recu: a.recu||false, notes: a.notes||'', date_achat: a.date_achat }));
+            for (let i = 0; i < aClean.length; i += 50) await sb.from('achats').insert(aClean.slice(i, i+50));
         }
         if (backup.produits?.length) {
             const pClean = backup.produits.map(p => ({
+                user_id: uid,
                 ean: p.ean, asin: p.asin||'', nom: p.nom, categorie: p.categorie||'', etat: p.etat||'Neuf', etat_stock: p.etat_stock||'neuf',
                 prix_achat: p.prix_achat||0, prix_revente: p.prix_revente||0,
                 qte_fba: p.qte_fba ?? 0, qte_fbm: p.qte_fbm ?? 0, qte_entrepot: p.qte_entrepot ?? 0, quantite: p.quantite ?? 0,
@@ -2760,32 +2777,42 @@ async function restoreData(event) {
                 invendable: p.invendable||false, vendu: p.vendu||false,
                 date_vente: p.date_vente||null, prix_vente_reel: p.prix_vente_reel||0,
                 plateforme_vente: p.plateforme_vente||null,
+                statut: p.statut||'recu', emplacement: p.emplacement||'',
+                fba_attente: p.fba_attente||false,
                 photos: p.photos||[], notes: p.notes||'', date_ajout: p.date_ajout
             }));
-            for (let i = 0; i < pClean.length; i += 50) {
-                await sb.from('produits').insert(pClean.slice(i, i+50));
-            }
+            for (let i = 0; i < pClean.length; i += 50) await sb.from('produits').insert(pClean.slice(i, i+50));
         }
         if (backup.factures?.length) {
             const faClean = backup.factures.map(fa => ({
+                user_id: uid,
                 numero: fa.numero, fournisseur_id: null, fournisseur_nom: fa.fournisseur_nom||'',
                 date_facture: fa.date_facture, date_echeance: fa.date_echeance,
                 montant_ht: fa.montant_ht||0, montant_ttc: fa.montant_ttc||0,
                 payee: fa.payee||false, date_paiement: fa.date_paiement||null, notes: fa.notes||''
             }));
-            for (let i = 0; i < faClean.length; i += 50) {
-                await sb.from('factures').insert(faClean.slice(i, i+50));
-            }
+            for (let i = 0; i < faClean.length; i += 50) await sb.from('factures').insert(faClean.slice(i, i+50));
         }
         if (backup.fournitures?.length) {
             const foClean = backup.fournitures.map(fo => ({
+                user_id: uid,
                 nom: fo.nom, categorie: fo.categorie||'', fournisseur_nom: fo.fournisseur_nom||'',
                 quantite: fo.quantite||1, prix_ht: fo.prix_ht||0, prix_ttc: fo.prix_ttc||0,
                 date_achat: fo.date_achat, recurrent: fo.recurrent||'', notes: fo.notes||''
             }));
-            for (let i = 0; i < foClean.length; i += 50) {
-                await sb.from('fournitures').insert(foClean.slice(i, i+50));
-            }
+            for (let i = 0; i < foClean.length; i += 50) await sb.from('fournitures').insert(foClean.slice(i, i+50));
+        }
+        if (backup.mouvements?.length) {
+            const mClean = backup.mouvements.map(m => ({
+                user_id: uid,
+                produit_id: null,
+                produit_ean: m.produit_ean||'', produit_nom: m.produit_nom||'',
+                type: m.type||'', quantite: m.quantite||0,
+                de_emplacement: m.de_emplacement||'', vers_emplacement: m.vers_emplacement||'',
+                raison: m.raison||'', notes: m.notes||'',
+                created_at: m.created_at||new Date().toISOString()
+            }));
+            for (let i = 0; i < mClean.length; i += 50) await sb.from('mouvements').insert(mClean.slice(i, i+50));
         }
 
         alert('✅ Restauration terminée ! Rechargement...');
