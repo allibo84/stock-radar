@@ -197,7 +197,7 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
 });
 
 async function logout() {
-    if (confirm('Se déconnecter ?')) {
+    if (await srConfirm('Se déconnecter de Stock Radar ?', 'Déconnexion')) {
         try { await sb.auth.signOut(); } catch (e) {}
         currentUser = null;
         isAdmin = false;

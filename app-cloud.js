@@ -23,6 +23,33 @@ function toastError(title, msg)   { showToast('error',   title, msg, 6000); }
 function toastWarning(title, msg) { showToast('warning', title, msg, 5000); }
 function toastInfo(title, msg)    { showToast('info',    title, msg); }
 
+// ── Async confirm dialog (replaces browser confirm()) ──
+function srConfirm(message, title = 'Confirmer', danger = false) {
+    return new Promise(resolve => {
+        const existing = document.getElementById('sr-confirm-modal');
+        if (existing) existing.remove();
+        const modal = document.createElement('div');
+        modal.id = 'sr-confirm-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px);';
+        const btnColor = danger ? 'var(--danger)' : 'var(--brand)';
+        const btnLabel = danger ? 'Supprimer' : 'Confirmer';
+        modal.innerHTML = `
+            <div style="background:var(--bg-elevated);border-radius:var(--radius-xl);padding:28px;max-width:420px;width:100%;border:1px solid var(--border);box-shadow:var(--shadow-lg);">
+                <div style="font-size:15px;font-weight:700;color:var(--text-1);margin-bottom:10px;">${title}</div>
+                <div style="font-size:13.5px;color:var(--text-2);line-height:1.6;margin-bottom:22px;white-space:pre-line;">${message}</div>
+                <div style="display:flex;gap:10px;justify-content:flex-end;">
+                    <button id="sr-confirm-cancel" style="padding:9px 18px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--bg-elevated);color:var(--text-1);font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;">Annuler</button>
+                    <button id="sr-confirm-ok" style="padding:9px 18px;border-radius:var(--radius);border:none;background:${btnColor};color:white;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">${btnLabel}</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        const cleanup = (result) => { modal.remove(); resolve(result); };
+        modal.querySelector('#sr-confirm-ok').onclick = () => cleanup(true);
+        modal.querySelector('#sr-confirm-cancel').onclick = () => cleanup(false);
+        modal.onclick = (e) => { if (e.target === modal) cleanup(false); };
+    });
+}
+
 // sb est créé dans config.js
 let fournisseurs = [], achats = [], products = [], mouvements = [], ventes = [];
 let currentPhotos = [], currentVenteProductId = null;
@@ -146,6 +173,7 @@ function switchTab(tabName) {
     document.getElementById('overlay').style.display = 'none';
     if (tabName === 'stock') displayStock();
     if (tabName === 'dashboard') updateDashboard();
+    if (tabName === 'ventes') displayVentes();
 }
 
 document.addEventListener('click', e => {
@@ -221,9 +249,11 @@ document.getElementById('fournisseur-form')?.addEventListener('submit', async fu
 });
 
 async function deleteFournisseur(id) {
-    if (!confirm('Supprimer ce fournisseur ?')) return;
+    const f = fournisseurs.find(x => x.id === id);
+    if (!await srConfirm(`Supprimer le fournisseur "${f?.nom || ''}" ?`, 'Supprimer', true)) return;
     await sb.from('fournisseurs').delete().eq('id', id);
     await loadFournisseurs();
+    toastSuccess('Fournisseur supprimé');
 }
 
 // Fiche fournisseur modale
@@ -407,13 +437,14 @@ document.getElementById('facture-form')?.addEventListener('submit', async functi
 });
 
 async function marquerPayee(id) {
-    if (!confirm('Marquer cette facture comme payée ?')) return;
+    if (!await srConfirm('Marquer cette facture comme payée ?', 'Confirmer le paiement')) return;
     await sb.from('factures').update({ payee: true, date_paiement: new Date().toISOString().split('T')[0] }).eq('id', id);
     await loadFactures();
+    toastSuccess('Facture marquée comme payée');
 }
 
 async function deleteFacture(id) {
-    if (!confirm('Supprimer cette facture ?')) return;
+    if (!await srConfirm('Supprimer cette facture définitivement ?', 'Supprimer', true)) return;
     await sb.from('factures').delete().eq('id', id);
     await loadFactures();
 }
@@ -572,7 +603,7 @@ function updateAchatsSelection() {
 
 function copySelectedCodes(type) {
     const checked = document.querySelectorAll('.achat-check:checked');
-    if (!checked.length) return alert('Sélectionnez au moins un achat');
+    if (!checked.length) return toastError('Sélection vide', 'Sélectionnez au moins un achat.');
     
     const codes = [];
     checked.forEach(cb => {
@@ -580,12 +611,12 @@ function copySelectedCodes(type) {
         if (code && code !== '-' && code.trim()) codes.push(code.trim());
     });
 
-    if (!codes.length) return alert(`Aucun ${type.toUpperCase()} trouvé dans la sélection`);
+    if (!codes.length) return toastWarning('Aucun code', `Aucun ${type.toUpperCase()} trouvé dans la sélection.`);
 
     const text = codes.join('\n');
     navigator.clipboard.writeText(text).then(() => {
         const msg = `✅ ${codes.length} ${type.toUpperCase()} copié${codes.length > 1 ? 's' : ''} !`;
-        alert(msg);
+        toastSuccess("Codes copiés", msg);
     }).catch(() => {
         // Fallback
         const ta = document.createElement('textarea');
@@ -594,7 +625,7 @@ function copySelectedCodes(type) {
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-        alert(`✅ ${codes.length} ${type.toUpperCase()} copié${codes.length > 1 ? 's' : ''} !`);
+        toastSuccess('Codes copiés', `${codes.length} ${type.toUpperCase()} copié${codes.length > 1 ? 's' : ''} dans le presse-papiers.`);
     });
 }
 
@@ -618,7 +649,7 @@ async function toggleRecu(id, v) {
     // Empêcher la double création de stock — vérification via produit_genere_id
     const achat = achats.find(a => a.id === id);
     if (v === true && achat?.produit_genere_id) {
-        alert('⚠️ Un produit a déjà été créé pour cet achat (ID ' + achat.produit_genere_id + ').');
+        toastWarning('Déjà réceptionné', 'Un produit a déjà été créé pour cet achat (ID ' + achat.produit_genere_id + ').');
         return;
     }
     if (v === true && achat?.recu === true) return;
@@ -663,9 +694,11 @@ async function toggleRecu(id, v) {
 }
 
 async function deleteAchat(id) {
-    if (!confirm('Supprimer cet achat ?')) return;
+    const a = achats.find(x => x.id === id);
+    if (!await srConfirm(`Supprimer l'achat "${a?.nom || ''}" ?`, 'Supprimer', true)) return;
     await sb.from('achats').delete().eq('id', id);
     await loadAchats();
+    toastSuccess('Achat supprimé');
 }
 
 let editingAchatId = null;
@@ -740,7 +773,7 @@ function toggleAchatForm() {
 }
 
 function exportAchatsCSV() {
-    if (!achats.length) return alert('Aucun achat');
+    if (!achats.length) return toastError('Aucune donnée', 'Aucun achat à exporter.');
     let csv = '\uFEFFDate,EAN,ASIN,Nom,Fournisseur,Qté,Prix HT,Prix TTC,Reçu,Notes\n';
     achats.forEach(a => {
         csv += `"${a.date_achat?new Date(a.date_achat).toLocaleDateString('fr-FR'):'-'}","${a.ean}","${a.asin||''}","${a.nom}","${a.fournisseur_nom||''}",${a.quantite||1},${(a.prix_ht||0).toFixed(2)},${(a.prix_ttc||0).toFixed(2)},"${a.recu?'Oui':'Non'}","${(a.notes||'').replace(/"/g,'""')}"\n`;
@@ -875,7 +908,7 @@ function showScanFeedback(text, type) {
 
 async function startScanner() {
     if (typeof ZXing === 'undefined') {
-        alert('Le scanner n\'est pas encore chargé. Vérifiez votre connexion internet et rechargez la page.');
+        toastError('Scanner non disponible', 'Vérifiez votre connexion internet.');
         return;
     }
     try {
@@ -919,7 +952,7 @@ async function startScanner() {
         });
     } catch (e) { 
         playSound('ko');
-        alert('Erreur caméra: ' + e.message); 
+        toastError('Erreur caméra', e.message); 
     }
 }
 
@@ -987,7 +1020,7 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
             const msg = stockNeufTotal === 0
                 ? `❌ Aucun stock neuf disponible pour l'EAN ${pr.ean}.\n\nImpossible de créer ${totalQte} unité(s) en ${pr.etat_stock} sans stock neuf source.`
                 : `⚠️ Stock neuf insuffisant pour l'EAN ${pr.ean}.\n\nStock neuf disponible : ${stockNeufTotal} unité(s)\nQuantité demandée : ${totalQte} unité(s)\nManque : ${manque} unité(s)\n\nVoulez-vous créer quand même (hors conversion) ?`;
-            if (stockNeufTotal === 0 || !confirm(msg)) return;
+            if (stockNeufTotal === 0 || !await srConfirm(msg, 'Confirmer la création', false)) return;
             qteADeduire = stockNeufTotal; // ne déduire que ce qui existe
         }
 
@@ -1568,10 +1601,10 @@ document.getElementById('vente-form')?.addEventListener('submit', async function
         : (p.qte_entrepot || 0);
 
     if (qteVendue > stockCanal) {
-        return alert(`❌ Quantité insuffisante pour ce canal.\n\nStock ${canal === 'Amazon FBA' ? 'FBA' : canal === 'Amazon FBM' ? 'FBM' : 'entrepôt'} disponible : ${stockCanal} unité(s)\nQuantité demandée : ${qteVendue} unité(s)`);
+        return toastError("Stock insuffisant", `Quantité demandée: ${qteVendue} · Stock ${canal}: ${stockCanal}`) && undefined;
     }
     if (qteVendue > (p.quantite || 0)) {
-        return alert(`❌ Quantité vendue (${qteVendue}) supérieure au stock total (${p.quantite || 0}).`);
+        return toastError("Quantité invalide", `Vendue: ${qteVendue} · Stock total: ${p.quantite||0}`) && undefined;
     }
 
     // 1. Insérer dans la table ventes
@@ -1636,8 +1669,8 @@ function closeAnnonceModal() { document.getElementById('annonce-modal').style.di
 function copyAnnonce() {
     const t = document.getElementById('annonce-text')?.textContent;
     if (!t) return;
-    navigator.clipboard.writeText(t).then(() => alert('✅ Copié !')).catch(() => {
-        const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); alert('✅ Copié !');
+    navigator.clipboard.writeText(t).then(() => toastSuccess('Copié !', 'Le texte a été copié dans le presse-papiers.')).catch(() => {
+        const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); toastSuccess('Copié !', 'Texte copié.');
     });
 }
 
@@ -1650,9 +1683,11 @@ window.onclick = e => {
 
 // ═══════ DELETE PRODUCT ═══════
 async function deleteProduct(id) {
-    if (!confirm('Supprimer ce produit ?')) return;
+    const p = products.find(x => x.id === id);
+    if (!await srConfirm(`Supprimer "${p?.nom || 'ce produit'}" du stock ?\n\nCette action est irréversible.`, 'Supprimer le produit', true)) return;
     await sb.from('produits').delete().eq('id', id);
     await loadProducts();
+    toastSuccess('Produit supprimé');
 }
 
 // ═══════ IMPORT GROSSISTE ═══════
@@ -1672,7 +1707,7 @@ function previewGrossisteImport(input) {
                 const sheet = wb.Sheets[wb.SheetNames[0]];
                 rows = XLSX.utils.sheet_to_json(sheet);
             }
-            if (!rows.length) return alert('Fichier vide');
+            if (!rows.length) return toastError('Fichier vide', 'Le fichier ne contient aucune donnée.');
 
             // Auto-map columns
             const cols = Object.keys(rows[0]);
@@ -1683,7 +1718,7 @@ function previewGrossisteImport(input) {
             const colQte = findCol(['qte', 'quantit', 'qty', 'nb', 'nombre']);
             const colCat = findCol(['cat', 'categor', 'type', 'rayon']);
 
-            if (!colNom && !colEan) return alert('Impossible de détecter les colonnes. Vérifiez que le fichier contient EAN ou Nom.');
+            if (!colNom && !colEan) return toastError('Colonnes non détectées', 'Impossible de détecter les colonnes. Vérifiez que le fichier contient EAN ou Nom.');
 
             grossisteData = rows.map(r => ({
                 ean: String(r[colEan] || '').trim(),
@@ -1703,7 +1738,7 @@ function previewGrossisteImport(input) {
             document.getElementById('grossiste-preview-table').innerHTML = h;
             document.getElementById('grossiste-count').textContent = grossisteData.length;
             document.getElementById('grossiste-preview').style.display = 'block';
-        } catch (err) { alert('Erreur lecture fichier: ' + err.message); }
+        } catch (err) { toastError('Erreur lecture', err.message); }
     };
     if (file.name.endsWith('.csv')) reader.readAsText(file, 'UTF-8');
     else reader.readAsBinaryString(file);
@@ -1762,7 +1797,7 @@ function parseCSV(text) {
 // ═══════ EXPORT EXCEL ═══════
 async function exportStockExcel() {
     const list = getFilteredStock();
-    if (!list.length) return alert('Aucun produit à exporter');
+    if (!list.length) return toastError('Aucune donnée', 'Aucun produit à exporter.');
 
     const viewLabel = {all:'Tout',neuf:'Neuf',occasion:'Occasion',entrepot:'Entrepot',fba:'FBA',fbm:'FBM',rebut:'Rebut'}[activeStockView] || 'Stock';
     const data = list.map(p => ({
@@ -1983,7 +2018,7 @@ function downloadCSV(csv, name) {
 
 function searchPrice(platform) {
     const ean = document.getElementById('ean')?.value.trim();
-    if (!ean) return alert('Saisir un EAN d\'abord');
+    if (!ean) return toastError('EAN manquant', 'Saisissez un EAN avant de rechercher.');
     const url = platform === 'amazon' ? `https://www.amazon.fr/s?k=${ean}` : `https://www.google.com/search?q=${ean}+prix`;
     window.open(url, '_blank');
 }
@@ -2079,7 +2114,7 @@ function displayVentes() {
 }
 
 async function exportVentes() {
-    if (!ventes.length) return alert('Aucune vente à exporter.');
+    if (!ventes.length) return toastError('Aucune donnée', 'Aucune vente à exporter.');
     const rows = ventes.map(v => ({
         'Date': v.date_vente || '',
         'Produit': v.produit_nom || '',
@@ -2296,7 +2331,7 @@ async function confirmTransfert() {
 
     const champs = { entrepot: 'qte_entrepot', fba: 'qte_fba', fbm: 'qte_fbm' };
     const qteDe = p[champs[transfertFrom]] || 0;
-    if (qte > qteDe) return alert(`Stock insuffisant en ${transfertFrom} (${qteDe} disponible)`);
+    if (qte > qteDe) return toastError('Stock insuffisant', `Stock insuffisant en ${transfertFrom} (${qteDe} disponible)`);
 
     const newFrom = qteDe - qte;
     const newTo = (p[champs[transfertTo]] || 0) + qte;
@@ -2410,9 +2445,10 @@ document.getElementById('fourniture-form')?.addEventListener('submit', async fun
 });
 
 async function deleteFourniture(id) {
-    if (!confirm('Supprimer cette fourniture ?')) return;
+    if (!await srConfirm('Supprimer cette fourniture ?', 'Supprimer', true)) return;
     await sb.from('fournitures').delete().eq('id', id);
     await loadFournitures();
+    toastSuccess('Fourniture supprimée');
 }
 
 function displayFournitures() {
@@ -2519,14 +2555,14 @@ async function configurerSeuilsEnLot() {
     if (val <= 0) return;
     
     const sansSeuil = products.filter(p => !p.vendu && !p.invendable && !(p.seuil_stock > 0));
-    if (!sansSeuil.length) return alert('Tous les produits ont déjà un seuil.');
+    if (!sansSeuil.length) return toastInfo('Déjà configuré', 'Tous les produits ont déjà un seuil.');
     
-    if (!confirm(`Mettre le seuil à ${val} pour ${sansSeuil.length} produits ?`)) return;
+    if (!await srConfirm(`Mettre le seuil à ${val} pour ${sansSeuil.length} produits ?`, 'Configurer les seuils')) return;
     
     for (const p of sansSeuil) {
         await sb.from('produits').update({ seuil_stock: val }).eq('id', p.id);
     }
-    alert(`✅ Seuil mis à ${val} pour ${sansSeuil.length} produits.`);
+    toastSuccess('Seuil configuré', `Seuil de ${val} appliqué à ${sansSeuil.length} produits.`);
     await loadProducts();
     displayAlertes();
 }
@@ -2538,7 +2574,8 @@ let invCodeReader = null;
 let inventaireFilter = 'all';
 
 function startInventaire() {
-    if (inventaireActif && !confirm('Un inventaire est déjà en cours. Recommencer ?')) return;
+    if (inventaireActif && !await srConfirm('Un inventaire est déjà en cours.
+Recommencer et perdre les comptages en cours ?', 'Recommencer')) return;
     
     const enStock = products.filter(p => !p.vendu && !p.invendable);
     inventaireData = enStock.map(p => ({
@@ -2652,7 +2689,7 @@ function inventaireScanEAN() {
 // Scanner inventaire
 async function startInventaireScanner() {
     if (typeof ZXing === 'undefined') {
-        alert('Scanner non chargé. Vérifiez votre connexion internet.');
+        toastError('Scanner non disponible', 'Vérifiez votre connexion internet.');
         return;
     }
     try {
@@ -2672,7 +2709,7 @@ async function startInventaireScanner() {
                 inventaireScanEAN();
             }
         });
-    } catch (e) { alert('Erreur caméra: ' + e.message); }
+    } catch (e) { toastError('Erreur caméra', e.message); }
 }
 
 function stopInventaireScanner() {
@@ -2685,10 +2722,10 @@ async function validerInventaire() {
     const ecarts = inventaireData.filter(i => i.compte !== null && i.ecart !== 0);
     const comptes = inventaireData.filter(i => i.compte !== null);
     
-    if (!comptes.length) return alert('Aucun produit compté.');
+    if (!comptes.length) return toastError('Aucun comptage', 'Aucun produit compté.');
     
     const msg = `Résumé de l'inventaire :\n- ${comptes.length} produits comptés\n- ${comptes.length - ecarts.length} conformes\n- ${ecarts.length} écarts\n\n${ecarts.length > 0 ? 'Les écarts vont ajuster les quantités en stock.\n\n' : ''}Valider et appliquer ?`;
-    if (!confirm(msg)) return;
+    if (!await srConfirm(msg, 'Valider l'inventaire')) return;
     
     for (const item of ecarts) {
         const p = products.find(x => x.id === item.id);
@@ -2711,7 +2748,7 @@ async function validerInventaire() {
         );
     }
     
-    alert(`✅ Inventaire validé ! ${ecarts.length} ajustement(s) appliqué(s).`);
+    toastSuccess('Inventaire validé', `${ecarts.length} ajustement(s) appliqué(s).`);
     inventaireActif = false;
     inventaireData = [];
     document.getElementById('inventaire-mode').style.display = 'none';
@@ -2720,8 +2757,8 @@ async function validerInventaire() {
     await loadProducts();
 }
 
-function annulerInventaire() {
-    if (!confirm('Annuler l\'inventaire en cours ? Les comptages seront perdus.')) return;
+async function annulerInventaire() {
+    if (!await srConfirm('Annuler l\'inventaire en cours ?\nTous les comptages seront perdus.', 'Annuler l\'inventaire', true)) return;
     inventaireActif = false;
     inventaireData = [];
     document.getElementById('inventaire-mode').style.display = 'none';
@@ -2730,7 +2767,7 @@ function annulerInventaire() {
 }
 
 function exportInventaire() {
-    if (!inventaireData.length) return alert('Pas d\'inventaire en cours.');
+    if (!inventaireData.length) return toastError('Aucun inventaire', 'Aucun inventaire en cours.');
     
     const data = inventaireData.map(i => ({
         'EAN': i.ean, 'Produit': i.nom, 'Catégorie': i.categorie,
@@ -2821,7 +2858,7 @@ function exportAdvanced() {
         }
     }
 
-    if (!data.length) return alert('Aucune donnée à exporter');
+    if (!data.length) return toastError('Aucune donnée', 'Aucune donnée à exporter.');
 
     const dateStr = new Date().toISOString().split('T')[0];
     if (format === 'xlsx') {
@@ -2869,7 +2906,7 @@ function formatAchatExport(a) {
 async function backupData() {
     // Bloquer le backup en mode admin "Tous les comptes" — données mélangées non fiables
     if (isAdmin && !viewingUserId) {
-        alert('⚠️ Backup impossible en mode "Tous les comptes".\n\nSélectionnez un compte spécifique dans le sélecteur en haut, puis relancez le backup.');
+        toastError('Backup impossible', 'Sélectionnez un compte spécifique avant de lancer le backup.');
         return;
     }
 
@@ -2904,13 +2941,15 @@ async function restoreData(event) {
 
     // Sécurité : on doit avoir un utilisateur connecté
     if (!currentUser?.id) {
-        alert('❌ Vous devez être connecté pour effectuer une restauration.');
+        toastError('Non connecté', 'Vous devez être connecté pour effectuer une restauration.');
         event.target.value = '';
         return;
     }
     const uid = currentUser.id;
 
-    if (!confirm('⚠️ ATTENTION : Cela va SUPPRIMER toutes vos données actuelles et les remplacer par celles du fichier de sauvegarde.\n\nSeules VOS données seront supprimées (les autres comptes ne seront pas affectés).\n\nÊtes-vous sûr ?')) {
+    if (!await srConfirm('Cette opération va SUPPRIMER toutes vos données actuelles et les remplacer par celles du fichier.
+
+Seules VOS données seront supprimées.', 'Restaurer la sauvegarde', true)) {
         event.target.value = '';
         return;
     }
@@ -2926,14 +2965,15 @@ async function restoreData(event) {
 
         // Vérifier que la sauvegarde appartient bien à cet utilisateur
         if (backup.user_id && backup.user_id !== uid) {
-            if (!confirm('⚠️ Ce fichier de sauvegarde appartient à un autre compte.\n\nVoulez-vous quand même restaurer ces données sur votre compte ?')) {
+            if (!await srConfirm('Ce fichier appartient à un autre compte.
+Voulez-vous quand même restaurer ces données sur votre compte ?', 'Compte différent', false)) {
                 event.target.value = '';
                 return;
             }
         }
 
         const info = `Données du fichier :\n- ${(backup.fournisseurs||[]).length} fournisseurs\n- ${(backup.achats||[]).length} achats\n- ${(backup.produits||[]).length} produits\n- ${(backup.fournitures||[]).length} fournitures\n- ${(backup.mouvements||[]).length} mouvements\n\nDate de sauvegarde : ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'inconnue'}\n\nConfirmer la restauration ?`;
-        if (!confirm(info)) return;
+        if (!await srConfirm(info, 'Confirmer la restauration')) return;
 
         // ✅ Suppression filtrée sur user_id uniquement — les autres comptes ne sont PAS touchés
         await sb.from('fournitures').delete().eq('user_id', uid);
@@ -3109,7 +3149,7 @@ function displayQuickScanHistory() {
 }
 
 function quickScanAction(action) {
-    if (!quickScanLastEAN) return alert('Scannez d\'abord un code-barres.');
+    if (!quickScanLastEAN) return toastWarning('Scanner', 'Scannez d'abord un code-barres.');
     closeQuickScan();
 
     if (action === 'nouveau') {
