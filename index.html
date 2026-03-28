@@ -153,19 +153,17 @@
         .toast-msg     { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
         @keyframes toastIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
 
-        /* ── Layout : sidebar fixe desktop ── */
+        /* ── Layout ── */
         #app-container { display: none; }
 
         .app-layout {
-            display: grid;
-            grid-template-columns: var(--sidebar-w) 1fr;
-            grid-template-rows: var(--header-h) 1fr;
+            display: flex;
+            flex-direction: column;
             min-height: 100vh;
         }
 
         /* ── Header ── */
         .header {
-            grid-column: 1 / -1;
             background: var(--brand);
             color: white;
             padding: 0 20px;
@@ -173,6 +171,7 @@
             position: sticky; top: 0; z-index: 100;
             height: var(--header-h);
             box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+            flex-shrink: 0;
         }
         .hamburger {
             display: none; /* hidden on desktop */
@@ -235,15 +234,23 @@
         .logout-btn:hover { background: rgba(255,255,255,0.2); }
 
         /* ── Sidebar ── */
+        /* ── Body row (sidebar + main) ── */
+        .app-body {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+        }
+
         .sidebar {
-            grid-column: 1; grid-row: 2;
-            background: var(--sidebar-bg);
             width: var(--sidebar-w);
+            min-width: var(--sidebar-w);
+            background: var(--sidebar-bg);
             height: calc(100vh - var(--header-h));
             position: sticky; top: var(--header-h);
             overflow-y: auto; overflow-x: hidden;
             scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.1) transparent;
             display: flex; flex-direction: column;
+            flex-shrink: 0;
             transition: transform .3s ease;
         }
         .sidebar::-webkit-scrollbar { width: 4px; }
@@ -282,7 +289,8 @@
 
         /* ── Main content ── */
         .main-area {
-            grid-column: 2; grid-row: 2;
+            flex: 1;
+            min-width: 0;
             min-height: calc(100vh - var(--header-h));
             overflow-x: hidden;
         }
@@ -828,14 +836,17 @@
 
         /* ── Responsive ── */
         @media (max-width: 900px) {
-            .app-layout { grid-template-columns: 1fr; }
+            .app-body { position: relative; }
             .sidebar {
-                position: fixed; left: -260px; top: 0; height: 100vh; z-index: 200;
-                width: 260px; transition: left .28s ease;
+                position: fixed; left: 0; top: var(--header-h);
+                height: calc(100vh - var(--header-h)); z-index: 200;
+                width: 260px; min-width: 260px;
+                transform: translateX(-100%);
                 box-shadow: none;
+                transition: transform .28s ease;
             }
-            .sidebar.open { left: 0; box-shadow: 4px 0 30px rgba(0,0,0,.4); }
-            .main-area { grid-column: 1; }
+            .sidebar.open { transform: translateX(0); box-shadow: 4px 0 30px rgba(0,0,0,.4); }
+            .main-area { width: 100%; }
             .hamburger { display: flex; }
             .header-center { display: none; }
             .header-right .sync-indicator span, .header-right .user-email { display: none; }
@@ -921,6 +932,7 @@
             </div>
         </header>
 
+        <div class="app-body">
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header"><img src="logo.png" alt="Stock Radar" class="sidebar-logo"></div>
             <div class="menu-items">
@@ -2023,6 +2035,7 @@
         </div><!-- /main-content -->
         </div><!-- /container -->
         </div><!-- /main-area -->
+        </div><!-- /app-body -->
         </div><!-- /app-layout -->
     </div><!-- /app-container -->
 
