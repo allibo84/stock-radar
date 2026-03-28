@@ -165,6 +165,7 @@
 
         /* ── Header ── */
         .header {
+            background: #2d5a27;
             background: var(--brand);
             color: white;
             padding: 0 20px;
@@ -243,8 +244,11 @@
         }
 
         .sidebar {
+            width: 240px;
             width: var(--sidebar-w);
+            min-width: 240px;
             min-width: var(--sidebar-w);
+            background: linear-gradient(175deg,#1e3320 0%,#152819 100%);
             background: var(--sidebar-bg);
             height: calc(100vh - var(--header-h));
             position: sticky; top: var(--header-h);
@@ -836,7 +840,7 @@
         }
 
         /* ── Responsive ── */
-        @media (max-width: 900px) {
+        @media (max-width: 768px) {
             .app-body { position: relative; }
             .sidebar {
                 position: fixed; left: 0; top: var(--header-h);
