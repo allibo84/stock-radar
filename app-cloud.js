@@ -1,6 +1,27 @@
 // ═══════════════════════════════════════════════
-// STOCK RADAR V2 - app-cloud.js
+// STOCK RADAR V4 - app-cloud.js
 // ═══════════════════════════════════════════════
+
+// ── Toast notification system ──
+function showToast(type, title, message, duration = 4000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ'}</span><div class="toast-body"><div class="toast-title">${title}</div>${message ? `<div class="toast-msg">${message}</div>` : ''}</div>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(20px)';
+        toast.style.transition = 'all .3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
+function toastSuccess(title, msg) { showToast('success', title, msg); }
+function toastError(title, msg)   { showToast('error',   title, msg, 6000); }
+function toastWarning(title, msg) { showToast('warning', title, msg, 5000); }
+function toastInfo(title, msg)    { showToast('info',    title, msg); }
 
 // sb est créé dans config.js
 let fournisseurs = [], achats = [], products = [], mouvements = [], ventes = [];
@@ -190,10 +211,10 @@ document.getElementById('fournisseur-form')?.addEventListener('submit', async fu
         categorie_fournisseur: document.getElementById('f-categorie-fournisseur')?.value || '',
         notes: document.getElementById('f-notes').value.trim()
     };
-    if (!f.nom) return alert('Nom requis');
+    if (!f.nom) return toastError('Champ requis', 'Le nom du fournisseur est obligatoire.');
     f.user_id = getEffectiveUserId();
     const { error } = await sb.from('fournisseurs').insert([f]);
-    if (error) return alert('Erreur: ' + error.message);
+    if (error) return toastError('Erreur', error.message);
     this.reset();
     document.getElementById('fournisseur-form-section').style.display = 'none';
     await loadFournisseurs();
@@ -376,10 +397,10 @@ document.getElementById('facture-form')?.addEventListener('submit', async functi
         notes: document.getElementById('fac-notes').value.trim(),
         payee: false
     };
-    if (!fa.numero) return alert('N° facture requis');
+    if (!fa.numero) return toastError('Champ requis', 'Le numéro de facture est obligatoire.');
     fa.user_id = getEffectiveUserId();
     const { error } = await sb.from('factures').insert([fa]);
-    if (error) return alert('Erreur: ' + error.message);
+    if (error) return toastError('Erreur', error.message);
     this.reset();
     document.getElementById('facture-form-section').style.display = 'none';
     await loadFactures();
@@ -413,7 +434,7 @@ async function quickAddFournisseur() {
     const nom = prompt('Nom du nouveau fournisseur :');
     if (!nom || !nom.trim()) return;
     const { data, error } = await sb.from('fournisseurs').insert([{ nom: nom.trim() }]).select();
-    if (error) return alert('Erreur: ' + error.message);
+    if (error) return toastError('Erreur', error.message);
     await loadFournisseurs();
     // Sélectionner automatiquement le nouveau fournisseur
     if (data && data[0]) {
@@ -451,17 +472,17 @@ document.getElementById('achat-form')?.addEventListener('submit', async function
         notes: document.getElementById('a-notes').value.trim(),
         date_achat: document.getElementById('a-date').value || new Date().toISOString().split('T')[0],
     };
-    if (!a.ean || !a.nom) return alert('EAN et Nom requis');
+    if (!a.ean || !a.nom) return toastError('Champs requis', 'L'EAN et le nom du produit sont obligatoires.');
     a.user_id = getEffectiveUserId();
 
     if (editingAchatId) {
         // Mode modification
         const { error } = await sb.from('achats').update(a).eq('id', editingAchatId);
-        if (error) return alert('Erreur: ' + error.message);
+        if (error) return toastError('Erreur', error.message);
     } else {
         // Mode création
         const { error } = await sb.from('achats').insert([a]);
-        if (error) return alert('Erreur: ' + error.message);
+        if (error) return toastError('Erreur', error.message);
     }
     
     resetAchatForm();
@@ -931,7 +952,7 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
     const qFbm = parseInt(document.getElementById('qte-fbm')?.value) || 0;
     const qEnt = parseInt(document.getElementById('qte-entrepot')?.value) || 0;
     const totalQte = qFba + qFbm + qEnt;
-    if (totalQte <= 0) return alert('Quantité totale doit être > 0');
+    if (totalQte <= 0) return toastError('Quantité invalide', 'La quantité totale doit être supérieure à 0.');
     const pr = {
         ean: document.getElementById('ean').value.trim(),
         asin: (document.getElementById('asin')?.value || '').trim().toUpperCase(),
@@ -952,7 +973,7 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
         notes: document.getElementById('notes').value.trim(),
         date_ajout: new Date().toISOString(),
     };
-    if (!pr.ean || !pr.nom) return alert('EAN et Nom requis');
+    if (!pr.ean || !pr.nom) return toastError('Champs requis', 'L'EAN et le nom du produit sont obligatoires.');
     pr.user_id = getEffectiveUserId();
     
     // Si on ajoute en occasion ou rebut → déduire du stock neuf
@@ -998,7 +1019,7 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
     }
     
     const { error } = await sb.from('produits').insert([pr]).select();
-    if (error) return alert('Erreur: ' + error.message);
+    if (error) return toastError('Erreur', error.message);
     showSuccess('success-message');
     this.reset();
     document.getElementById('info-achat').style.display = 'none';
@@ -1230,7 +1251,7 @@ function displayStock() {
 
         let margeDisplay = '-';
         if (marge !== null) {
-            const margeColor = marge >= 30 ? '#27ae60' : marge >= 10 ? '#f39c12' : '#e74c3c';
+            const margeColor = marge >= 30 ? 'var(--success)' : marge >= 10 ? 'var(--warning)' : 'var(--danger)';
             margeDisplay = `<span style="color:${margeColor};font-weight:700;">${marge.toFixed(0)}%</span>`;
         }
 
@@ -1479,7 +1500,7 @@ async function saveEditProduct(id) {
 
     console.log('Saving product', id, 'update:', update);
     const { error } = await sb.from('produits').update(update).eq('id', id);
-    if (error) { console.error('Save error:', error); return alert('Erreur: ' + error.message); }
+    if (error) { console.error('Save error:', error); return toastError('Erreur', error.message); }
     
     closeProductModal();
     await loadProducts();
@@ -1520,7 +1541,7 @@ function updateVenteTotal() {
     const total = prix * qte;
     const p = products.find(x => x.id === currentVenteProductId);
     const marge = p ? (total - (p.prix_achat || 0) * qte - frais) : 0;
-    const margeColor = marge > 0 ? '#27ae60' : marge < 0 ? '#e74c3c' : 'var(--text-secondary)';
+    const margeColor = marge > 0 ? 'var(--success)' : marge < 0 ? 'var(--danger)' : 'var(--text-secondary)';
     const disp = document.getElementById('vente-total-display');
     if (disp) disp.innerHTML = `Total : <strong>${total.toFixed(2)}€</strong> · Frais : ${frais.toFixed(2)}€ · <span style="color:${margeColor};">Bénéfice net : ${marge >= 0 ? '+' : ''}${marge.toFixed(2)}€</span>`;
 }
@@ -1539,7 +1560,7 @@ document.getElementById('vente-form')?.addEventListener('submit', async function
     const dateVente = document.getElementById('vente-date').value;
     const frais = parseFloat(document.getElementById('vente-frais')?.value) || 0;
     const notesVente = document.getElementById('vente-notes')?.value?.trim() || '';
-    if (isNaN(prixVente) || prixVente <= 0) return alert('Prix de vente invalide');
+    if (isNaN(prixVente) || prixVente <= 0) return toastError('Prix invalide', 'Le prix de vente doit être supérieur à 0.');
 
     // Validation : quantité vendue ne peut pas dépasser le stock du canal choisi
     const stockCanal = canal === 'Amazon FBA' ? (p.qte_fba || 0)
@@ -1570,7 +1591,7 @@ document.getElementById('vente-form')?.addEventListener('submit', async function
         notes: notesVente,
     };
     const { error: venteError } = await sb.from('ventes').insert([venteRecord]);
-    if (venteError) return alert('Erreur enregistrement vente: ' + venteError.message);
+    if (venteError) return toastError('Erreur vente', venteError.message);
 
     // 2. Mettre à jour le stock produit
     const newFba = canal === 'Amazon FBA' ? Math.max(0, (p.qte_fba || 0) - qteVendue) : (p.qte_fba || 0);
@@ -1588,7 +1609,7 @@ document.getElementById('vente-form')?.addEventListener('submit', async function
         plateforme_vente: canal,
     };
     const { error: stockError } = await sb.from('produits').update(stockUpdate).eq('id', currentVenteProductId);
-    if (stockError) return alert('Erreur mise à jour stock: ' + stockError.message);
+    if (stockError) return toastError('Erreur stock', stockError.message);
 
     // 3. Journaliser le mouvement
     await logMouvement(currentVenteProductId, 'vente', qteVendue, canal || 'entrepot', 'vendu', `Vente ${canal} — ${prixVente}€/u`, notesVente);
@@ -1710,9 +1731,9 @@ async function confirmGrossisteImport() {
     for (let i = 0; i < batch.length; i += 100) {
         const chunk = batch.slice(i, i + 100);
         const { error } = await sb.from('produits').insert(chunk);
-        if (error) { alert('Erreur import: ' + error.message); return; }
+        if (error) { toastError('Erreur import', error.message); return; }
     }
-    alert(`✅ ${batch.length} produits importés !`);
+    toastSuccess('Import réussi', `${batch.length} produits importés dans le stock.`);
     cancelGrossisteImport();
     await loadProducts();
     switchTab('stock');
@@ -1921,7 +1942,7 @@ function createCharts() {
     const mLabels = Object.keys(months).slice(-6);
     if (charts.evolution) charts.evolution.destroy();
     const c1 = document.getElementById('chartEvolution');
-    if (c1) charts.evolution = new Chart(c1, { type:'bar', data:{labels:mLabels, datasets:[{label:'Unités ajoutées',data:mLabels.map(m=>months[m]),backgroundColor:'rgba(45,80,22,0.7)'}]}, options:{responsive:true,plugins:{legend:{display:false}}} });
+    if (c1) charts.evolution = new Chart(c1, { type:'bar', data:{labels:mLabels, datasets:[{label:'Unités ajoutées',data:mLabels.map(m=>months[m]),backgroundColor:'rgba(45,90,39,0.75)'}]}, options:{responsive:true,plugins:{legend:{display:false}}} });
 
     // Répartition stock
     const enStock = products.filter(p => !p.vendu);
@@ -1938,7 +1959,7 @@ function createCharts() {
     const sortedCats = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,5);
     if (charts.categories) charts.categories.destroy();
     const c3 = document.getElementById('chartCategories');
-    if (c3) charts.categories = new Chart(c3, { type:'bar', data:{labels:sortedCats.map(c=>c[0]),datasets:[{label:'Unités',data:sortedCats.map(c=>c[1]),backgroundColor:'rgba(45,80,22,0.6)'}]}, options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}}} });
+    if (c3) charts.categories = new Chart(c3, { type:'bar', data:{labels:sortedCats.map(c=>c[0]),datasets:[{label:'Unités',data:sortedCats.map(c=>c[1]),backgroundColor:'rgba(45,90,39,0.65)'}]}, options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}}} });
 
     // CA par canal (depuis la vraie table ventes)
     const canaux = {};
@@ -1949,7 +1970,11 @@ function createCharts() {
 }
 
 // ═══════ UTILS ═══════
-function showSuccess(id) { const m = document.getElementById(id); if (m) { m.style.display='block'; setTimeout(()=>m.style.display='none',3000); } }
+function showSuccess(id) {
+    toastSuccess('Enregistré', 'L\'opération a été effectuée avec succès.');
+    const m = document.getElementById(id);
+    if (m) { m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 3000); }
+}
 
 function downloadCSV(csv, name) {
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
@@ -2020,8 +2045,8 @@ function displayVentes() {
         statsEl.innerHTML = `
             <div class="stat-card"><div class="stat-number">${list.length}</div><div class="stat-label">Ventes</div></div>
             <div class="stat-card"><div class="stat-number">${totalQte}</div><div class="stat-label">Unités vendues</div></div>
-            <div class="stat-card"><div class="stat-number" style="color:#27352a;">${totalCA.toFixed(2)}€</div><div class="stat-label">CA total</div></div>
-            <div class="stat-card"><div class="stat-number" style="color:${totalBenefice>=0?'#27ae60':'#e74c3c'};">${totalBenefice>=0?'+':''}${totalBenefice.toFixed(2)}€</div><div class="stat-label">Bénéfice net</div></div>
+            <div class="stat-card"><div class="stat-number" style="color:var(--brand);">${totalCA.toFixed(2)}€</div><div class="stat-label">CA total</div></div>
+            <div class="stat-card"><div class="stat-number" style="color:${totalBenefice>=0?"var(--success)":"var(--danger)"};">${totalBenefice>=0?'+':''}${totalBenefice.toFixed(2)}€</div><div class="stat-label">Bénéfice net</div></div>
             <div class="stat-card"><div class="stat-number">${totalFrais.toFixed(2)}€</div><div class="stat-label">Frais totaux</div></div>
             <div class="stat-card"><div class="stat-number">${list.length > 0 ? (totalCA / list.length).toFixed(2) : '0.00'}€</div><div class="stat-label">Panier moyen</div></div>
         `;
@@ -2035,7 +2060,7 @@ function displayVentes() {
     let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>Produit</th><th>EAN</th><th>Canal</th><th>Qté</th><th>Prix unit.</th><th>Total</th><th>Frais</th><th>Bénéfice</th><th>Notes</th></tr></thead><tbody>';
     list.forEach(v => {
         const benef = v.benefice || 0;
-        const benefColor = benef > 0 ? '#27ae60' : benef < 0 ? '#e74c3c' : 'var(--text-secondary)';
+        const benefColor = benef > 0 ? 'var(--success)' : benef < 0 ? 'var(--danger)' : 'var(--text-secondary)';
         h += `<tr>
             <td style="font-size:12px;color:var(--text-secondary);">${v.date_vente || '-'}</td>
             <td><strong>${escapeHtml(v.produit_nom || '-')}</strong></td>
@@ -2287,7 +2312,7 @@ async function confirmTransfert() {
     update.quantite = allQtes.qte_entrepot + allQtes.qte_fba + allQtes.qte_fbm;
 
     const { error } = await sb.from('produits').update(update).eq('id', transfertProductId);
-    if (error) return alert('Erreur: ' + error.message);
+    if (error) return toastError('Erreur', error.message);
 
     await logMouvement(transfertProductId, 'transfert', qte, transfertFrom, transfertTo, 'Transfert manuel', '');
     closeTransfertModal();
@@ -2368,15 +2393,15 @@ document.getElementById('fourniture-form')?.addEventListener('submit', async fun
         recurrent: document.getElementById('four-recurrent').value,
         notes: document.getElementById('four-notes').value.trim(),
     };
-    if (!f.nom) return alert('Désignation requise');
+    if (!f.nom) return toastError('Champ requis', 'La désignation est obligatoire.');
     f.user_id = getEffectiveUserId();
 
     if (editingFournitureId) {
         const { error } = await sb.from('fournitures').update(f).eq('id', editingFournitureId);
-        if (error) return alert('Erreur: ' + error.message);
+        if (error) return toastError('Erreur', error.message);
     } else {
         const { error } = await sb.from('fournitures').insert([f]);
-        if (error) return alert('Erreur: ' + error.message);
+        if (error) return toastError('Erreur', error.message);
     }
     editingFournitureId = null;
     this.reset();
@@ -2482,7 +2507,7 @@ async function modifierSeuil(productId) {
     if (seuil === null) return;
     const val = parseInt(seuil) || 0;
     const { error } = await sb.from('produits').update({ seuil_stock: val }).eq('id', productId);
-    if (error) return alert('Erreur: ' + error.message);
+    if (error) return toastError('Erreur', error.message);
     await loadProducts();
     displayAlertes();
 }
@@ -2895,7 +2920,7 @@ async function restoreData(event) {
         const backup = JSON.parse(text);
 
         if (!backup.version || !backup.version.startsWith('stock-radar')) {
-            alert('❌ Fichier de sauvegarde non reconnu');
+            toastError('Fichier invalide', 'Format de sauvegarde non reconnu.');
             return;
         }
 
@@ -2976,10 +3001,10 @@ async function restoreData(event) {
             for (let i = 0; i < mClean.length; i += 50) await sb.from('mouvements').insert(mClean.slice(i, i+50));
         }
 
-        alert('✅ Restauration terminée ! Rechargement...');
+        toastSuccess('Restauration terminée', 'Rechargement en cours...');
         location.reload();
     } catch (e) {
-        alert('❌ Erreur lors de la restauration : ' + e.message);
+        toastError('Erreur restauration', e.message);
         console.error(e);
     }
     event.target.value = '';
