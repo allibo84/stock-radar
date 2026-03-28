@@ -911,8 +911,8 @@
     </div>
 
     <div id="app-container">
-        <div class="app-layout">
-        <header class="header">
+        <div class="app-layout" style="display:flex;flex-direction:column;min-height:100vh;">
+        <header class="header" style="background:#2d5a27;color:white;">
             <div class="header-left">
                 <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').style.display=document.getElementById('sidebar').classList.contains('open')?'block':'none';">
                     <span></span><span></span><span></span>
@@ -937,14 +937,14 @@
             </div>
         </header>
 
-        <div class="app-body">
-        <div class="sidebar" id="sidebar">
+        <div class="app-body" style="display:flex;flex:1;">
+        <div class="sidebar" id="sidebar" style="background:linear-gradient(175deg,#1e3320 0%,#152819 100%);width:240px;min-width:240px;color:white;">
             <div class="sidebar-header"><img src="logo.png" alt="Stock Radar" class="sidebar-logo"></div>
             <div class="menu-items">
                 <div class="menu-item active" data-tab="dashboard">
                     <span class="menu-item-icon">📊</span><span>Dashboard</span>
                 </div>
-                <div class="menu-section-label">Achats</div>
+                <div class="menu-section-label" style="color:rgba(255,255,255,.4);">Achats</div>
                 <div class="menu-item" data-tab="fournisseurs">
                     <span class="menu-item-icon">🏪</span><span>Fournisseurs</span>
                 </div>
@@ -960,7 +960,7 @@
                 <div class="menu-item" data-tab="import-grossiste">
                     <span class="menu-item-icon">📥</span><span>Import Grossiste</span>
                 </div>
-                <div class="menu-section-label">Stock</div>
+                <div class="menu-section-label" style="color:rgba(255,255,255,.4);">Stock</div>
                 <div class="menu-item" data-tab="stock">
                     <span class="menu-item-icon">📦</span><span>Mon Stock</span>
                 </div>
@@ -979,7 +979,7 @@
                 <div class="menu-item" data-tab="inventaire">
                     <span class="menu-item-icon">📊</span><span>Inventaire</span>
                 </div>
-                <div class="menu-section-label">Outils</div>
+                <div class="menu-section-label" style="color:rgba(255,255,255,.4);">Outils</div>
                 <div class="menu-item" data-tab="outils-export">
                     <span class="menu-item-icon">📤</span><span>Export & Sauvegarde</span>
                 </div>
@@ -987,7 +987,7 @@
                     <span class="menu-item-icon">❓</span><span>Aide & Guide</span>
                 </div>
             </div>
-            <div class="menu-footer">⌨️ Ctrl+N · Ctrl+F · Ctrl+S · Ctrl+D
+            <div class="menu-footer" style="color:rgba(255,255,255,.3);border-top:1px solid rgba(255,255,255,.07);padding:12px 16px;">⌨️ Ctrl+N · Ctrl+F · Ctrl+S · Ctrl+D
             </div>
         </div>
 
@@ -1007,7 +1007,7 @@
             </div>
         </div>
 
-        <div class="main-area">
+        <div class="main-area" style="flex:1;min-width:0;background:#f4f5f7;">
         <div class="container">
             <div class="loading" id="loading"><div class="loading-spinner"></div><p>Chargement des données...</p></div>
             <div id="main-content" style="display:none;">
