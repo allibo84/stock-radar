@@ -503,7 +503,7 @@ document.getElementById('achat-form')?.addEventListener('submit', async function
         notes: document.getElementById('a-notes').value.trim(),
         date_achat: document.getElementById('a-date').value || new Date().toISOString().split('T')[0],
     };
-    if (!a.ean || !a.nom) return toastError('Champs requis', "L'EAN et le nom du produit sont obligatoires.");
+    if (!a.ean || !a.nom) return toastError('Champs requis', `L'EAN et le nom du produit sont obligatoires.`);
     a.user_id = getEffectiveUserId();
 
     if (editingAchatId) {
@@ -695,7 +695,7 @@ async function toggleRecu(id, v) {
 
 async function deleteAchat(id) {
     const a = achats.find(x => x.id === id);
-    if (!await srConfirm(`Supprimer l'achat "${a?.nom || ''}" ?`, 'Supprimer', true)) return;
+    if (!await srConfirm(`Supprimer l'achat "${a?.nom || ""}" ?`, 'Supprimer', true)) return;
     await sb.from('achats').delete().eq('id', id);
     await loadAchats();
     toastSuccess('Achat supprimé');
@@ -1006,7 +1006,7 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
         notes: document.getElementById('notes').value.trim(),
         date_ajout: new Date().toISOString(),
     };
-    if (!pr.ean || !pr.nom) return toastError('Champs requis', "L'EAN et le nom du produit sont obligatoires.");
+    if (!pr.ean || !pr.nom) return toastError('Champs requis', `L'EAN et le nom du produit sont obligatoires.`);
     pr.user_id = getEffectiveUserId();
     
     // Si on ajoute en occasion ou rebut → déduire du stock neuf
@@ -2006,7 +2006,7 @@ function createCharts() {
 
 // ═══════ UTILS ═══════
 function showSuccess(id) {
-    toastSuccess('Enregistré', 'L\'opération a été effectuée avec succès.');
+    toastSuccess('Enregistré', `L'opération a été effectuée avec succès.`);
     const m = document.getElementById(id);
     if (m) { m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 3000); }
 }
@@ -2574,7 +2574,7 @@ let invCodeReader = null;
 let inventaireFilter = 'all';
 
 async function startInventaire() {
-    if (inventaireActif && !await srConfirm("Un inventaire est déjà en cours.\nRecommencer et perdre les comptages en cours ?", 'Recommencer')) return;
+    if (inventaireActif && !await srConfirm('Un inventaire est déjà en cours.\nRecommencer et perdre les comptages en cours ?', 'Recommencer')) return;
     
     const enStock = products.filter(p => !p.vendu && !p.invendable);
     inventaireData = enStock.map(p => ({
@@ -2724,7 +2724,7 @@ async function validerInventaire() {
     if (!comptes.length) return toastError('Aucun comptage', 'Aucun produit compté.');
     
     const msg = `Résumé de l'inventaire :\n- ${comptes.length} produits comptés\n- ${comptes.length - ecarts.length} conformes\n- ${ecarts.length} écarts\n\n${ecarts.length > 0 ? 'Les écarts vont ajuster les quantités en stock.\n\n' : ''}Valider et appliquer ?`;
-    if (!await srConfirm(msg, "Valider l'inventaire")) return;
+    if (!await srConfirm(msg, `Valider l'inventaire`)) return;
     
     for (const item of ecarts) {
         const p = products.find(x => x.id === item.id);
@@ -2946,7 +2946,7 @@ async function restoreData(event) {
     }
     const uid = currentUser.id;
 
-    if (!await srConfirm("Cette opération va SUPPRIMER toutes vos données actuelles et les remplacer par celles du fichier.\n\nSeules VOS données seront supprimées.", 'Restaurer la sauvegarde', true)) {
+    if (!await srConfirm('Cette opération va SUPPRIMER toutes vos données actuelles.\n\nSeules VOS données seront supprimées.', 'Restaurer la sauvegarde', true)) {
         event.target.value = '';
         return;
     }
@@ -2962,7 +2962,7 @@ async function restoreData(event) {
 
         // Vérifier que la sauvegarde appartient bien à cet utilisateur
         if (backup.user_id && backup.user_id !== uid) {
-            if (!await srConfirm("Ce fichier appartient à un autre compte.\nVoulez-vous quand même restaurer ces données sur votre compte ?", 'Compte différent', false)) {
+            if (!await srConfirm('Ce fichier appartient à un autre compte.\nVoulez-vous quand même restaurer sur votre compte ?', 'Compte différent', false)) {
                 event.target.value = '';
                 return;
             }
@@ -3145,7 +3145,7 @@ function displayQuickScanHistory() {
 }
 
 function quickScanAction(action) {
-    if (!quickScanLastEAN) return toastWarning('Scanner', "Scannez d'abord un code-barres.");
+    if (!quickScanLastEAN) return toastWarning('Scanner', `Scannez d'abord un code-barres.`);
     closeQuickScan();
 
     if (action === 'nouveau') {

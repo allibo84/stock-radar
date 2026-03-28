@@ -137,7 +137,9 @@ function showLogin() {
 
 function showApp() {
     document.getElementById('login-container').style.display = 'none';
-    document.getElementById('app-container').style.display = 'block';
+    document.getElementById('app-container').style.display = 'flex';
+    document.getElementById('app-container').style.flexDirection = 'column';
+    document.getElementById('app-container').style.minHeight = '100vh';
     if (currentUser?.email) {
         document.getElementById('user-email').textContent = currentUser.email;
     }
