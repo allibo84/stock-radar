@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════
 
 // sb est créé dans config.js
-let fournisseurs = [], achats = [], products = [], mouvements = [];
+let fournisseurs = [], achats = [], products = [], mouvements = [], ventes = [];
 let currentPhotos = [], currentVenteProductId = null;
 let activeStockView = 'all';
 let stockCurrentPage = 1;
@@ -22,6 +22,7 @@ async function loadAllData() {
             loadMouvements().catch(e => console.warn('Mouvements:', e)),
             loadFactures().catch(e => console.warn('Factures:', e)),
             loadFournitures().catch(e => console.warn('Fournitures:', e)),
+            loadVentes().catch(e => console.warn('Ventes:', e)),
         ]);
     } catch (e) { console.error('Erreur chargement:', e); }
     document.getElementById('loading').style.display = 'none';
@@ -86,6 +87,16 @@ async function loadMouvements() {
     displayMouvements();
 }
 
+async function loadVentes() {
+    let query = sb.from('ventes').select('*').order('date_vente', { ascending: false });
+    const uid = getUserFilter();
+    if (uid) query = query.eq('user_id', uid);
+    const { data, error } = await query;
+    if (error) console.warn('Erreur ventes:', error.message);
+    ventes = data || [];
+    displayVentes();
+}
+
 function setupRealtimeSync() {
     if (realtimeChannel) {
         sb.removeChannel(realtimeChannel);
@@ -96,6 +107,7 @@ function setupRealtimeSync() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'achats' }, () => loadAchats())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fournisseurs' }, () => loadFournisseurs())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'mouvements' }, () => loadMouvements())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'ventes' }, () => loadVentes())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'factures' }, () => loadFactures())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fournitures' }, () => loadFournitures())
         .subscribe();
@@ -582,60 +594,48 @@ function updateAchatsStats() {
 }
 
 async function toggleRecu(id, v) {
-    // Empêcher la double création de stock si déjà marqué reçu
+    // Empêcher la double création de stock — vérification via produit_genere_id
     const achat = achats.find(a => a.id === id);
-    if (v === true && achat?.recu === true) return; // déjà reçu, on ignore
+    if (v === true && achat?.produit_genere_id) {
+        alert('⚠️ Un produit a déjà été créé pour cet achat (ID ' + achat.produit_genere_id + ').');
+        return;
+    }
+    if (v === true && achat?.recu === true) return;
 
     await sb.from('achats').update({ recu: v }).eq('id', id);
 
-    if (v === true) {
-        if (achat) {
-            // Vérifier si un produit a déjà été créé pour cet achat (même EAN + même date + même prix)
-            const dejaExistant = products.find(p =>
-                p.ean === achat.ean &&
-                !p.vendu &&
-                Math.abs((p.prix_achat || 0) - (achat.prix_ttc || achat.prix_ht || 0)) < 0.01 &&
-                p.notes?.includes('[achat#' + id + ']')
-            );
-            if (dejaExistant) {
-                console.warn('Produit déjà créé pour cet achat, skip.');
-                await loadAchats();
-                return;
-            }
-
-            const pr = {
-                user_id: getEffectiveUserId(),
-                ean: achat.ean,
-                nom: achat.nom,
-                categorie: achat.categorie || '',
-                etat: 'Neuf',
-                etat_stock: 'neuf',
-                statut: 'recu',
-                emplacement: '',
-                prix_achat: achat.prix_ttc || achat.prix_ht || 0,
-                prix_revente: 0,
-                qte_fba: 0,
-                qte_fbm: 0,
-                qte_entrepot: achat.quantite || 1,
-                quantite: achat.quantite || 1,
-                amazon_fba: false,
-                amazon_fbm: false,
-                vinted: false,
-                leboncoin: false,
-                invendable: false,
-                vendu: false,
-                photos: [],
-                notes: (achat.notes ? achat.notes + ' ' : '') + '[achat#' + id + ']',
-                date_ajout: new Date().toISOString(),
-            };
-            const { data: inserted, error } = await sb.from('produits').insert([pr]).select();
-            if (error) console.warn('Erreur création produit depuis achat:', error.message);
-            if (inserted && inserted[0]) {
-                await logMouvement(inserted[0].id, 'reception', achat.quantite || 1, 'achat', 'entrepot', 'Réception achat', achat.fournisseur_nom || '');
-            }
-            await loadProducts();
-            updateDashboard();
+    if (v === true && achat) {
+        const pr = {
+            user_id: getEffectiveUserId(),
+            ean: achat.ean,
+            nom: achat.nom,
+            categorie: achat.categorie || '',
+            etat: 'Neuf',
+            etat_stock: 'neuf',
+            statut: 'recu',
+            emplacement: '',
+            prix_achat: achat.prix_ttc || achat.prix_ht || 0,
+            prix_revente: 0,
+            qte_fba: 0, qte_fbm: 0,
+            qte_entrepot: achat.quantite || 1,
+            quantite: achat.quantite || 1,
+            amazon_fba: false, amazon_fbm: false,
+            vinted: false, leboncoin: false,
+            invendable: false, vendu: false,
+            photos: [],
+            notes: achat.notes || '',
+            date_ajout: new Date().toISOString(),
+        };
+        const { data: inserted, error } = await sb.from('produits').insert([pr]).select();
+        if (error) {
+            console.warn('Erreur création produit depuis achat:', error.message);
+        } else if (inserted && inserted[0]) {
+            // Lier l'achat au produit créé via la vraie relation SQL
+            await sb.from('achats').update({ produit_genere_id: inserted[0].id }).eq('id', id);
+            await logMouvement(inserted[0].id, 'reception', achat.quantite || 1, 'achat', 'entrepot', 'Réception achat', achat.fournisseur_nom || '');
         }
+        await loadProducts();
+        updateDashboard();
     }
 
     await loadAchats();
@@ -958,45 +958,42 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
     // Si on ajoute en occasion ou rebut → déduire du stock neuf
     if (pr.etat_stock === 'occasion' || pr.etat_stock === 'rebut') {
         const stockNeuf = products.filter(p => p.ean === pr.ean && !p.vendu && p.etat_stock === 'neuf');
+        const stockNeufTotal = stockNeuf.reduce((s, p) => s + (p.qte_entrepot||0) + (p.qte_fba||0) + (p.qte_fbm||0), 0);
         let qteADeduire = totalQte;
-        
+
+        if (qteADeduire > stockNeufTotal) {
+            const manque = qteADeduire - stockNeufTotal;
+            const msg = stockNeufTotal === 0
+                ? `❌ Aucun stock neuf disponible pour l'EAN ${pr.ean}.\n\nImpossible de créer ${totalQte} unité(s) en ${pr.etat_stock} sans stock neuf source.`
+                : `⚠️ Stock neuf insuffisant pour l'EAN ${pr.ean}.\n\nStock neuf disponible : ${stockNeufTotal} unité(s)\nQuantité demandée : ${totalQte} unité(s)\nManque : ${manque} unité(s)\n\nVoulez-vous créer quand même (hors conversion) ?`;
+            if (stockNeufTotal === 0 || !confirm(msg)) return;
+            qteADeduire = stockNeufTotal; // ne déduire que ce qui existe
+        }
+
         for (const sn of stockNeuf) {
             if (qteADeduire <= 0) break;
             const snTotal = (sn.qte_entrepot || 0) + (sn.qte_fba || 0) + (sn.qte_fbm || 0);
-            
+
             if (snTotal <= qteADeduire) {
-                // Supprimer entièrement ce produit neuf (marquer vendu ou mettre à 0)
-                await sb.from('produits').update({ 
+                await sb.from('produits').update({
                     qte_entrepot: 0, qte_fba: 0, qte_fbm: 0, quantite: 0, vendu: true,
                     notes: (sn.notes || '') + ' [Transféré en ' + pr.etat_stock + ']'
                 }).eq('id', sn.id);
                 qteADeduire -= snTotal;
             } else {
-                // Déduire partiellement — on prend d'abord de l'entrepôt, puis FBM, puis FBA
                 let reste = qteADeduire;
                 let newEnt = sn.qte_entrepot || 0;
                 let newFbm = sn.qte_fbm || 0;
                 let newFba = sn.qte_fba || 0;
-                
-                const deductEnt = Math.min(reste, newEnt);
-                newEnt -= deductEnt; reste -= deductEnt;
-                
-                const deductFbm = Math.min(reste, newFbm);
-                newFbm -= deductFbm; reste -= deductFbm;
-                
-                const deductFba = Math.min(reste, newFba);
-                newFba -= deductFba; reste -= deductFba;
-                
-                await sb.from('produits').update({ 
+                const deductEnt = Math.min(reste, newEnt); newEnt -= deductEnt; reste -= deductEnt;
+                const deductFbm = Math.min(reste, newFbm); newFbm -= deductFbm; reste -= deductFbm;
+                const deductFba = Math.min(reste, newFba); newFba -= deductFba;
+                await sb.from('produits').update({
                     qte_entrepot: newEnt, qte_fbm: newFbm, qte_fba: newFba,
                     quantite: newEnt + newFbm + newFba
                 }).eq('id', sn.id);
                 qteADeduire = 0;
             }
-        }
-        
-        if (qteADeduire > 0 && stockNeuf.length > 0) {
-            console.warn(`Attention : ${qteADeduire} unité(s) en plus par rapport au stock neuf disponible`);
         }
     }
     
@@ -1416,6 +1413,7 @@ function openProductModal(id) {
             <div style="display:flex;gap:15px;flex-wrap:wrap;margin-bottom:15px;">
                 <label><input type="checkbox" id="edit-amazon-fba-${p.id}" ${p.amazon_fba?'checked':''}> Amazon FBA</label>
                 <label><input type="checkbox" id="edit-amazon-fbm-${p.id}" ${p.amazon_fbm?'checked':''}> Amazon FBM</label>
+                <label><input type="checkbox" id="edit-fba-attente-${p.id}" ${p.fba_attente?'checked':''}> ⏳ FBA en attente</label>
                 <label><input type="checkbox" id="edit-vinted-${p.id}" ${p.vinted?'checked':''}> Vinted</label>
                 <label><input type="checkbox" id="edit-leboncoin-${p.id}" ${p.leboncoin?'checked':''}> Leboncoin</label>
             </div>
@@ -1470,6 +1468,7 @@ async function saveEditProduct(id) {
         quantite: totalQte,
         amazon_fba: document.getElementById('edit-amazon-fba-' + id)?.checked || false,
         amazon_fbm: document.getElementById('edit-amazon-fbm-' + id)?.checked || false,
+        fba_attente: document.getElementById('edit-fba-attente-' + id)?.checked || false,
         vinted: document.getElementById('edit-vinted-' + id)?.checked || false,
         leboncoin: document.getElementById('edit-leboncoin-' + id)?.checked || false,
         invendable: (document.getElementById('edit-etat-stock-' + id)?.value || '') === 'rebut',
@@ -1517,18 +1516,16 @@ function openVenteModal(id) {
 function updateVenteTotal() {
     const prix = parseFloat(document.getElementById('vente-prix')?.value) || 0;
     const qte = parseInt(document.getElementById('vente-qte')?.value) || 1;
+    const frais = parseFloat(document.getElementById('vente-frais')?.value) || 0;
     const total = prix * qte;
     const p = products.find(x => x.id === currentVenteProductId);
-    const marge = p ? (total - (p.prix_achat || 0) * qte) : 0;
+    const marge = p ? (total - (p.prix_achat || 0) * qte - frais) : 0;
     const margeColor = marge > 0 ? '#27ae60' : marge < 0 ? '#e74c3c' : 'var(--text-secondary)';
     const disp = document.getElementById('vente-total-display');
-    if (disp) disp.innerHTML = `Total : ${total.toFixed(2)}€ · <span style="color:${margeColor};">Bénéfice : ${marge >= 0 ? '+' : ''}${marge.toFixed(2)}€</span>`;
+    if (disp) disp.innerHTML = `Total : <strong>${total.toFixed(2)}€</strong> · Frais : ${frais.toFixed(2)}€ · <span style="color:${margeColor};">Bénéfice net : ${marge >= 0 ? '+' : ''}${marge.toFixed(2)}€</span>`;
 }
 
-// Attach live calculation
-document.getElementById('vente-prix')?.addEventListener('input', updateVenteTotal);
-document.getElementById('vente-qte')?.addEventListener('input', updateVenteTotal);
-
+// Remove old listeners (replaced by oninput in HTML)
 function closeVenteModal() { document.getElementById('vente-modal').style.display = 'none'; currentVenteProductId = null; }
 
 document.getElementById('vente-form')?.addEventListener('submit', async function(e) {
@@ -1539,6 +1536,9 @@ document.getElementById('vente-form')?.addEventListener('submit', async function
     const prixVente = parseFloat(document.getElementById('vente-prix').value);
     const qteVendue = parseInt(document.getElementById('vente-qte').value) || 1;
     const canal = document.getElementById('vente-plateforme').value;
+    const dateVente = document.getElementById('vente-date').value;
+    const frais = parseFloat(document.getElementById('vente-frais')?.value) || 0;
+    const notesVente = document.getElementById('vente-notes')?.value?.trim() || '';
     if (isNaN(prixVente) || prixVente <= 0) return alert('Prix de vente invalide');
 
     // Validation : quantité vendue ne peut pas dépasser le stock du canal choisi
@@ -1549,33 +1549,53 @@ document.getElementById('vente-form')?.addEventListener('submit', async function
     if (qteVendue > stockCanal) {
         return alert(`❌ Quantité insuffisante pour ce canal.\n\nStock ${canal === 'Amazon FBA' ? 'FBA' : canal === 'Amazon FBM' ? 'FBM' : 'entrepôt'} disponible : ${stockCanal} unité(s)\nQuantité demandée : ${qteVendue} unité(s)`);
     }
-
     if (qteVendue > (p.quantite || 0)) {
         return alert(`❌ Quantité vendue (${qteVendue}) supérieure au stock total (${p.quantite || 0}).`);
     }
 
+    // 1. Insérer dans la table ventes
+    const venteRecord = {
+        user_id: getEffectiveUserId(),
+        produit_id: p.id,
+        produit_ean: p.ean || '',
+        produit_nom: p.nom || '',
+        canal: canal || 'Autre',
+        quantite: qteVendue,
+        prix_unitaire: prixVente,
+        prix_total: parseFloat((prixVente * qteVendue).toFixed(2)),
+        prix_achat_unitaire: p.prix_achat || 0,
+        frais: frais,
+        benefice: parseFloat(((prixVente - (p.prix_achat || 0)) * qteVendue - frais).toFixed(2)),
+        date_vente: dateVente,
+        notes: notesVente,
+    };
+    const { error: venteError } = await sb.from('ventes').insert([venteRecord]);
+    if (venteError) return alert('Erreur enregistrement vente: ' + venteError.message);
+
+    // 2. Mettre à jour le stock produit
     const newFba = canal === 'Amazon FBA' ? Math.max(0, (p.qte_fba || 0) - qteVendue) : (p.qte_fba || 0);
     const newFbm = canal === 'Amazon FBM' ? Math.max(0, (p.qte_fbm || 0) - qteVendue) : (p.qte_fbm || 0);
     const newEnt = (canal !== 'Amazon FBA' && canal !== 'Amazon FBM') ? Math.max(0, (p.qte_entrepot || 0) - qteVendue) : (p.qte_entrepot || 0);
     const newTotal = newFba + newFbm + newEnt;
 
-    const update = {
-        prix_vente_reel: prixVente,
-        date_vente: document.getElementById('vente-date').value,
-        plateforme_vente: canal,
+    const stockUpdate = {
+        qte_fba: newFba, qte_fbm: newFbm, qte_entrepot: newEnt,
         quantite: newTotal,
-        qte_fba: newFba,
-        qte_fbm: newFbm,
-        qte_entrepot: newEnt,
+        vendu: newTotal <= 0,
+        // Garder le dernier prix/date/canal pour compatibilité dashboard existant
+        prix_vente_reel: prixVente,
+        date_vente: dateVente,
+        plateforme_vente: canal,
     };
+    const { error: stockError } = await sb.from('produits').update(stockUpdate).eq('id', currentVenteProductId);
+    if (stockError) return alert('Erreur mise à jour stock: ' + stockError.message);
 
-    if (newTotal <= 0) update.vendu = true;
+    // 3. Journaliser le mouvement
+    await logMouvement(currentVenteProductId, 'vente', qteVendue, canal || 'entrepot', 'vendu', `Vente ${canal} — ${prixVente}€/u`, notesVente);
 
-    const { error } = await sb.from('produits').update(update).eq('id', currentVenteProductId);
-    if (error) return alert('Erreur: ' + error.message);
-    await logMouvement(currentVenteProductId, 'vente', qteVendue, canal || 'entrepot', 'vendu', `Vente ${canal} — ${prixVente}€`, '');
     closeVenteModal();
-    await loadProducts();
+    await Promise.all([loadProducts(), loadVentes()]);
+    updateDashboard();
     showSuccess('success-message');
 });
 
@@ -1772,21 +1792,24 @@ async function exportStockExcel() {
 // ═══════ DASHBOARD ═══════
 function updateDashboard() {
     const enStock = products.filter(p => !p.vendu && !p.invendable);
-    const vendus = products.filter(p => p.vendu);
     const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
 
     el('dash-total-produits', enStock.reduce((s,p)=>s+(p.quantite||0),0));
-    el('dash-total-vendus', vendus.length);
+    el('dash-total-vendus', ventes.reduce((s,v)=>s+(v.quantite||0),0));
     const valStockAchat = enStock.reduce((s,p) => s + ((p.prix_achat||0)*(p.quantite||0)), 0);
     el('dash-valeur-stock', valStockAchat.toFixed(2) + '€');
     const valEntrepot = enStock.reduce((s,p) => s + ((p.prix_achat||0)*(p.qte_entrepot||0)), 0);
     el('dash-valeur-entrepot', valEntrepot.toFixed(2) + '€');
 
-    const ca = vendus.reduce((s,p) => s + (p.prix_vente_reel||0), 0);
+    // CA et bénéfice depuis la vraie table ventes
+    const ca = ventes.reduce((s,v) => s + (v.prix_total || 0), 0);
     el('dash-ca-realise', ca.toFixed(2) + '€');
-    const benefice = vendus.reduce((s,p) => s + ((p.prix_vente_reel||0)-(p.prix_achat||0)), 0);
+    const benefice = ventes.reduce((s,v) => s + (v.benefice || 0), 0);
     el('dash-benefice', benefice.toFixed(2) + '€');
-    const marges = vendus.filter(p => p.prix_achat > 0).map(p => (((p.prix_vente_reel||0)-p.prix_achat)/p.prix_achat*100));
+    const marges = ventes.filter(v => v.prix_achat_unitaire > 0).map(v => {
+        const totalAchat = (v.prix_achat_unitaire || 0) * (v.quantite || 1);
+        return totalAchat > 0 ? ((v.prix_total - totalAchat) / totalAchat * 100) : 0;
+    });
     el('dash-marge-moyenne', (marges.length ? (marges.reduce((a,b)=>a+b,0)/marges.length) : 0).toFixed(1) + '%');
 
     // Bénéfice potentiel avec explication
@@ -1917,10 +1940,9 @@ function createCharts() {
     const c3 = document.getElementById('chartCategories');
     if (c3) charts.categories = new Chart(c3, { type:'bar', data:{labels:sortedCats.map(c=>c[0]),datasets:[{label:'Unités',data:sortedCats.map(c=>c[1]),backgroundColor:'rgba(45,80,22,0.6)'}]}, options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}}} });
 
-    // CA par canal
-    const vendus = products.filter(p => p.vendu);
+    // CA par canal (depuis la vraie table ventes)
     const canaux = {};
-    vendus.forEach(p => { const c = p.plateforme_vente || 'Autre'; canaux[c] = (canaux[c]||0) + (p.prix_vente_reel||0); });
+    ventes.forEach(v => { const c = v.canal || 'Autre'; canaux[c] = (canaux[c]||0) + (v.prix_total||0); });
     if (charts.canaux) charts.canaux.destroy();
     const c4 = document.getElementById('chartCanaux');
     if (c4) charts.canaux = new Chart(c4, { type:'doughnut', data:{labels:Object.keys(canaux),datasets:[{data:Object.values(canaux),backgroundColor:['#ff9900','#3f51b5','#00b4b6','#f56b2a','#95a5a6']}]}, options:{responsive:true} });
@@ -1970,6 +1992,94 @@ async function logMouvement(produitId, type, quantite, de, vers, raison, notes) 
     };
     const { error } = await sb.from('mouvements').insert([mvt]);
     if (error) console.warn('Erreur log mouvement:', error.message);
+}
+
+// ═══════ VENTES ═══════
+function displayVentes() {
+    const c = document.getElementById('ventes-container');
+    if (!c) return;
+
+    const q = (document.getElementById('ventes-search')?.value || '').toLowerCase();
+    const canal = document.getElementById('ventes-filter-canal')?.value || '';
+    const dateFrom = document.getElementById('ventes-filter-from')?.value || '';
+    const dateTo = document.getElementById('ventes-filter-to')?.value || '';
+
+    let list = [...ventes];
+    if (q) list = list.filter(v => (v.produit_nom||'').toLowerCase().includes(q) || (v.produit_ean||'').includes(q) || (v.canal||'').toLowerCase().includes(q));
+    if (canal) list = list.filter(v => v.canal === canal);
+    if (dateFrom) list = list.filter(v => v.date_vente >= dateFrom);
+    if (dateTo) list = list.filter(v => v.date_vente <= dateTo);
+
+    // Stats
+    const totalCA = list.reduce((s, v) => s + (v.prix_total || 0), 0);
+    const totalBenefice = list.reduce((s, v) => s + (v.benefice || 0), 0);
+    const totalQte = list.reduce((s, v) => s + (v.quantite || 0), 0);
+    const totalFrais = list.reduce((s, v) => s + (v.frais || 0), 0);
+    const statsEl = document.getElementById('ventes-stats');
+    if (statsEl) {
+        statsEl.innerHTML = `
+            <div class="stat-card"><div class="stat-number">${list.length}</div><div class="stat-label">Ventes</div></div>
+            <div class="stat-card"><div class="stat-number">${totalQte}</div><div class="stat-label">Unités vendues</div></div>
+            <div class="stat-card"><div class="stat-number" style="color:#27352a;">${totalCA.toFixed(2)}€</div><div class="stat-label">CA total</div></div>
+            <div class="stat-card"><div class="stat-number" style="color:${totalBenefice>=0?'#27ae60':'#e74c3c'};">${totalBenefice>=0?'+':''}${totalBenefice.toFixed(2)}€</div><div class="stat-label">Bénéfice net</div></div>
+            <div class="stat-card"><div class="stat-number">${totalFrais.toFixed(2)}€</div><div class="stat-label">Frais totaux</div></div>
+            <div class="stat-card"><div class="stat-number">${list.length > 0 ? (totalCA / list.length).toFixed(2) : '0.00'}€</div><div class="stat-label">Panier moyen</div></div>
+        `;
+    }
+
+    if (!list.length) {
+        c.innerHTML = '<div class="empty-state"><h3>Aucune vente</h3><p>Les ventes apparaîtront ici après chaque enregistrement.</p></div>';
+        return;
+    }
+
+    let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>Produit</th><th>EAN</th><th>Canal</th><th>Qté</th><th>Prix unit.</th><th>Total</th><th>Frais</th><th>Bénéfice</th><th>Notes</th></tr></thead><tbody>';
+    list.forEach(v => {
+        const benef = v.benefice || 0;
+        const benefColor = benef > 0 ? '#27ae60' : benef < 0 ? '#e74c3c' : 'var(--text-secondary)';
+        h += `<tr>
+            <td style="font-size:12px;color:var(--text-secondary);">${v.date_vente || '-'}</td>
+            <td><strong>${escapeHtml(v.produit_nom || '-')}</strong></td>
+            <td style="font-size:12px;color:var(--text-secondary);">${escapeHtml(v.produit_ean || '-')}</td>
+            <td><span class="badge badge-neuf" style="font-size:11px;">${escapeHtml(v.canal || 'Autre')}</span></td>
+            <td style="text-align:center;font-weight:700;">${v.quantite || 1}</td>
+            <td>${(v.prix_unitaire || 0).toFixed(2)}€</td>
+            <td style="font-weight:700;">${(v.prix_total || 0).toFixed(2)}€</td>
+            <td style="color:var(--text-secondary);">${(v.frais || 0).toFixed(2)}€</td>
+            <td style="font-weight:700;color:${benefColor};">${benef >= 0 ? '+' : ''}${benef.toFixed(2)}€</td>
+            <td style="font-size:12px;color:var(--text-secondary);">${escapeHtml(v.notes || '')}</td>
+        </tr>`;
+    });
+    h += '</tbody></table></div>';
+    c.innerHTML = h;
+}
+
+async function exportVentes() {
+    if (!ventes.length) return alert('Aucune vente à exporter.');
+    const rows = ventes.map(v => ({
+        'Date': v.date_vente || '',
+        'Produit': v.produit_nom || '',
+        'EAN': v.produit_ean || '',
+        'Canal': v.canal || '',
+        'Quantité': v.quantite || 1,
+        'Prix unitaire (€)': (v.prix_unitaire || 0).toFixed(2),
+        'Total (€)': (v.prix_total || 0).toFixed(2),
+        'Prix achat unit. (€)': (v.prix_achat_unitaire || 0).toFixed(2),
+        'Frais (€)': (v.frais || 0).toFixed(2),
+        'Bénéfice (€)': (v.benefice || 0).toFixed(2),
+        'Notes': v.notes || '',
+    }));
+    if (typeof XLSX !== 'undefined') {
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Ventes');
+        XLSX.writeFile(wb, `stock-radar-ventes-${new Date().toISOString().split('T')[0]}.xlsx`);
+    } else {
+        const csv = [Object.keys(rows[0]).join(';'), ...rows.map(r => Object.values(r).join(';'))].join('\n');
+        const a = document.createElement('a');
+        a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+        a.download = `stock-radar-ventes-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+    }
 }
 
 function displayMouvements() {
