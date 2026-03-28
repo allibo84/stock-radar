@@ -450,6 +450,11 @@
             font-weight: 600; font-size: 12.5px; color: var(--text-2);
             text-transform: uppercase; letter-spacing: .4px;
         }
+        input, select, textarea { 
+            background: var(--bg-input); 
+            color: var(--text-1); 
+            border-color: var(--border);
+        }
         .form-group input,
         .form-group select,
         .form-group textarea,
@@ -458,7 +463,7 @@
             width: 100%; padding: 10px 13px;
             border: 1.5px solid var(--border);
             border-radius: var(--radius); font-size: 14px;
-            background: var(--bg-input); color: var(--text-1);
+            background: var(--bg-input) !important; color: var(--text-1) !important;
             transition: border-color .2s, box-shadow .2s;
             font-family: inherit;
             outline: none;
@@ -495,13 +500,13 @@
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
         thead { position: sticky; top: 0; z-index: 2; }
         th {
-            background: var(--bg-subtle); padding: 11px 13px;
+            background: var(--bg-subtle) !important; padding: 11px 13px;
             text-align: left; font-weight: 600; font-size: 11px;
-            color: var(--text-3); border-bottom: 1px solid var(--border);
+            color: var(--text-3) !important; border-bottom: 1px solid var(--border);
             white-space: nowrap; text-transform: uppercase; letter-spacing: .4px;
         }
         th:last-child, td:last-child { text-align: right; }
-        td { padding: 11px 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        td { padding: 11px 13px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text-1); }
         tr:last-child td { border-bottom: none; }
         tbody tr { cursor: pointer; transition: background .12s; }
         tbody tr:hover td { background: var(--table-hover); }
