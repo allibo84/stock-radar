@@ -649,7 +649,17 @@ function updateAchatsStats() {
 async function toggleRecu(id, v) {
     // Empêcher la double création de stock — vérification via produit_genere_id
     const achat = achats.find(a => a.id === id);
-    if (v === true && achat?.produit_genere_id) {
+
+    // Cas d'incohérence : produit déjà créé mais recu=false → juste mettre recu=true sans recréer
+    if (v === true && achat?.produit_genere_id && !achat?.recu) {
+        await sb.from('achats').update({ recu: true }).eq('id', id);
+        await loadAchats();
+        toastSuccess('Réception confirmée', 'Le produit (ID ' + achat.produit_genere_id + ') est déjà en stock.');
+        return;
+    }
+
+    // Déjà reçu ET produit créé → bloquer
+    if (v === true && achat?.produit_genere_id && achat?.recu) {
         toastWarning('Déjà réceptionné', 'Un produit a déjà été créé pour cet achat (ID ' + achat.produit_genere_id + ').');
         return;
     }
@@ -982,20 +992,35 @@ function removePhoto(i) { currentPhotos.splice(i, 1); displayPhotos(); }
 
 document.getElementById('product-form')?.addEventListener('submit', async function(e) {
     e.preventDefault();
+
+    // Récupération des valeurs
+    const ean = document.getElementById('ean').value.trim();
+    const nom = document.getElementById('product-name').value.trim();
+    const categorie = document.getElementById('categorie').value;
+    const etat = document.getElementById('etat').value;
+    const prixRevente = parseFloat(document.getElementById('prix-revente').value) || 0;
     const qFba = parseInt(document.getElementById('qte-fba')?.value) || 0;
     const qFbm = parseInt(document.getElementById('qte-fbm')?.value) || 0;
     const qEnt = parseInt(document.getElementById('qte-entrepot')?.value) || 0;
     const totalQte = qFba + qFbm + qEnt;
+
+    // Validation complète via toasts (pas de validation HTML native)
+    if (!ean) return toastError('Champ requis', "L\'EAN est obligatoire.");
+    if (!nom) return toastError('Champ requis', 'Le nom du produit est obligatoire.');
+    if (!categorie) return toastError('Champ requis', 'Veuillez sélectionner une catégorie.');
+    if (!etat) return toastError('Champ requis', "Veuillez sélectionner l\'état du produit.");
+    if (prixRevente <= 0) return toastError('Champ requis', 'Le prix de revente doit être supérieur à 0.');
     if (totalQte <= 0) return toastError('Quantité invalide', 'La quantité totale doit être supérieure à 0.');
+
     const pr = {
-        ean: document.getElementById('ean').value.trim(),
+        ean,
         asin: (document.getElementById('asin')?.value || '').trim().toUpperCase(),
-        nom: document.getElementById('product-name').value.trim(),
-        categorie: document.getElementById('categorie').value,
-        etat: document.getElementById('etat').value,
+        nom,
+        categorie,
+        etat,
         etat_stock: document.getElementById('etat-stock').value,
         prix_achat: getPrixAchatTTC(),
-        prix_revente: parseFloat(document.getElementById('prix-revente').value) || 0,
+        prix_revente: prixRevente,
         qte_fba: qFba, qte_fbm: qFbm, qte_entrepot: qEnt,
         quantite: totalQte,
         amazon_fba: document.getElementById('amazon_fba')?.checked || false,
@@ -1007,7 +1032,6 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
         notes: document.getElementById('notes').value.trim(),
         date_ajout: new Date().toISOString(),
     };
-    if (!pr.ean || !pr.nom) return toastError('Champs requis', `L'EAN et le nom du produit sont obligatoires.`);
     pr.user_id = getEffectiveUserId();
     
     // Si on ajoute en occasion ou rebut → déduire du stock neuf
