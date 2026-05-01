@@ -1009,7 +1009,6 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
     if (!nom) return toastError('Champ requis', 'Le nom du produit est obligatoire.');
     if (!categorie) return toastError('Champ requis', 'Veuillez sélectionner une catégorie.');
     if (!etat) return toastError('Champ requis', "Veuillez sélectionner l\'état du produit.");
-    if (prixRevente <= 0) return toastError('Champ requis', 'Le prix de revente doit être supérieur à 0.');
     if (totalQte <= 0) return toastError('Quantité invalide', 'La quantité totale doit être supérieure à 0.');
 
     const pr = {
