@@ -81,11 +81,11 @@ function displayUserSwitcher() {
     const others = allUsers.filter(u => !u.isMe);
     
     let html = '<select id="user-switch-select" onchange="switchViewUser(this.value)" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:white;font-size:13px;max-width:280px;">';
-    html += `<option value="${currentUser.id}" ${!viewingUserId || viewingUserId === currentUser.id ? 'selected' : ''}>📌 ${myEmail}</option>`;
-    
+    html += `<option value="${currentUser.id}" ${!viewingUserId || viewingUserId === currentUser.id ? 'selected' : ''}>📌 ${escapeHtml(myEmail)}</option>`;
+
     others.forEach(u => {
         const selected = viewingUserId === u.user_id ? 'selected' : '';
-        html += `<option value="${u.user_id}" ${selected}>👤 ${u.email}</option>`;
+        html += `<option value="${u.user_id}" ${selected}>👤 ${escapeHtml(u.email)}</option>`;
     });
     
     if (others.length > 0) {

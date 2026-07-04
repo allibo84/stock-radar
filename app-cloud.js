@@ -9,7 +9,7 @@ function showToast(type, title, message, duration = 4000) {
     const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ'}</span><div class="toast-body"><div class="toast-title">${title}</div>${message ? `<div class="toast-msg">${message}</div>` : ''}</div>`;
+    toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ'}</span><div class="toast-body"><div class="toast-title">${escapeHtml(title)}</div>${message ? `<div class="toast-msg">${escapeHtml(message)}</div>` : ''}</div>`;
     container.appendChild(toast);
     setTimeout(() => {
         toast.style.opacity = '0';
@@ -35,8 +35,8 @@ function srConfirm(message, title = 'Confirmer', danger = false) {
         const btnLabel = danger ? 'Supprimer' : 'Confirmer';
         modal.innerHTML = `
             <div style="background:var(--bg-elevated);border-radius:var(--radius-xl);padding:28px;max-width:420px;width:100%;border:1px solid var(--border);box-shadow:var(--shadow-lg);">
-                <div style="font-size:15px;font-weight:700;color:var(--text-1);margin-bottom:10px;">${title}</div>
-                <div style="font-size:13.5px;color:var(--text-2);line-height:1.6;margin-bottom:22px;white-space:pre-line;">${message}</div>
+                <div style="font-size:15px;font-weight:700;color:var(--text-1);margin-bottom:10px;">${escapeHtml(title)}</div>
+                <div style="font-size:13.5px;color:var(--text-2);line-height:1.6;margin-bottom:22px;white-space:pre-line;">${escapeHtml(message)}</div>
                 <div style="display:flex;gap:10px;justify-content:flex-end;">
                     <button id="sr-confirm-cancel" style="padding:9px 18px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--bg-elevated);color:var(--text-1);font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;">Annuler</button>
                     <button id="sr-confirm-ok" style="padding:9px 18px;border-radius:var(--radius);border:none;background:${btnColor};color:white;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">${btnLabel}</button>
@@ -198,7 +198,7 @@ function displayFournisseurs() {
     fournisseurs.forEach(f => {
         const nbAchats = achats.filter(a => a.fournisseur_nom === f.nom).length;
         const totalAchats = achats.filter(a => a.fournisseur_nom === f.nom).reduce((s, a) => s + (a.prix_ttc || 0), 0);
-        const catBadge = f.categorie_fournisseur ? `<span style="background:#27352a;color:white;padding:2px 8px;border-radius:10px;font-size:11px;">${f.categorie_fournisseur}</span>` : '';
+        const catBadge = f.categorie_fournisseur ? `<span style="background:#27352a;color:white;padding:2px 8px;border-radius:10px;font-size:11px;">${escapeHtml(f.categorie_fournisseur)}</span>` : '';
         
         h += `<div class="fournisseur-card" onclick="openFournisseurModal(${f.id})">
             <div class="fournisseur-header">
@@ -536,7 +536,7 @@ function displayAchats() {
     filtered.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
         const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>' : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
-        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td onclick="event.stopPropagation()"><input type="checkbox" class="achat-check" data-id="${a.id}" data-ean="${escapeHtml(a.ean||'')}" data-asin="${escapeHtml(a.asin||'')}" onchange="updateAchatsSelection()"></td><td>${d}</td><td>${escapeHtml(a.ean)}</td><td>${escapeHtml(a.asin||'-')}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button><button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
+        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td onclick="event.stopPropagation()"><input type="checkbox" class="achat-check" data-id="${a.id}" data-ean="${escapeHtml(a.ean||'')}" data-asin="${escapeHtml(a.asin||'')}" onchange="updateAchatsSelection()"></td><td>${d}</td><td>${escapeHtml(a.ean)}</td><td>${escapeHtml(a.asin||'-')}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button>${(a.asin || a.ean) ? `<button class="btn-small" style="background:#1565c0;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerAmp('${escapeHtml(a.asin || a.ean)}')" title="Analyser sur SellerAmp">⚡</button>` : ''}<button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
     });
     c.innerHTML = h + '</tbody></table></div>';
     updateAchatsStats();
@@ -1244,7 +1244,7 @@ function displayStock() {
         const cats = [...new Set(products.map(p => p.categorie).filter(Boolean))];
         const cur = catSel.value;
         catSel.innerHTML = '<option value="">Toutes</option>';
-        cats.forEach(cat => catSel.innerHTML += `<option value="${cat}">${cat}</option>`);
+        cats.forEach(cat => catSel.innerHTML += `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`);
         catSel.value = cur;
     }
 
@@ -1254,7 +1254,7 @@ function displayStock() {
         const fNames = [...new Set(achats.map(a => a.fournisseur_nom).filter(Boolean))];
         const cur = fournSel.value;
         fournSel.innerHTML = '<option value="">Tous</option>';
-        fNames.forEach(f => fournSel.innerHTML += `<option value="${f}">${f}</option>`);
+        fNames.forEach(f => fournSel.innerHTML += `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`);
         fournSel.value = cur;
     }
 
@@ -2040,6 +2040,11 @@ function downloadCSV(csv, name) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
 }
 
+function openSellerAmp(code) {
+    if (!code) return toastError('Code manquant', 'Aucun ASIN ou EAN pour ce produit.');
+    window.open('https://sas.selleramp.com/sas/lookup?search_term=' + encodeURIComponent(code), '_blank');
+}
+
 function searchPrice(platform) {
     const ean = document.getElementById('ean')?.value.trim();
     if (!ean) return toastError('EAN manquant', 'Saisissez un EAN avant de rechercher.');
@@ -2495,7 +2500,7 @@ function displayFournitures() {
     let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>Désignation</th><th>Catégorie</th><th>Fournisseur</th><th>Qté</th><th>Prix HT</th><th>Prix TTC</th><th>Total TTC</th><th>Actions</th></tr></thead><tbody>';
     fournitures.forEach(f => {
         const d = f.date_achat ? new Date(f.date_achat).toLocaleDateString('fr-FR') : '-';
-        const catBadge = f.categorie ? `<span style="background:var(--filter-bg);padding:2px 8px;border-radius:8px;font-size:11px;">${f.categorie}</span>` : '-';
+        const catBadge = f.categorie ? `<span style="background:var(--filter-bg);padding:2px 8px;border-radius:8px;font-size:11px;">${escapeHtml(f.categorie)}</span>` : '-';
         const total = ((f.prix_ttc || 0) * (f.quantite || 1)).toFixed(2);
         const recBadge = f.recurrent ? ` <span style="background:#3498db;color:white;padding:1px 6px;border-radius:6px;font-size:10px;">🔄 ${f.recurrent}</span>` : '';
         h += `<tr style="cursor:pointer" onclick="editFourniture(${f.id})">
@@ -2948,7 +2953,8 @@ async function backupData() {
         produits: products,
         factures: factures,
         fournitures: fournitures,
-        mouvements: mouvements
+        mouvements: mouvements,
+        ventes: ventes
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -2992,10 +2998,11 @@ async function restoreData(event) {
             }
         }
 
-        const info = `Données du fichier :\n- ${(backup.fournisseurs||[]).length} fournisseurs\n- ${(backup.achats||[]).length} achats\n- ${(backup.produits||[]).length} produits\n- ${(backup.fournitures||[]).length} fournitures\n- ${(backup.mouvements||[]).length} mouvements\n\nDate de sauvegarde : ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'inconnue'}\n\nConfirmer la restauration ?`;
+        const info = `Données du fichier :\n- ${(backup.fournisseurs||[]).length} fournisseurs\n- ${(backup.achats||[]).length} achats\n- ${(backup.produits||[]).length} produits\n- ${(backup.ventes||[]).length} ventes\n- ${(backup.fournitures||[]).length} fournitures\n- ${(backup.mouvements||[]).length} mouvements\n\nDate de sauvegarde : ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'inconnue'}\n\nConfirmer la restauration ?`;
         if (!await srConfirm(info, 'Confirmer la restauration')) return;
 
         // ✅ Suppression filtrée sur user_id uniquement — les autres comptes ne sont PAS touchés
+        await sb.from('ventes').delete().eq('user_id', uid);
         await sb.from('fournitures').delete().eq('user_id', uid);
         await sb.from('factures').delete().eq('user_id', uid);
         await sb.from('mouvements').delete().eq('user_id', uid);
@@ -3005,7 +3012,13 @@ async function restoreData(event) {
 
         // ✅ Insertion avec user_id explicite sur chaque ligne
         if (backup.fournisseurs?.length) {
-            const fClean = backup.fournisseurs.map(f => ({ user_id: uid, nom: f.nom, contact: f.contact||'', email: f.email||'', tel: f.tel||'', adresse: f.adresse||'', notes: f.notes||'' }));
+            const fClean = backup.fournisseurs.map(f => ({
+                user_id: uid, nom: f.nom, contact: f.contact||'', email: f.email||'', tel: f.tel||'', adresse: f.adresse||'',
+                site_web: f.site_web||'', siret: f.siret||'', tva_intra: f.tva_intra||'',
+                conditions_paiement: f.conditions_paiement||'', delai_livraison: f.delai_livraison||'',
+                moq: f.moq||0, franco: f.franco||0, categorie_fournisseur: f.categorie_fournisseur||'',
+                notes: f.notes||''
+            }));
             for (let i = 0; i < fClean.length; i += 50) await sb.from('fournisseurs').insert(fClean.slice(i, i+50));
         }
         if (backup.achats?.length) {
@@ -3024,6 +3037,7 @@ async function restoreData(event) {
                 date_vente: p.date_vente||null, prix_vente_reel: p.prix_vente_reel||0,
                 plateforme_vente: p.plateforme_vente||null,
                 statut: p.statut||'recu', emplacement: p.emplacement||'',
+                seuil_stock: p.seuil_stock ?? 0,
                 fba_attente: p.fba_attente||false,
                 photos: p.photos||[], notes: p.notes||'', date_ajout: p.date_ajout
             }));
@@ -3047,6 +3061,19 @@ async function restoreData(event) {
                 date_achat: fo.date_achat, recurrent: fo.recurrent||'', notes: fo.notes||''
             }));
             for (let i = 0; i < foClean.length; i += 50) await sb.from('fournitures').insert(foClean.slice(i, i+50));
+        }
+        if (backup.ventes?.length) {
+            const vClean = backup.ventes.map(v => ({
+                user_id: uid,
+                produit_id: null,
+                produit_ean: v.produit_ean||'', produit_nom: v.produit_nom||'',
+                canal: v.canal||'Autre', quantite: v.quantite||1,
+                prix_unitaire: v.prix_unitaire||0, prix_total: v.prix_total||0,
+                prix_achat_unitaire: v.prix_achat_unitaire||0,
+                frais: v.frais||0, benefice: v.benefice||0,
+                date_vente: v.date_vente||null, notes: v.notes||''
+            }));
+            for (let i = 0; i < vClean.length; i += 50) await sb.from('ventes').insert(vClean.slice(i, i+50));
         }
         if (backup.mouvements?.length) {
             const mClean = backup.mouvements.map(m => ({
