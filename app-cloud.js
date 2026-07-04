@@ -672,6 +672,7 @@ async function toggleRecu(id, v) {
         const pr = {
             user_id: getEffectiveUserId(),
             ean: achat.ean,
+            asin: (achat.asin || '').toUpperCase(),
             nom: achat.nom,
             categorie: achat.categorie || '',
             etat: 'Neuf',
@@ -1881,6 +1882,12 @@ function previewAmazonImport(input) {
 
             const prixEstUnitaire = document.getElementById('amz-prix-unitaire')?.checked || false;
 
+            // Pont ASIN → EAN via les achats (les achats ont souvent l'ASIN que les produits n'ont pas)
+            const asinVersEan = {};
+            achats.forEach(a => {
+                if (a.asin && a.ean) asinVersEan[String(a.asin).toUpperCase()] = a.ean;
+            });
+
             amazonImportData = rows.map(r => {
                 const asin = (cAsin ? r[cAsin] : '').toUpperCase();
                 const sku = cSku ? r[cSku] : '';
@@ -1892,9 +1899,15 @@ function previewAmazonImport(input) {
                 const cle = r[cOrder] + '|' + ((cItem && r[cItem]) || asin || sku);
 
                 // Rapprochement : ASIN d'abord, puis SKU = EAN ou SKU = ASIN
-                const produit = products.find(x => !x.vendu && asin && (x.asin || '').toUpperCase() === asin)
+                let produit = products.find(x => !x.vendu && asin && (x.asin || '').toUpperCase() === asin)
                     || products.find(x => !x.vendu && sku && ((x.ean || '') === sku || (x.asin || '').toUpperCase() === sku.toUpperCase()))
                     || products.find(x => asin && (x.asin || '').toUpperCase() === asin);
+                // Plan C : passer par les achats (ASIN → EAN → produit)
+                if (!produit && asin && asinVersEan[asin]) {
+                    const eanPont = asinVersEan[asin];
+                    produit = products.find(x => !x.vendu && x.ean === eanPont)
+                        || products.find(x => x.ean === eanPont);
+                }
 
                 let etat = 'ok';
                 if (status.includes('cancel') || status.includes('annul')) etat = 'annulee';
