@@ -537,7 +537,7 @@ function displayAchats() {
     filtered.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
         const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>' : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
-        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td onclick="event.stopPropagation()"><input type="checkbox" class="achat-check" data-id="${a.id}" data-ean="${escapeHtml(a.ean||'')}" data-asin="${escapeHtml(a.asin||'')}" onchange="updateAchatsSelection()"></td><td>${d}</td><td>${escapeHtml(a.ean)}</td><td>${escapeHtml(a.asin||'-')}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button>${(a.asin || a.ean) ? `<button class="btn-small" style="background:#1565c0;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerAmp('${escapeHtml(a.asin || a.ean)}')" title="Analyser sur SellerAmp">⚡</button>` : ''}<button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
+        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td onclick="event.stopPropagation()"><input type="checkbox" class="achat-check" data-id="${a.id}" data-ean="${escapeHtml(a.ean||'')}" data-asin="${escapeHtml(a.asin||'')}" onchange="updateAchatsSelection()"></td><td>${d}</td><td>${escapeHtml(a.ean)}</td><td>${escapeHtml(a.asin||'-')}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button>${(a.asin || a.ean) ? `<button class="btn-small" style="background:#1565c0;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerAmp('${escapeHtml(a.asin || a.ean)}')" title="Analyser sur SellerAmp">⚡</button>` : ''}${a.asin ? `<button class="btn-small" style="background:#ff9900;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerCentral('${escapeHtml(a.asin)}')" title="Ajouter l'offre sur Amazon Seller Central">➕</button>` : ''}<button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
     });
     c.innerHTML = h + '</tbody></table></div>';
     updateAchatsStats();
@@ -2044,6 +2044,11 @@ function downloadCSV(csv, name) {
 function openSellerAmp(code) {
     if (!code) return toastError('Code manquant', 'Aucun ASIN ou EAN pour ce produit.');
     window.open('https://sas.selleramp.com/sas/lookup?search_term=' + encodeURIComponent(code), '_blank');
+}
+
+function openSellerCentral(asin) {
+    if (!asin) return toastError('ASIN manquant', "Renseignez l'ASIN de l'achat pour créer l'offre Amazon.");
+    window.open('https://sellercentral.amazon.fr/abis/listing/syh/offer?_encoding=UTF8&mons_sel_best_mkid=amzn1.mp.o.A13V1IB3VIYZZH&ld=AMZUDP&coliid=&asin=' + encodeURIComponent(asin) + '&colid=&qid=&sr=#offer', '_blank');
 }
 
 function searchPrice(platform) {
