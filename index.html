@@ -1809,6 +1809,12 @@
                                 <input type="file" id="restore-file" accept=".json" style="display:none;" onchange="restoreData(event)">
                                 <button class="scan-button danger" onclick="document.getElementById('restore-file').click()" style="width:100%;justify-content:center;">🔄 Restaurer depuis un fichier</button>
                             </div>
+
+                            <div style="border-top:1px solid var(--input-border);padding-top:15px;margin-top:15px;">
+                                <h4 style="margin-bottom:10px;">🕐 Sauvegardes automatiques</h4>
+                                <p style="color:var(--text-secondary);font-size:13px;margin-bottom:10px;">Un instantané complet de vos données est créé chaque nuit à 3h et conservé 14 jours. ⬇️ télécharge le fichier, 🔄 restaure l'état de ce jour-là. (Photos non incluses — utilisez la sauvegarde manuelle pour les conserver.)</p>
+                                <div id="sauvegardes-auto-container"><p style="color:var(--text-secondary);font-size:13px;">Chargement...</p></div>
+                            </div>
                         </div>
 
                         <!-- Raccourcis clavier -->

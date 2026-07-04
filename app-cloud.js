@@ -174,6 +174,7 @@ function switchTab(tabName) {
     if (tabName === 'stock') displayStock();
     if (tabName === 'dashboard') updateDashboard();
     if (tabName === 'ventes') displayVentes();
+    if (tabName === 'outils-export') loadSauvegardes();
 }
 
 document.addEventListener('click', e => {
@@ -3001,6 +3002,19 @@ async function restoreData(event) {
         const info = `Données du fichier :\n- ${(backup.fournisseurs||[]).length} fournisseurs\n- ${(backup.achats||[]).length} achats\n- ${(backup.produits||[]).length} produits\n- ${(backup.ventes||[]).length} ventes\n- ${(backup.fournitures||[]).length} fournitures\n- ${(backup.mouvements||[]).length} mouvements\n\nDate de sauvegarde : ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'inconnue'}\n\nConfirmer la restauration ?`;
         if (!await srConfirm(info, 'Confirmer la restauration')) return;
 
+        await appliquerBackup(backup, uid);
+
+        toastSuccess('Restauration terminée', 'Rechargement en cours...');
+        location.reload();
+    } catch (e) {
+        toastError('Erreur restauration', e.message);
+        console.error(e);
+    }
+    event.target.value = '';
+}
+
+// Applique un objet backup (fichier manuel ou sauvegarde auto) sur le compte uid
+async function appliquerBackup(backup, uid) {
         // ✅ Suppression filtrée sur user_id uniquement — les autres comptes ne sont PAS touchés
         await sb.from('ventes').delete().eq('user_id', uid);
         await sb.from('fournitures').delete().eq('user_id', uid);
@@ -3087,14 +3101,78 @@ async function restoreData(event) {
             }));
             for (let i = 0; i < mClean.length; i += 50) await sb.from('mouvements').insert(mClean.slice(i, i+50));
         }
+}
 
+// ═══════ SAUVEGARDES AUTOMATIQUES ═══════
+let sauvegardesList = [];
+
+async function loadSauvegardes() {
+    const c = document.getElementById('sauvegardes-auto-container');
+    if (!c) return;
+    const uid = getEffectiveUserId();
+    if (!uid) return;
+    const { data, error } = await sb.from('sauvegardes')
+        .select('id, created_at, taille_octets')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+        .limit(20);
+    if (error) {
+        c.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">⚠️ Sauvegardes automatiques non configurées. Exécutez <strong>migration-sauvegardes-auto.sql</strong> dans le SQL Editor de Supabase.</p>';
+        return;
+    }
+    sauvegardesList = data || [];
+    if (!sauvegardesList.length) {
+        c.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">Aucune sauvegarde automatique pour le moment. La première sera créée cette nuit à 3h.</p>';
+        return;
+    }
+    let h = '';
+    sauvegardesList.forEach(s => {
+        const d = new Date(s.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const ko = Math.max(1, Math.round((s.taille_octets || 0) / 1024));
+        h += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--filter-bg);border-radius:8px;">
+            <span style="font-size:13px;">🗓️ ${d} <span style="color:var(--text-secondary);">· ${ko} Ko</span></span>
+            <span style="display:flex;gap:6px;">
+                <button class="btn-small" style="background:#3498db;color:white;padding:4px 10px;border-radius:6px;" onclick="telechargerSauvegarde(${s.id})" title="Télécharger">⬇️</button>
+                <button class="btn-small btn-delete" style="padding:4px 10px;border-radius:6px;" onclick="restaurerSauvegarde(${s.id})" title="Restaurer">🔄</button>
+            </span>
+        </div>`;
+    });
+    c.innerHTML = `<div style="display:grid;gap:6px;">${h}</div>`;
+}
+
+async function fetchSauvegarde(id) {
+    const { data, error } = await sb.from('sauvegardes').select('donnees').eq('id', id).single();
+    if (error || !data) { toastError('Erreur', error?.message || 'Sauvegarde introuvable.'); return null; }
+    return data.donnees;
+}
+
+async function telechargerSauvegarde(id) {
+    const donnees = await fetchSauvegarde(id);
+    if (!donnees) return;
+    const blob = new Blob([JSON.stringify(donnees, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `stock-radar-auto-${String(donnees.date || '').split('T')[0] || 'sauvegarde'}.json`;
+    a.click();
+}
+
+async function restaurerSauvegarde(id) {
+    const uid = getEffectiveUserId();
+    if (!uid) return toastError('Non connecté', 'Vous devez être connecté pour restaurer.');
+    const donnees = await fetchSauvegarde(id);
+    if (!donnees) return;
+    const s = sauvegardesList.find(x => x.id === id);
+    const d = s ? new Date(s.created_at).toLocaleString('fr-FR') : '?';
+    const info = `Restaurer la sauvegarde automatique du ${d} ?\n\nContenu :\n- ${(donnees.fournisseurs||[]).length} fournisseurs\n- ${(donnees.achats||[]).length} achats\n- ${(donnees.produits||[]).length} produits\n- ${(donnees.ventes||[]).length} ventes\n- ${(donnees.fournitures||[]).length} fournitures\n\n⚠️ Toutes les données actuelles du compte seront REMPLACÉES.\n(Les photos produits ne sont pas incluses dans les sauvegardes automatiques.)`;
+    if (!await srConfirm(info, 'Restaurer la sauvegarde', true)) return;
+    try {
+        await appliquerBackup(donnees, uid);
         toastSuccess('Restauration terminée', 'Rechargement en cours...');
         location.reload();
     } catch (e) {
         toastError('Erreur restauration', e.message);
         console.error(e);
     }
-    event.target.value = '';
 }
 
 // ═══════ AIDE ACCORDÉON ═══════
