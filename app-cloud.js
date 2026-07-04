@@ -1977,16 +1977,32 @@ function displayAmazonPreview() {
     document.getElementById('amz-preview').style.display = 'block';
 }
 
+let amazonImportEnCours = false;
+
 async function confirmAmazonImport() {
-    const lignes = (amazonImportData || []).filter(l => l.etat === 'ok' && l.produit);
+    if (amazonImportEnCours) return toastWarning('Import en cours', 'Patientez, les ventes sont en train d\'être enregistrées…');
+    let lignes = (amazonImportData || []).filter(l => l.etat === 'ok' && l.produit);
     if (!lignes.length) return toastError('Rien à importer', 'Aucune ligne valide (vérifiez que vos produits ont bien leur ASIN renseigné).');
 
     const fraisPct = parseFloat(document.getElementById('amz-frais-pct')?.value) || 0;
-    const msg = `Importer ${lignes.length} vente(s) Amazon ?\n\n- Le stock FBA/FBM sera décrémenté\n- Les ventes seront ajoutées à l'historique\n- Frais estimés : ${fraisPct}% du prix de vente\n\nLes commandes déjà importées sont automatiquement ignorées.`;
+    const msg = `Importer ${lignes.length} vente(s) Amazon ?\n\n- Le stock FBA/FBM sera décrémenté\n- Les ventes seront ajoutées à l'historique\n- Frais estimés : ${fraisPct}% du prix de vente\n\nL'import prend environ 1 seconde par vente — laissez la page ouverte jusqu'au message de fin.`;
     if (!await srConfirm(msg, 'Importer les ventes Amazon')) return;
 
-    let ok = 0, erreurs = 0;
+    amazonImportEnCours = true;
+    const btn = document.getElementById('amz-import-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+    try {
+    // Re-vérifier les commandes déjà en base juste avant d'écrire (anti double-clic / autre appareil)
+    const { data: existants } = await sb.from('ventes').select('amazon_order_id').eq('user_id', getEffectiveUserId()).neq('amazon_order_id', '');
+    const dejaEnBase = new Set((existants || []).map(v => v.amazon_order_id));
+    lignes = lignes.filter(l => !dejaEnBase.has(l.cle));
+    if (!lignes.length) { toastInfo('Déjà importé', 'Toutes ces commandes sont déjà dans l\'historique.'); return; }
+
+    let ok = 0, erreurs = 0, i = 0;
     for (const l of lignes) {
+        i++;
+        if (btn) btn.innerHTML = `⏳ Import en cours… ${i} / ${lignes.length}`;
         const p = l.produit;
         const prixUnit = parseFloat(l.prixUnit.toFixed(2));
         const prixTotal = parseFloat((prixUnit * l.qte).toFixed(2));
@@ -2032,6 +2048,10 @@ async function confirmAmazonImport() {
     await Promise.all([loadProducts(), loadVentes(), loadMouvements()]);
     updateDashboard();
     if (ok > 0) switchTab('ventes');
+    } finally {
+        amazonImportEnCours = false;
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.innerHTML = '✅ Importer <span id="amz-count">0</span> vente(s)'; }
+    }
 }
 
 function cancelAmazonImport() {
