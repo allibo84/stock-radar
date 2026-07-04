@@ -1819,6 +1819,215 @@ function parseCSV(text) {
     });
 }
 
+// ═══════ IMPORT AMAZON (rapport de commandes) ═══════
+let amazonImportData = null;
+
+// Fichier plat Amazon : tabulations (ou ; / , pour un CSV)
+function parseFlatFile(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return [];
+    const sep = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+    const headers = lines[0].split(sep).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+    return lines.slice(1).map(line => {
+        const vals = line.split(sep).map(v => v.replace(/^"|"$/g, '').trim());
+        const o = {};
+        headers.forEach((h, i) => o[h] = vals[i] || '');
+        return o;
+    });
+}
+
+function normalizeDateAmz(raw) {
+    if (!raw) return new Date().toISOString().split('T')[0];
+    const s = String(raw).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.split('T')[0];
+    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/); // jj/mm/aaaa
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    const d = new Date(s);
+    return isNaN(d) ? new Date().toISOString().split('T')[0] : d.toISOString().split('T')[0];
+}
+
+function previewAmazonImport(input) {
+    const file = input.files[0];
+    if (!file) return;
+    document.getElementById('amz-file-name').textContent = file.name;
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const rows = parseFlatFile(e.target.result);
+            if (!rows.length) return toastError('Fichier vide', 'Le fichier ne contient aucune commande.');
+
+            const cols = Object.keys(rows[0]);
+            const findCol = (kws) => cols.find(c => kws.some(k => c.includes(k)));
+            const cOrder = findCol(['amazon-order-id', 'order-id', 'commande']);
+            const cItem = findCol(['order-item-id']);
+            const cDate = findCol(['purchase-date', 'payments-date', 'date']);
+            const cAsin = findCol(['asin']);
+            const cSku = cols.find(c => c === 'sku' || c.endsWith('-sku') || c === 'seller-sku');
+            const cName = findCol(['product-name', 'title', 'nom du produit']);
+            const cQty = findCol(['quantity-purchased', 'quantity-shipped', 'quantity', 'quantit', 'qte']);
+            const cPrice = findCol(['item-price', 'item price', 'prix', 'price']);
+            const cChannel = findCol(['fulfillment-channel', 'canal']);
+            const cStatus = findCol(['item-status', 'order-status', 'statut']);
+
+            if (!cOrder || !cQty || (!cAsin && !cSku)) {
+                return toastError('Colonnes non reconnues', 'Le fichier doit contenir au minimum le n° de commande, la quantité et l\'ASIN (ou le SKU). Utilisez le rapport « Toutes les commandes » de Seller Central.');
+            }
+
+            // Commandes déjà importées (anti-doublon)
+            const uid = getEffectiveUserId();
+            const { data: existing } = await sb.from('ventes').select('amazon_order_id').eq('user_id', uid).neq('amazon_order_id', '');
+            const dejaImporte = new Set((existing || []).map(v => v.amazon_order_id));
+
+            const prixEstUnitaire = document.getElementById('amz-prix-unitaire')?.checked || false;
+
+            amazonImportData = rows.map(r => {
+                const asin = (cAsin ? r[cAsin] : '').toUpperCase();
+                const sku = cSku ? r[cSku] : '';
+                const qte = parseInt(r[cQty]) || 0;
+                const prixBrut = parseFloat(String(cPrice ? r[cPrice] : '').replace(',', '.')) || 0;
+                const status = (cStatus ? r[cStatus] : '').toLowerCase();
+                const canalRaw = (cChannel ? r[cChannel] : '').toLowerCase();
+                const canal = (canalRaw.includes('afn') || canalRaw.includes('amazon')) ? 'Amazon FBA' : 'Amazon FBM';
+                const cle = r[cOrder] + '|' + ((cItem && r[cItem]) || asin || sku);
+
+                // Rapprochement : ASIN d'abord, puis SKU = EAN ou SKU = ASIN
+                const produit = products.find(x => !x.vendu && asin && (x.asin || '').toUpperCase() === asin)
+                    || products.find(x => !x.vendu && sku && ((x.ean || '') === sku || (x.asin || '').toUpperCase() === sku.toUpperCase()))
+                    || products.find(x => asin && (x.asin || '').toUpperCase() === asin);
+
+                let etat = 'ok';
+                if (status.includes('cancel') || status.includes('annul')) etat = 'annulee';
+                else if (qte <= 0 || prixBrut <= 0) etat = 'ignoree';
+                else if (dejaImporte.has(cle)) etat = 'deja';
+                else if (!produit) etat = 'introuvable';
+
+                const prixUnit = prixEstUnitaire ? prixBrut : (qte > 0 ? prixBrut / qte : prixBrut);
+                return {
+                    cle, orderId: cOrder ? r[cOrder] : '',
+                    date: normalizeDateAmz(cDate ? r[cDate] : ''),
+                    asin, sku, nom: cName ? r[cName] : '',
+                    qte, prixUnit, canal, etat, produit
+                };
+            });
+
+            displayAmazonPreview();
+        } catch (err) { toastError('Erreur lecture', err.message); }
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+function displayAmazonPreview() {
+    const list = amazonImportData || [];
+    const compte = (etat) => list.filter(l => l.etat === etat).length;
+    const nbOk = compte('ok');
+
+    const badges = [
+        ['✅ À importer', nbOk, '#27ae60'],
+        ['⏭️ Déjà importées', compte('deja'), '#3498db'],
+        ['❓ Introuvables dans le stock', compte('introuvable'), '#e67e22'],
+        ['🚫 Annulées', compte('annulee'), '#95a5a6'],
+        ['➖ Ignorées (qté/prix à 0)', compte('ignoree'), '#95a5a6'],
+    ];
+    document.getElementById('amz-stats').innerHTML = badges
+        .filter(b => b[1] > 0)
+        .map(b => `<span style="background:${b[2]};color:white;padding:6px 12px;border-radius:10px;font-size:13px;font-weight:600;">${b[0]} : ${b[1]}</span>`)
+        .join('');
+
+    const etatBadge = {
+        ok: '<span style="color:#27ae60;font-weight:700;">✅</span>',
+        deja: '<span style="color:#3498db;">⏭️</span>',
+        introuvable: '<span style="color:#e67e22;font-weight:700;">❓</span>',
+        annulee: '<span style="color:#95a5a6;">🚫</span>',
+        ignoree: '<span style="color:#95a5a6;">➖</span>',
+    };
+
+    let h = '<div class="products-table"><table><thead><tr><th></th><th>Date</th><th>Commande</th><th>ASIN / SKU</th><th>Produit (rapport)</th><th>Correspondance stock</th><th>Canal</th><th>Qté</th><th>Prix unit.</th></tr></thead><tbody>';
+    list.slice(0, 200).forEach(l => {
+        h += `<tr style="${l.etat !== 'ok' ? 'opacity:0.55;' : ''}">
+            <td>${etatBadge[l.etat] || ''}</td>
+            <td>${l.date}</td>
+            <td style="font-size:12px;">${escapeHtml(l.orderId)}</td>
+            <td style="font-size:12px;">${escapeHtml(l.asin || l.sku || '-')}</td>
+            <td style="font-size:12px;">${escapeHtml((l.nom || '').substring(0, 50))}</td>
+            <td>${l.produit ? '<strong>' + escapeHtml(l.produit.nom) + '</strong>' : '<span style="color:#e67e22;">non trouvé</span>'}</td>
+            <td>${l.canal === 'Amazon FBA' ? '📦 FBA' : '🏠 FBM'}</td>
+            <td style="font-weight:700;">${l.qte}</td>
+            <td>${l.prixUnit.toFixed(2)}€</td>
+        </tr>`;
+    });
+    if (list.length > 200) h += `<tr><td colspan="9" style="text-align:center;color:var(--text-secondary);">... et ${list.length - 200} de plus</td></tr>`;
+    h += '</tbody></table></div>';
+
+    document.getElementById('amz-preview-table').innerHTML = h;
+    document.getElementById('amz-count').textContent = nbOk;
+    document.getElementById('amz-preview').style.display = 'block';
+}
+
+async function confirmAmazonImport() {
+    const lignes = (amazonImportData || []).filter(l => l.etat === 'ok' && l.produit);
+    if (!lignes.length) return toastError('Rien à importer', 'Aucune ligne valide (vérifiez que vos produits ont bien leur ASIN renseigné).');
+
+    const fraisPct = parseFloat(document.getElementById('amz-frais-pct')?.value) || 0;
+    const msg = `Importer ${lignes.length} vente(s) Amazon ?\n\n- Le stock FBA/FBM sera décrémenté\n- Les ventes seront ajoutées à l'historique\n- Frais estimés : ${fraisPct}% du prix de vente\n\nLes commandes déjà importées sont automatiquement ignorées.`;
+    if (!await srConfirm(msg, 'Importer les ventes Amazon')) return;
+
+    let ok = 0, erreurs = 0;
+    for (const l of lignes) {
+        const p = l.produit;
+        const prixUnit = parseFloat(l.prixUnit.toFixed(2));
+        const prixTotal = parseFloat((prixUnit * l.qte).toFixed(2));
+        const frais = parseFloat((prixTotal * fraisPct / 100).toFixed(2));
+
+        const vente = {
+            user_id: getEffectiveUserId(),
+            produit_id: p.id,
+            produit_ean: p.ean || '',
+            produit_nom: p.nom || l.nom || '',
+            canal: l.canal,
+            quantite: l.qte,
+            prix_unitaire: prixUnit,
+            prix_total: prixTotal,
+            prix_achat_unitaire: p.prix_achat || 0,
+            frais: frais,
+            benefice: parseFloat(((prixUnit - (p.prix_achat || 0)) * l.qte - frais).toFixed(2)),
+            date_vente: l.date,
+            notes: 'Import Amazon',
+            amazon_order_id: l.cle,
+        };
+        const { error } = await sb.from('ventes').insert([vente]);
+        if (error) { erreurs++; console.warn('Import vente:', error.message); continue; }
+
+        const isFba = l.canal === 'Amazon FBA';
+        const newFba = isFba ? Math.max(0, (p.qte_fba || 0) - l.qte) : (p.qte_fba || 0);
+        const newFbm = !isFba ? Math.max(0, (p.qte_fbm || 0) - l.qte) : (p.qte_fbm || 0);
+        const newTotal = newFba + newFbm + (p.qte_entrepot || 0);
+        await sb.from('produits').update({
+            qte_fba: newFba, qte_fbm: newFbm, quantite: newTotal,
+            vendu: newTotal <= 0,
+            prix_vente_reel: prixUnit, date_vente: l.date, plateforme_vente: l.canal,
+        }).eq('id', p.id);
+        // Mettre à jour l'objet local : plusieurs lignes peuvent concerner le même produit
+        p.qte_fba = newFba; p.qte_fbm = newFbm; p.quantite = newTotal;
+
+        await logMouvement(p.id, 'vente', l.qte, isFba ? 'fba' : 'fbm', 'vendu', 'Vente Amazon ' + l.orderId, '');
+        ok++;
+    }
+
+    toastSuccess('Import terminé', `${ok} vente(s) importée(s)` + (erreurs ? ` · ${erreurs} erreur(s)` : ''));
+    cancelAmazonImport();
+    await Promise.all([loadProducts(), loadVentes(), loadMouvements()]);
+    updateDashboard();
+    if (ok > 0) switchTab('ventes');
+}
+
+function cancelAmazonImport() {
+    amazonImportData = null;
+    document.getElementById('amz-preview').style.display = 'none';
+    document.getElementById('amz-file-name').textContent = '';
+    document.getElementById('amz-file-input').value = '';
+}
+
 // ═══════ EXPORT EXCEL ═══════
 async function exportStockExcel() {
     const list = getFilteredStock();

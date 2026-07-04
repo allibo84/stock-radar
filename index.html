@@ -1089,6 +1089,9 @@
                 <div class="menu-item" data-tab="ventes">
                     <span class="menu-item-icon">💰</span><span>Mes Ventes</span>
                 </div>
+                <div class="menu-item" data-tab="import-amazon">
+                    <span class="menu-item-icon">🅰️</span><span>Import Amazon</span>
+                </div>
                 <div class="menu-item" data-tab="nouveau-produit">
                     <span class="menu-item-icon">➕</span><span>Nouveau Produit</span>
                 </div>
@@ -1386,6 +1389,40 @@
                             <div style="display:flex; gap:10px; margin-top:15px;">
                                 <button class="scan-button" onclick="confirmGrossisteImport()">✅ Importer <span id="grossiste-count">0</span> produits</button>
                                 <button class="scan-button reset" onclick="cancelGrossisteImport()">❌ Annuler</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══════ IMPORT AMAZON ══════ -->
+                <div id="import-amazon" class="tab-content">
+                    <div class="section-header"><h2>🅰️ Import des ventes Amazon</h2></div>
+                    <div style="background:var(--card-bg); padding:25px; border-radius:15px; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+                        <p style="color:var(--text-secondary); margin-bottom:15px;">Importez le rapport de commandes Amazon : les ventes sont ajoutées à l'historique et le stock FBA/FBM est décrémenté automatiquement. Les commandes déjà importées sont ignorées — vous pouvez réimporter le même fichier sans risque de doublon.</p>
+                        <div style="background:var(--filter-bg); padding:15px; border-radius:10px; margin-bottom:20px; font-size:13px; color:var(--text-secondary);">
+                            <strong>Où trouver le rapport ?</strong> Seller Central → Rapports → <strong>Traitement des commandes</strong> → rapport « <strong>Toutes les commandes</strong> » (fichier .txt), sur la période de votre choix.<br>
+                            Le rapprochement avec votre stock se fait par <strong>ASIN</strong> (ou SKU si votre SKU est l'EAN du produit).
+                        </div>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:15px;">
+                            <label class="scan-button" style="cursor:pointer;"><span>📂 Choisir le rapport</span><input type="file" id="amz-file-input" accept=".txt,.csv,.tsv" style="display:none;" onchange="previewAmazonImport(this)"></label>
+                            <span id="amz-file-name" style="color:var(--text-secondary); font-size:14px;"></span>
+                        </div>
+                        <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:center; margin-bottom:15px;">
+                            <label style="display:flex; align-items:center; gap:8px; font-size:14px;">
+                                Estimation des frais Amazon :
+                                <input type="number" id="amz-frais-pct" value="15" min="0" max="100" step="0.1" style="width:70px; padding:8px; border:2px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--text-color);"> %
+                            </label>
+                            <label style="display:flex; align-items:center; gap:8px; font-size:14px;">
+                                <input type="checkbox" id="amz-prix-unitaire"> Le prix du fichier est un prix unitaire (sinon : total de la ligne)
+                            </label>
+                        </div>
+                        <div id="amz-preview" style="display:none;">
+                            <div id="amz-stats" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px;"></div>
+                            <h3 style="margin-bottom:10px;">Aperçu</h3>
+                            <div id="amz-preview-table" style="max-height:400px; overflow-y:auto;"></div>
+                            <div style="display:flex; gap:10px; margin-top:15px;">
+                                <button class="scan-button" onclick="confirmAmazonImport()">✅ Importer <span id="amz-count">0</span> vente(s)</button>
+                                <button class="scan-button reset" onclick="cancelAmazonImport()">❌ Annuler</button>
                             </div>
                         </div>
                     </div>
@@ -2260,9 +2297,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20260704-1"></script>
-    <script src="app-cloud.js?v=20260704-1"></script>
-    <script src="auth.js?v=20260704-1"></script>
+    <script src="config.js?v=20260704-2"></script>
+    <script src="app-cloud.js?v=20260704-2"></script>
+    <script src="auth.js?v=20260704-2"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {
