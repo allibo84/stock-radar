@@ -1870,6 +1870,7 @@ function previewAmazonImport(input) {
             const cPrice = findCol(['item-price', 'item price', 'prix', 'price']);
             const cChannel = findCol(['fulfillment-channel', 'canal']);
             const cStatus = findCol(['item-status', 'order-status', 'statut']);
+            const cCurrency = findCol(['currency', 'devise']);
 
             if (!cOrder || !cQty || (!cAsin && !cSku)) {
                 return toastError('Colonnes non reconnues', 'Le fichier doit contenir au minimum le n° de commande, la quantité et l\'ASIN (ou le SKU). Utilisez le rapport « Toutes les commandes » de Seller Central.');
@@ -1881,6 +1882,8 @@ function previewAmazonImport(input) {
             const dejaImporte = new Set((existing || []).map(v => v.amazon_order_id));
 
             const prixEstUnitaire = document.getElementById('amz-prix-unitaire')?.checked || false;
+            const dateDu = document.getElementById('amz-date-du')?.value || '';
+            const dateAu = document.getElementById('amz-date-au')?.value || '';
 
             // Pont ASIN → EAN via les achats (les achats ont souvent l'ASIN que les produits n'ont pas)
             const asinVersEan = {};
@@ -1909,16 +1912,21 @@ function previewAmazonImport(input) {
                         || products.find(x => x.ean === eanPont);
                 }
 
+                const dateLigne = normalizeDateAmz(cDate ? r[cDate] : '');
+                const devise = (cCurrency > -1 ? (r[cCurrency] || '') : '').toUpperCase();
+
                 let etat = 'ok';
                 if (status.includes('cancel') || status.includes('annul')) etat = 'annulee';
                 else if (qte <= 0 || prixBrut <= 0) etat = 'ignoree';
+                else if (devise && devise !== 'EUR') etat = 'devise';
+                else if ((dateDu && dateLigne < dateDu) || (dateAu && dateLigne > dateAu)) etat = 'hors_periode';
                 else if (dejaImporte.has(cle)) etat = 'deja';
                 else if (!produit) etat = 'introuvable';
 
                 const prixUnit = prixEstUnitaire ? prixBrut : (qte > 0 ? prixBrut / qte : prixBrut);
                 return {
                     cle, orderId: cOrder ? r[cOrder] : '',
-                    date: normalizeDateAmz(cDate ? r[cDate] : ''),
+                    date: dateLigne,
                     asin, sku, nom: cName ? r[cName] : '',
                     qte, prixUnit, canal, etat, produit
                 };
@@ -1939,6 +1947,8 @@ function displayAmazonPreview() {
         ['✅ À importer', nbOk, '#27ae60'],
         ['⏭️ Déjà importées', compte('deja'), '#3498db'],
         ['❓ Introuvables dans le stock', compte('introuvable'), '#e67e22'],
+        ['📅 Hors période', compte('hors_periode'), '#9b59b6'],
+        ['💱 Devise non-EUR (ignorées)', compte('devise'), '#e74c3c'],
         ['🚫 Annulées', compte('annulee'), '#95a5a6'],
         ['➖ Ignorées (qté/prix à 0)', compte('ignoree'), '#95a5a6'],
     ];
@@ -1951,6 +1961,8 @@ function displayAmazonPreview() {
         ok: '<span style="color:#27ae60;font-weight:700;">✅</span>',
         deja: '<span style="color:#3498db;">⏭️</span>',
         introuvable: '<span style="color:#e67e22;font-weight:700;">❓</span>',
+        hors_periode: '<span style="color:#9b59b6;">📅</span>',
+        devise: '<span style="color:#e74c3c;">💱</span>',
         annulee: '<span style="color:#95a5a6;">🚫</span>',
         ignoree: '<span style="color:#95a5a6;">➖</span>',
     };
