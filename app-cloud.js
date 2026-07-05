@@ -2061,6 +2061,188 @@ function cancelAmazonImport() {
     document.getElementById('amz-file-input').value = '';
 }
 
+// ═══════ PRÉCISION DES FRAIS (rapport de transactions Amazon) ═══════
+let fraisImportData = null;
+let fraisImportEnCours = false;
+
+// CSV avec champs entre guillemets (les descriptions contiennent des virgules)
+function parseCSVQuoted(text) {
+    const rows = [];
+    let row = [], cur = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQ) {
+            if (ch === '"') {
+                if (text[i + 1] === '"') { cur += '"'; i++; }
+                else inQ = false;
+            } else cur += ch;
+        } else {
+            if (ch === '"') inQ = true;
+            else if (ch === ',') { row.push(cur); cur = ''; }
+            else if (ch === '\n' || ch === '\r') {
+                if (ch === '\r' && text[i + 1] === '\n') i++;
+                row.push(cur); cur = '';
+                if (row.length > 1 || (row[0] || '').trim() !== '') rows.push(row);
+                row = [];
+            } else cur += ch;
+        }
+    }
+    if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+    return rows;
+}
+
+// "1 234,56" → 1234.56 (format français, espaces insécables incluses)
+function parseMontantFR(s) {
+    if (!s) return 0;
+    return parseFloat(String(s).replace(/[\s  ]/g, '').replace(',', '.')) || 0;
+}
+
+function previewFraisImport(input) {
+    const file = input.files[0];
+    if (!file) return;
+    document.getElementById('frais-file-name').textContent = file.name;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const all = parseCSVQuoted(e.target.result);
+            // Les rapports FR commencent par ~9 lignes d'explications avant l'en-tête
+            const hIdx = all.findIndex(r => r.length > 5 && r.some(c => (c || '').toLowerCase().includes('date/heure') || (c || '').toLowerCase().includes('date/time')));
+            if (hIdx === -1) return toastError('Format non reconnu', 'Utilisez le rapport « Transaction » de Seller Central (Paiements → Rapports de la plage de dates).');
+
+            const headers = all[hIdx].map(h => (h || '').toLowerCase().trim());
+            const col = (kws) => headers.findIndex(h => kws.some(k => h.includes(k)));
+            const cType = col(['type']);
+            const cOrder = col(['numéro de la commande', 'numero de la commande', 'order id']);
+            const cSku = col(['sku']);
+            const cQty = col(['quantité', 'quantite', 'quantity']);
+            const cFraisVente = col(['frais de vente', 'selling fees']);
+            const cFraisFba = col(['expédié par amazon', 'expedie par amazon', 'fba fees']);
+            const cFraisAutres = col(['autres frais', 'other transaction']);
+            const cTotal = col(['total']);
+            if (cOrder === -1 || cType === -1 || cFraisVente === -1) {
+                return toastError('Colonnes non trouvées', 'Le fichier ne ressemble pas au rapport de transactions Amazon.');
+            }
+
+            // Agréger les transactions par commande + SKU (une commande peut être expédiée en plusieurs fois)
+            const transactions = {};
+            let remboursements = 0, montantRemb = 0;
+            for (let i = hIdx + 1; i < all.length; i++) {
+                const r = all[i];
+                if (r.length < headers.length - 3) continue;
+                const type = (r[cType] || '').toLowerCase();
+                const oid = (r[cOrder] || '').trim();
+                if (type.includes('remboursement') || type.includes('refund')) {
+                    remboursements++;
+                    montantRemb += parseMontantFR(cTotal > -1 ? r[cTotal] : 0);
+                    continue;
+                }
+                if (!(type.includes('commande') || type.includes('order')) || !oid) continue;
+                const frais = Math.abs(parseMontantFR(r[cFraisVente]))
+                    + (cFraisFba > -1 ? Math.abs(parseMontantFR(r[cFraisFba])) : 0)
+                    + (cFraisAutres > -1 ? Math.abs(parseMontantFR(r[cFraisAutres])) : 0);
+                const key = oid + '|' + (cSku > -1 ? (r[cSku] || '') : '');
+                if (!transactions[key]) transactions[key] = { oid, sku: cSku > -1 ? (r[cSku] || '') : '', qte: 0, frais: 0 };
+                transactions[key].qte += cQty > -1 ? (parseInt(r[cQty]) || 1) : 1;
+                transactions[key].frais += frais;
+            }
+
+            // Ventes Amazon groupées par n° de commande
+            const parOrder = {};
+            ventes.forEach(v => {
+                if (!v.amazon_order_id) return;
+                const oid = String(v.amazon_order_id).split('|')[0];
+                (parOrder[oid] = parOrder[oid] || []).push(v);
+            });
+
+            const prises = new Set();
+            fraisImportData = Object.values(transactions).map(t => {
+                const candidates = (parOrder[t.oid] || []).filter(v => !prises.has(v.id));
+                // S'il y a plusieurs lignes dans la commande, prendre celle dont la quantité correspond
+                const vente = candidates.find(v => (v.quantite || 1) === t.qte) || candidates[0] || null;
+                if (vente) prises.add(vente.id);
+                return { ...t, frais: parseFloat(t.frais.toFixed(2)), vente };
+            });
+
+            const avec = fraisImportData.filter(l => l.vente);
+            const stats = [
+                ['✅ Correspondances trouvées', avec.length, '#27ae60'],
+                ['❓ Sans correspondance', fraisImportData.length - avec.length, '#e67e22'],
+                ['💶 Frais réels à appliquer', avec.reduce((s, l) => s + l.frais, 0).toFixed(2) + '€', '#3498db'],
+            ];
+            if (remboursements > 0) stats.push(['↩️ Remboursements (info, non traités)', remboursements + ' (' + montantRemb.toFixed(2) + '€)', '#95a5a6']);
+            document.getElementById('frais-stats').innerHTML = stats
+                .map(b => `<span style="background:${b[2]};color:white;padding:6px 12px;border-radius:10px;font-size:13px;font-weight:600;">${b[0]} : ${b[1]}</span>`)
+                .join('');
+
+            if (!avec.length) {
+                document.getElementById('frais-preview-table').innerHTML = '<p style="color:#e67e22;font-weight:600;">Aucune commande de ce rapport ne correspond à vos ventes importées. Vérifiez que la période du rapport couvre bien celle de vos ventes Amazon.</p>';
+            } else {
+                let h = '<div class="products-table"><table><thead><tr><th>Commande</th><th>Produit</th><th>Qté</th><th>Frais estimés</th><th>Frais réels</th><th>Nouveau bénéfice</th></tr></thead><tbody>';
+                avec.slice(0, 100).forEach(l => {
+                    const v = l.vente;
+                    const benef = (v.prix_total || 0) - (v.prix_achat_unitaire || 0) * (v.quantite || 1) - l.frais;
+                    h += `<tr>
+                        <td style="font-size:12px;">${escapeHtml(l.oid)}</td>
+                        <td><strong>${escapeHtml(v.produit_nom || '-')}</strong></td>
+                        <td>${v.quantite || 1}</td>
+                        <td style="color:var(--text-secondary);">${(v.frais || 0).toFixed(2)}€</td>
+                        <td style="font-weight:700;">${l.frais.toFixed(2)}€</td>
+                        <td style="font-weight:700;color:${benef >= 0 ? 'var(--success)' : 'var(--danger)'};">${benef >= 0 ? '+' : ''}${benef.toFixed(2)}€</td>
+                    </tr>`;
+                });
+                if (avec.length > 100) h += `<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);">... et ${avec.length - 100} de plus</td></tr>`;
+                h += '</tbody></table></div>';
+                document.getElementById('frais-preview-table').innerHTML = h;
+            }
+            document.getElementById('frais-count').textContent = avec.length;
+            document.getElementById('frais-preview').style.display = 'block';
+        } catch (err) { toastError('Erreur lecture', err.message); }
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+async function confirmFraisImport() {
+    if (fraisImportEnCours) return toastWarning('En cours', 'L\'application des frais est déjà en train de tourner.');
+    const lignes = (fraisImportData || []).filter(l => l.vente);
+    if (!lignes.length) return toastError('Rien à appliquer', 'Aucune correspondance entre le rapport et vos ventes.');
+
+    const totalFrais = lignes.reduce((s, l) => s + l.frais, 0);
+    if (!await srConfirm(`Appliquer les frais réels Amazon à ${lignes.length} vente(s) ?\n\nTotal des frais réels : ${totalFrais.toFixed(2)}€\nLes frais estimés seront remplacés et le bénéfice recalculé.\n\n(Réappliquer le même rapport plus tard est sans risque : les frais sont remplacés, pas additionnés.)`, 'Appliquer les frais réels')) return;
+
+    fraisImportEnCours = true;
+    const btn = document.getElementById('frais-apply-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+    try {
+        let ok = 0, erreurs = 0, i = 0;
+        for (const l of lignes) {
+            i++;
+            if (btn) btn.innerHTML = `⏳ Application… ${i} / ${lignes.length}`;
+            const v = l.vente;
+            const benefice = parseFloat(((v.prix_total || 0) - (v.prix_achat_unitaire || 0) * (v.quantite || 1) - l.frais).toFixed(2));
+            const notes = (v.notes || '').includes('frais réels') ? v.notes : ((v.notes || '') + ' · frais réels').trim();
+            const { error } = await sb.from('ventes').update({ frais: l.frais, benefice, notes }).eq('id', v.id);
+            if (error) { erreurs++; console.warn('Frais réels:', error.message); continue; }
+            ok++;
+        }
+        toastSuccess('Frais appliqués', `${ok} vente(s) mise(s) à jour avec les frais réels` + (erreurs ? ` · ${erreurs} erreur(s)` : ''));
+        cancelFraisImport();
+        await loadVentes();
+        updateDashboard();
+    } finally {
+        fraisImportEnCours = false;
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.innerHTML = '✅ Appliquer les frais réels à <span id="frais-count">0</span> vente(s)'; }
+    }
+}
+
+function cancelFraisImport() {
+    fraisImportData = null;
+    document.getElementById('frais-preview').style.display = 'none';
+    document.getElementById('frais-file-name').textContent = '';
+    document.getElementById('frais-file-input').value = '';
+}
+
 // ═══════ EXPORT EXCEL ═══════
 async function exportStockExcel() {
     const list = getFilteredStock();
