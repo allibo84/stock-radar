@@ -2204,6 +2204,42 @@
     </div>
 
     <!-- Modal Transfert -->
+    <div id="bulk-transfert-modal" class="modal">
+        <div class="modal-content" style="max-width:680px;">
+            <span class="close-modal" onclick="closeBulkTransfert()">&times;</span>
+            <h2>🔄 Transfert en lot</h2>
+            <div style="display:flex;gap:15px;flex-wrap:wrap;align-items:center;margin:15px 0;">
+                <label style="font-weight:700;font-size:14px;">De :
+                    <select id="bulk-from" onchange="renderBulkTransfertList()" style="padding:8px 12px;border-radius:8px;border:2px solid var(--input-border);background:var(--input-bg);color:var(--text-color);margin-left:6px;font-weight:600;">
+                        <option value="entrepot" selected>🏭 Entrepôt</option>
+                        <option value="fba">📦 FBA</option>
+                        <option value="fbm">🏠 FBM</option>
+                    </select>
+                </label>
+                <span style="font-size:20px;font-weight:700;">→</span>
+                <label style="font-weight:700;font-size:14px;">Vers :
+                    <select id="bulk-to" onchange="renderBulkTransfertList()" style="padding:8px 12px;border-radius:8px;border:2px solid var(--input-border);background:var(--input-bg);color:var(--text-color);margin-left:6px;font-weight:600;">
+                        <option value="entrepot">🏭 Entrepôt</option>
+                        <option value="fba" selected>📦 FBA</option>
+                        <option value="fbm">🏠 FBM</option>
+                    </select>
+                </label>
+                <span style="flex:1;"></span>
+                <button type="button" onclick="bulkToutMax()" style="padding:8px 14px;border-radius:8px;border:2px solid var(--input-border);background:var(--filter-bg);color:var(--text-color);font-size:13px;font-weight:700;cursor:pointer;">Tout au MAX</button>
+                <button type="button" onclick="bulkToutZero()" style="padding:8px 14px;border-radius:8px;border:2px solid var(--input-border);background:var(--filter-bg);color:var(--text-color);font-size:13px;font-weight:700;cursor:pointer;">Tout à 0</button>
+            </div>
+            <div id="bulk-fba-attente-wrap" style="margin-bottom:12px;">
+                <label style="font-size:14px;"><input type="checkbox" id="bulk-fba-attente"> ⏳ Marquer « FBA en attente » (expédition en cours vers Amazon)</label>
+            </div>
+            <div id="bulk-transfert-list"></div>
+            <div id="bulk-summary" style="text-align:center;font-weight:700;font-size:15px;margin:15px 0;background:var(--filter-bg);padding:10px;border-radius:10px;"></div>
+            <div style="display:flex;gap:10px;justify-content:center;">
+                <button class="scan-button" id="bulk-confirm-btn" onclick="confirmBulkTransfert()">✅ Transférer</button>
+                <button class="scan-button reset" onclick="closeBulkTransfert()">Annuler</button>
+            </div>
+        </div>
+    </div>
+
     <div id="transfert-modal" class="modal">
         <div class="modal-content" style="max-width:450px;">
             <span class="close-modal" onclick="closeTransfertModal()">&times;</span>
@@ -2327,9 +2363,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20260705-1"></script>
-    <script src="app-cloud.js?v=20260705-1"></script>
-    <script src="auth.js?v=20260705-1"></script>
+    <script src="config.js?v=20260705-2"></script>
+    <script src="app-cloud.js?v=20260705-2"></script>
+    <script src="auth.js?v=20260705-2"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {

@@ -1286,7 +1286,11 @@ function displayStock() {
     const pageList = list.slice(startIdx, startIdx + stockPerPage);
 
     const showFbaFbm = ['neuf','all','fba','fbm','fba_attente'].includes(activeStockView);
-    let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>EAN</th><th>Produit</th><th>Cat.</th><th>Type</th>';
+    let h = `<div id="stock-selection-bar" style="margin-bottom:10px;display:none;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="scan-button" style="padding:6px 14px;font-size:13px;background:#3498db;" onclick="openBulkTransfert()">🔄 Transférer la sélection</button>
+        <span id="stock-selected-count" style="font-size:13px;color:var(--text-secondary);"></span>
+    </div>`;
+    h += '<div class="products-table"><table><thead><tr><th style="width:30px;"><input type="checkbox" id="stock-select-all" onchange="toggleAllStock(this.checked)" title="Tout sélectionner"></th><th>Date</th><th>EAN</th><th>Produit</th><th>Cat.</th><th>Type</th>';
     if (showFbaFbm) h += '<th>FBA</th><th>FBM</th>';
     h += '<th>Entrep.</th><th>Total</th><th>Achat</th><th>Revente</th><th>Marge</th><th>Actions</th></tr></thead><tbody>';
 
@@ -1315,6 +1319,7 @@ function displayStock() {
         }
 
         h += `<tr style="cursor:pointer" onclick="openProductModal(${p.id})">
+            <td onclick="event.stopPropagation()"><input type="checkbox" class="stock-check" data-id="${p.id}" onchange="updateStockSelection()"></td>
             <td>${date}${riskBadge}</td>
             <td>${escapeHtml(p.ean||'')}</td>
             <td><strong>${escapeHtml(p.nom||'')}</strong></td>
@@ -1705,6 +1710,7 @@ window.onclick = e => {
     if (e.target === document.getElementById('vente-modal')) closeVenteModal();
     if (e.target === document.getElementById('annonce-modal')) closeAnnonceModal();
     if (e.target === document.getElementById('fournisseur-modal')) closeFournisseurModal();
+    if (e.target === document.getElementById('bulk-transfert-modal')) closeBulkTransfert();
 };
 
 // ═══════ DELETE PRODUCT ═══════
@@ -2823,6 +2829,141 @@ async function confirmTransfert() {
     await logMouvement(transfertProductId, 'transfert', qte, transfertFrom, transfertTo, 'Transfert manuel', '');
     closeTransfertModal();
     await loadProducts();
+}
+
+// ═══════ TRANSFERT EN LOT ═══════
+let bulkSelectedIds = [];
+let bulkTransfertEnCours = false;
+const BULK_LABELS = { entrepot: '🏭 Entrepôt', fba: '📦 FBA', fbm: '🏠 FBM' };
+const BULK_CHAMPS = { entrepot: 'qte_entrepot', fba: 'qte_fba', fbm: 'qte_fbm' };
+
+function toggleAllStock(checked) {
+    document.querySelectorAll('.stock-check').forEach(cb => cb.checked = checked);
+    updateStockSelection();
+}
+
+function updateStockSelection() {
+    const n = document.querySelectorAll('.stock-check:checked').length;
+    const bar = document.getElementById('stock-selection-bar');
+    if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
+    const c = document.getElementById('stock-selected-count');
+    if (c) c.textContent = n > 0 ? `${n} produit${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}` : '';
+}
+
+function openBulkTransfert() {
+    bulkSelectedIds = [...document.querySelectorAll('.stock-check:checked')].map(cb => parseInt(cb.dataset.id));
+    if (!bulkSelectedIds.length) return toastError('Sélection vide', 'Cochez au moins un produit dans le tableau.');
+    document.getElementById('bulk-from').value = 'entrepot';
+    document.getElementById('bulk-to').value = 'fba';
+    document.getElementById('bulk-fba-attente').checked = false;
+    renderBulkTransfertList();
+    document.getElementById('bulk-transfert-modal').style.display = 'block';
+}
+
+function closeBulkTransfert() {
+    document.getElementById('bulk-transfert-modal').style.display = 'none';
+}
+
+function renderBulkTransfertList() {
+    const from = document.getElementById('bulk-from').value;
+    const to = document.getElementById('bulk-to').value;
+    const c = document.getElementById('bulk-transfert-list');
+    const attWrap = document.getElementById('bulk-fba-attente-wrap');
+    if (attWrap) attWrap.style.display = to === 'fba' ? 'block' : 'none';
+
+    if (from === to) {
+        c.innerHTML = '<p style="color:#e74c3c;font-weight:600;text-align:center;">Choisissez deux emplacements différents.</p>';
+        updateBulkSummary();
+        return;
+    }
+
+    let rows = '';
+    bulkSelectedIds.forEach(id => {
+        const p = products.find(x => x.id === id);
+        if (!p) return;
+        const max = p[BULK_CHAMPS[from]] || 0;
+        rows += `<tr style="${max === 0 ? 'opacity:0.45;' : ''}">
+            <td><strong>${escapeHtml(p.nom)}</strong><br><span style="font-size:11px;color:var(--text-secondary);">${escapeHtml(p.ean || '')}</span></td>
+            <td style="text-align:center;font-weight:700;">${max}</td>
+            <td style="text-align:center;"><input type="number" class="bulk-qty" data-id="${p.id}" min="0" max="${max}" value="${max}" ${max === 0 ? 'disabled' : ''} style="width:70px;padding:6px;text-align:center;font-weight:700;border:2px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-color);" oninput="updateBulkSummary()"></td>
+        </tr>`;
+    });
+    c.innerHTML = `<div class="products-table" style="max-height:320px;overflow-y:auto;"><table><thead><tr><th>Produit</th><th>Dispo ${BULK_LABELS[from]}</th><th>À transférer</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    updateBulkSummary();
+}
+
+function bulkToutMax() {
+    document.querySelectorAll('.bulk-qty').forEach(i => { if (!i.disabled) i.value = i.max; });
+    updateBulkSummary();
+}
+
+function bulkToutZero() {
+    document.querySelectorAll('.bulk-qty').forEach(i => { if (!i.disabled) i.value = 0; });
+    updateBulkSummary();
+}
+
+function updateBulkSummary() {
+    const from = document.getElementById('bulk-from').value;
+    const to = document.getElementById('bulk-to').value;
+    let total = 0, nb = 0;
+    document.querySelectorAll('.bulk-qty').forEach(i => {
+        const q = parseInt(i.value) || 0;
+        if (q > 0) { total += q; nb++; }
+    });
+    const s = document.getElementById('bulk-summary');
+    const btn = document.getElementById('bulk-confirm-btn');
+    const ok = total > 0 && from !== to;
+    if (s) s.innerHTML = ok ? `${BULK_LABELS[from]} → <strong>${total}</strong> unité${total > 1 ? 's' : ''} (${nb} produit${nb > 1 ? 's' : ''}) → ${BULK_LABELS[to]}` : '';
+    if (btn) { btn.disabled = !ok; btn.style.opacity = ok ? '1' : '0.5'; }
+}
+
+async function confirmBulkTransfert() {
+    if (bulkTransfertEnCours) return;
+    const from = document.getElementById('bulk-from').value;
+    const to = document.getElementById('bulk-to').value;
+    if (from === to) return;
+    const marquerAttente = to === 'fba' && document.getElementById('bulk-fba-attente')?.checked;
+
+    const lignes = [...document.querySelectorAll('.bulk-qty')]
+        .map(i => ({ id: parseInt(i.dataset.id), qte: Math.min(parseInt(i.value) || 0, parseInt(i.max) || 0) }))
+        .filter(l => l.qte > 0);
+    if (!lignes.length) return toastError('Rien à transférer', 'Toutes les quantités sont à zéro.');
+
+    bulkTransfertEnCours = true;
+    const btn = document.getElementById('bulk-confirm-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+    try {
+        let ok = 0, erreurs = 0, i = 0;
+        for (const l of lignes) {
+            i++;
+            if (btn) btn.innerHTML = `⏳ Transfert… ${i} / ${lignes.length}`;
+            const p = products.find(x => x.id === l.id);
+            if (!p) continue;
+            const dispo = p[BULK_CHAMPS[from]] || 0;
+            const q = Math.min(l.qte, dispo);
+            if (q <= 0) continue;
+
+            const update = {};
+            update[BULK_CHAMPS[from]] = dispo - q;
+            update[BULK_CHAMPS[to]] = (p[BULK_CHAMPS[to]] || 0) + q;
+            if (marquerAttente) update.fba_attente = true;
+
+            const { error } = await sb.from('produits').update(update).eq('id', p.id);
+            if (error) { erreurs++; console.warn('Transfert lot:', error.message); continue; }
+            p[BULK_CHAMPS[from]] = update[BULK_CHAMPS[from]];
+            p[BULK_CHAMPS[to]] = update[BULK_CHAMPS[to]];
+            await logMouvement(p.id, 'transfert', q, from, to, 'Transfert en lot', '');
+            ok++;
+        }
+        closeBulkTransfert();
+        toastSuccess('Transfert terminé', `${ok} produit${ok > 1 ? 's' : ''} transféré${ok > 1 ? 's' : ''} ${BULK_LABELS[from]} → ${BULK_LABELS[to]}` + (erreurs ? ` · ${erreurs} erreur(s)` : ''));
+        await loadProducts();
+        updateDashboard();
+    } finally {
+        bulkTransfertEnCours = false;
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.innerHTML = '✅ Transférer'; }
+    }
 }
 
 // ═══════ FOURNITURES & FRAIS ═══════
