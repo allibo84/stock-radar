@@ -944,6 +944,11 @@ async function startScanner() {
                 if (ean === lastScannedEAN) {
                     playSound('doublon');
                     showScanFeedback('⚠️ Déjà scanné : ' + ean, 'doublon');
+                    // Remplir quand même le champ s'il est vide (ex: 2e produit identique après enregistrement)
+                    if (!document.getElementById('ean').value) {
+                        document.getElementById('ean').value = ean;
+                        checkPurchaseHistory();
+                    }
                     return;
                 }
                 
@@ -974,6 +979,28 @@ function stopScanner() {
     document.getElementById('video').style.display = 'none';
     document.getElementById('stop-scanner').style.display = 'none';
 }
+
+// Signale un champ manquant : toast + scroll + focus + bordure rouge temporaire
+function champManquant(id, titre, msg) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.outline = '2px solid #e74c3c';
+        el.style.outlineOffset = '1px';
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => el.focus({ preventScroll: true }), 300);
+        setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 4000);
+    }
+    toastError(titre, msg);
+}
+
+// Douchette USB : la touche Entrée envoyée après le code ne doit pas soumettre
+// un formulaire incomplet — on passe au champ suivant à la place
+document.getElementById('ean')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('product-name')?.focus();
+    }
+});
 
 function handlePhotoUpload(e) {
     const files = e.target.files;
@@ -1006,12 +1033,12 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
     const qEnt = parseInt(document.getElementById('qte-entrepot')?.value) || 0;
     const totalQte = qFba + qFbm + qEnt;
 
-    // Validation complète via toasts (pas de validation HTML native)
-    if (!ean) return toastError('Champ requis', "L\'EAN est obligatoire.");
-    if (!nom) return toastError('Champ requis', 'Le nom du produit est obligatoire.');
-    if (!categorie) return toastError('Champ requis', 'Veuillez sélectionner une catégorie.');
-    if (!etat) return toastError('Champ requis', "Veuillez sélectionner l\'état du produit.");
-    if (totalQte <= 0) return toastError('Quantité invalide', 'La quantité totale doit être supérieure à 0.');
+    // Validation : toast + focus et surbrillance du champ fautif
+    if (!ean) return champManquant('ean', 'Champ requis', "L'EAN est obligatoire.");
+    if (!nom) return champManquant('product-name', 'Champ requis', 'Le nom du produit est obligatoire.');
+    if (!categorie) return champManquant('categorie', 'Champ requis', 'Veuillez sélectionner une catégorie.');
+    if (!etat) return champManquant('etat', 'Champ requis', "Veuillez sélectionner l'état du produit.");
+    if (totalQte <= 0) return champManquant('qte-entrepot', 'Quantité invalide', 'La quantité totale doit être supérieure à 0.');
 
     const pr = {
         ean,
@@ -1088,6 +1115,9 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
     document.getElementById('total-qte-display').textContent = 'Total : 0 unités';
     currentPhotos = [];
     displayPhotos();
+    // Prêt pour le produit suivant : mémoire du scanner effacée, focus sur l'EAN
+    lastScannedEAN = '';
+    document.getElementById('ean')?.focus();
     await loadProducts();
 });
 
