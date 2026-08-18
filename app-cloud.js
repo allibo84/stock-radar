@@ -163,6 +163,9 @@ function setupRealtimeSync() {
 
 // ═══════ NAVIGATION ═══════
 function switchTab(tabName) {
+    // Sans ça, la caméra reste allumée en arrière-plan et continue d'écrire dans le formulaire
+    if (tabName !== 'nouveau-produit') stopScanner();
+    if (tabName !== 'inventaire') stopInventaireScanner();
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
     const tab = document.getElementById(tabName);
@@ -183,8 +186,8 @@ document.addEventListener('click', e => {
 });
 
 function escapeHtml(t) {
-    if (!t) return '';
-    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    if (t === null || t === undefined || t === '') return '';
+    return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ═══════ FOURNISSEURS ═══════
@@ -198,7 +201,7 @@ function displayFournisseurs() {
     let h = '';
     fournisseurs.forEach(f => {
         const nbAchats = achats.filter(a => a.fournisseur_nom === f.nom).length;
-        const totalAchats = achats.filter(a => a.fournisseur_nom === f.nom).reduce((s, a) => s + (a.prix_ttc || 0), 0);
+        const totalAchats = achats.filter(a => a.fournisseur_nom === f.nom).reduce((s, a) => s + ((a.prix_ttc || 0) * (a.quantite || 1)), 0);
         const catBadge = f.categorie_fournisseur ? `<span style="background:#27352a;color:white;padding:2px 8px;border-radius:10px;font-size:11px;">${escapeHtml(f.categorie_fournisseur)}</span>` : '';
         
         h += `<div class="fournisseur-card" onclick="openFournisseurModal(${f.id})">
@@ -263,7 +266,7 @@ function openFournisseurModal(id) {
     if (!f) return;
     
     const fAchats = achats.filter(a => a.fournisseur_nom === f.nom);
-    const totalAchats = fAchats.reduce((s, a) => s + (a.prix_ttc || 0), 0);
+    const totalAchats = fAchats.reduce((s, a) => s + ((a.prix_ttc || 0) * (a.quantite || 1)), 0);
     const fFactures = factures.filter(fa => fa.fournisseur_id === f.id);
     
     // Historique prix par EAN
@@ -528,7 +531,7 @@ function displayAchats() {
     if (!c) return;
     const filtered = filterAchats();
     if (!filtered.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun achat</h3></div>'; updateAchatsStats(); return; }
-    let h = `<div style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;" id="achats-selection-bar" style="display:none;">
+    let h = `<div id="achats-selection-bar" style="margin-bottom:10px;display:none;gap:10px;flex-wrap:wrap;">
         <button class="scan-button" style="padding:6px 14px;font-size:13px;" onclick="copySelectedCodes('ean')">📋 Copier EAN sélectionnés</button>
         <button class="scan-button" style="padding:6px 14px;font-size:13px;background:#ff9900;" onclick="copySelectedCodes('asin')">📋 Copier ASIN sélectionnés</button>
         <span id="achats-selected-count" style="font-size:13px;color:var(--text-secondary);padding:8px 0;"></span>
@@ -598,6 +601,8 @@ function toggleAllAchats(checked) {
 
 function updateAchatsSelection() {
     const checked = document.querySelectorAll('.achat-check:checked');
+    const barre = document.getElementById('achats-selection-bar');
+    if (barre) barre.style.display = checked.length > 0 ? 'flex' : 'none';
     const count = checked.length;
     const countEl = document.getElementById('achats-selected-count');
     if (countEl) countEl.textContent = count > 0 ? `${count} sélectionné${count > 1 ? 's' : ''}` : '';
@@ -809,7 +814,7 @@ function recalcPrixAchat() {
 
 function getPrixAchatTTC() {
     const val = parseFloat(document.getElementById('prix-achat')?.value) || 0;
-    return document.getElementById('prix-type-ht')?.checked ? val * 1.20 : val;
+    return document.getElementById('prix-type-ht')?.checked ? +(val * 1.20).toFixed(2) : val;
 }
 
 function calculateMarge() {
@@ -886,10 +891,15 @@ let codeReader = null;
 let lastScannedEAN = '';
 let scanCooldown = false;
 
-// Sons de scan
+// Sons de scan — un seul AudioContext pour toute la session.
+// Avant : un contexte par bip, jamais fermé → au bout de quelques dizaines de scans
+// le navigateur refusait d'en créer un de plus et les bips s'arrêtaient en silence.
+let audioCtx = null;
 function playSound(type) {
     try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const ctx = audioCtx;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
@@ -907,16 +917,28 @@ function playSound(type) {
         }
         osc.start();
         osc.stop(ctx.currentTime + 0.15);
-    } catch(e) {}
+        osc.onended = () => { try { osc.disconnect(); gain.disconnect(); } catch(e) {} };
+    } catch(e) { console.warn('Son de scan indisponible :', e.message); }
 }
 
+let scanFeedbackTimer = null;
 function showScanFeedback(text, type) {
     const el = document.getElementById('scan-feedback');
     if (!el) return;
+    // Annuler le masquage programmé par le scan précédent, sinon il efface ce message-ci
+    if (scanFeedbackTimer) clearTimeout(scanFeedbackTimer);
     el.textContent = text;
     el.className = 'scan-feedback ' + type;
     el.style.display = 'block';
-    setTimeout(() => { el.style.display = 'none'; }, 2000);
+    scanFeedbackTimer = setTimeout(() => { el.style.display = 'none'; }, 2000);
+}
+
+// Coupe les trois scanners. Deux lecteurs ZXing actifs en même temps décodent
+// le même flux et comptent chaque code deux fois.
+function stopAllScanners(sauf) {
+    if (sauf !== 'produit') stopScanner();
+    if (sauf !== 'inventaire') stopInventaireScanner();
+    if (sauf !== 'quick') stopQuickScanner();
 }
 
 async function startScanner() {
@@ -924,6 +946,8 @@ async function startScanner() {
         toastError('Scanner non disponible', 'Vérifiez votre connexion internet.');
         return;
     }
+    if (codeReader) return;              // déjà en route : un 2e clic ne doit rien faire
+    stopAllScanners('produit');
     try {
         codeReader = new ZXing.BrowserMultiFormatReader();
         const video = document.getElementById('video');
@@ -970,14 +994,19 @@ async function startScanner() {
         });
     } catch (e) { 
         playSound('ko');
+        stopScanner();                   // sinon l'écran reste bloqué en mode "scan en cours"
         toastError('Erreur caméra', e.message); 
     }
 }
 
 function stopScanner() {
-    if (codeReader) { codeReader.reset(); codeReader = null; }
-    document.getElementById('video').style.display = 'none';
-    document.getElementById('stop-scanner').style.display = 'none';
+    if (codeReader) { try { codeReader.reset(); } catch(e) {} codeReader = null; }
+    const v = document.getElementById('video'); if (v) v.style.display = 'none';
+    const b = document.getElementById('stop-scanner'); if (b) b.style.display = 'none';
+    // Sans ça, rescanner un code déjà lu est rejeté comme doublon et le champ garde
+    // la valeur saisie entre-temps.
+    lastScannedEAN = '';
+    scanCooldown = false;
 }
 
 // Signale un champ manquant : toast + scroll + focus + bordure rouge temporaire
@@ -1055,7 +1084,7 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
         amazon_fbm: document.getElementById('amazon_fbm')?.checked || false,
         vinted: document.getElementById('vinted')?.checked || false,
         leboncoin: document.getElementById('leboncoin')?.checked || false,
-        invendable: false, vendu: false,
+        invendable: document.getElementById('etat-stock').value === 'rebut', vendu: false,
         photos: currentPhotos,
         notes: document.getElementById('notes').value.trim(),
         date_ajout: new Date().toISOString(),
@@ -1242,6 +1271,13 @@ function getFilteredStock() {
 }
 
 // Toggle filtres avancés
+// Tout changement de recherche / tri / filtre ramene en page 1 :
+// sinon on reste au milieu des resultats d'une recherche qu'on vient de lancer.
+function stockApplyFilters() {
+    stockCurrentPage = 1;
+    displayStock();
+}
+
 function toggleAdvancedFilters() {
     const el = document.getElementById('advanced-filters');
     const btn = document.getElementById('btn-adv-filters');
@@ -1263,6 +1299,8 @@ function resetFilters() {
     document.getElementById('stock-filter-fournisseur').value = '';
     document.getElementById('stock-filter-statut').value = '';
     document.getElementById('stock-search').value = '';
+    const tri = document.getElementById('stock-sort');
+    if (tri) tri.value = 'date-desc';
     stockCurrentPage = 1;
     displayStock();
 }
@@ -1783,6 +1821,8 @@ function previewGrossisteImport(input) {
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
+            cancelGrossisteImport(true);
+            document.getElementById('grossiste-file-name').textContent = file.name;
             let rows = [];
             if (file.name.endsWith('.csv')) {
                 rows = parseCSV(e.target.result);
@@ -1827,7 +1867,7 @@ function previewGrossisteImport(input) {
 
             displayGrossistePreview();
             document.getElementById('grossiste-preview').style.display = 'block';
-        } catch (err) { toastError('Erreur lecture', err.message); }
+        } catch (err) { cancelGrossisteImport(true); toastError('Erreur lecture', err.message); }
     };
     if (file.name.endsWith('.csv')) reader.readAsText(file, 'UTF-8');
     else reader.readAsBinaryString(file);
@@ -2047,17 +2087,17 @@ async function confirmGrossisteImport() {
     }
 }
 
-function cancelGrossisteImport() {
+function cancelGrossisteImport(garderFichier) {
     grossisteData = null;
     document.getElementById('grossiste-preview').style.display = 'none';
     document.getElementById('grossiste-file-name').textContent = '';
-    document.getElementById('grossiste-file-input').value = '';
+    if (!garderFichier) document.getElementById('grossiste-file-input').value = '';
     const r = document.getElementById('grossiste-resume');
     if (r) r.innerHTML = '';
 }
 
 function parseCSV(text) {
-    const lines = text.split('\n').filter(l => l.trim());
+    const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) return [];
     const sep = lines[0].includes(';') ? ';' : ',';
     const headers = lines[0].split(sep).map(h => h.replace(/^"|"$/g, '').trim());
@@ -2086,14 +2126,41 @@ function parseFlatFile(text) {
     });
 }
 
+// Renvoie 'YYYY-MM-DD' en heure LOCALE, ou '' si la date est illisible.
+// Avant : "08/31/2026" produisait "2026-31-08" (mois 31, refusé par Postgres),
+// une date textuelle devenait la date du jour, et l'offset UTC décalait d'un jour.
+function dateLocaleISO(d) {
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 function normalizeDateAmz(raw) {
-    if (!raw) return new Date().toISOString().split('T')[0];
+    if (!raw) return '';
     const s = String(raw).trim();
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.split('T')[0];
-    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/); // jj/mm/aaaa
-    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    if (!s) return '';
+
+    // ISO, éventuellement horodaté : on repasse par Date pour appliquer l'offset
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        if (/[T ]\d{2}:/.test(s)) {
+            const d = new Date(s);
+            if (!isNaN(d)) return dateLocaleISO(d);
+        }
+        return s.split(/[T ]/)[0];
+    }
+
+    // jj/mm/aaaa ou mm/jj/aaaa — on lève l'ambiguïté avec la valeur du 1er groupe
+    const m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);
+    if (m) {
+        const a = parseInt(m[1]), b = parseInt(m[2]), annee = m[3];
+        let jour, mois;
+        if (a > 12 && b <= 12)      { jour = a; mois = b; }   // forcément jj/mm
+        else if (b > 12 && a <= 12) { jour = b; mois = a; }   // forcément mm/jj (format US)
+        else                        { jour = a; mois = b; }   // ambigu → jj/mm (rapports FR)
+        if (mois < 1 || mois > 12 || jour < 1 || jour > 31) return '';
+        return `${annee}-${String(mois).padStart(2,'0')}-${String(jour).padStart(2,'0')}`;
+    }
+
     const d = new Date(s);
-    return isNaN(d) ? new Date().toISOString().split('T')[0] : d.toISOString().split('T')[0];
+    return isNaN(d) ? '' : dateLocaleISO(d);   // '' plutôt que la date du jour : la ligne sera signalée
 }
 
 function previewAmazonImport(input) {
@@ -2104,6 +2171,8 @@ function previewAmazonImport(input) {
     const reader = new FileReader();
     reader.onload = async function(e) {
         try {
+            cancelAmazonImport(true);   // repartir de zéro : un aperçu périmé se réimportait tel quel
+            document.getElementById('amz-file-name').textContent = file.name;
             const rows = parseFlatFile(e.target.result);
             if (!rows.length) return toastError('Fichier vide', 'Le fichier ne contient aucune commande.');
 
@@ -2117,6 +2186,9 @@ function previewAmazonImport(input) {
             const cName = findCol(['product-name', 'title', 'nom du produit']);
             const cQty = findCol(['quantity-purchased', 'quantity-shipped', 'quantity', 'quantit', 'qte']);
             const cPrice = findCol(['item-price', 'item price', 'prix', 'price']);
+            // Le port facturé à l'acheteur est encaissé par le vendeur en FBM :
+            // sans lui le CA est sous-évalué, alors que les frais Amazon portent sur le total.
+            const cShip = cols.find(c => c.includes('shipping-price') || c === 'shipping price');
             const cChannel = findCol(['fulfillment-channel', 'canal']);
             const cStatus = findCol(['item-status', 'order-status', 'statut']);
             const cCurrency = findCol(['currency', 'devise']);
@@ -2144,7 +2216,8 @@ function previewAmazonImport(input) {
                 const asin = (cAsin ? r[cAsin] : '').toUpperCase();
                 const sku = cSku ? r[cSku] : '';
                 const qte = parseInt(r[cQty]) || 0;
-                const prixBrut = parseFloat(String(cPrice ? r[cPrice] : '').replace(',', '.')) || 0;
+                const prixBrut = parseMontantFR(cPrice ? r[cPrice] : '');
+                const portBrut = parseMontantFR(cShip ? r[cShip] : '');
                 const status = (cStatus ? r[cStatus] : '').toLowerCase();
                 const canalRaw = (cChannel ? r[cChannel] : '').toLowerCase();
                 const canal = (canalRaw.includes('afn') || canalRaw.includes('amazon')) ? 'Amazon FBA' : 'Amazon FBM';
@@ -2162,17 +2235,19 @@ function previewAmazonImport(input) {
                 }
 
                 const dateLigne = normalizeDateAmz(cDate ? r[cDate] : '');
-                const devise = (cCurrency > -1 ? (r[cCurrency] || '') : '').toUpperCase();
+                const devise = (cCurrency ? (r[cCurrency] || '') : '').toUpperCase();
 
                 let etat = 'ok';
                 if (status.includes('cancel') || status.includes('annul')) etat = 'annulee';
+                else if (!dateLigne) etat = 'ignoree';        // date illisible : on n'invente plus la date du jour
                 else if (qte <= 0 || prixBrut <= 0) etat = 'ignoree';
                 else if (devise && devise !== 'EUR') etat = 'devise';
                 else if ((dateDu && dateLigne < dateDu) || (dateAu && dateLigne > dateAu)) etat = 'hors_periode';
                 else if (dejaImporte.has(cle)) etat = 'deja';
                 else if (!produit) etat = 'introuvable';
 
-                const prixUnit = prixEstUnitaire ? prixBrut : (qte > 0 ? prixBrut / qte : prixBrut);
+                const totalLigne = prixEstUnitaire ? (prixBrut * (qte || 1) + portBrut) : (prixBrut + portBrut);
+                const prixUnit = qte > 0 ? totalLigne / qte : totalLigne;
                 return {
                     cle, orderId: cOrder ? r[cOrder] : '',
                     date: dateLigne,
@@ -2182,7 +2257,7 @@ function previewAmazonImport(input) {
             });
 
             displayAmazonPreview();
-        } catch (err) { toastError('Erreur lecture', err.message); }
+        } catch (err) { cancelAmazonImport(true); toastError('Erreur lecture', err.message); }
     };
     reader.readAsText(file, 'UTF-8');
 }
@@ -2315,11 +2390,11 @@ async function confirmAmazonImport() {
     }
 }
 
-function cancelAmazonImport() {
+function cancelAmazonImport(garderFichier) {
     amazonImportData = null;
     document.getElementById('amz-preview').style.display = 'none';
     document.getElementById('amz-file-name').textContent = '';
-    document.getElementById('amz-file-input').value = '';
+    if (!garderFichier) document.getElementById('amz-file-input').value = '';
 }
 
 // ═══════ PRÉCISION DES FRAIS (rapport de transactions Amazon) ═══════
@@ -2352,10 +2427,28 @@ function parseCSVQuoted(text) {
     return rows;
 }
 
-// "1 234,56" → 1234.56 (format français, espaces insécables incluses)
+// Montants FR ("1 234,56") ET EN ("1,234.56"), espaces insécables et symboles inclus.
+// Avant : .replace(',', '.') ne remplaçait que la PREMIÈRE virgule, donc
+// "-1,234.56" devenait -1.234 — un frais de 1 234,56 € enregistré à 1,23 €.
 function parseMontantFR(s) {
-    if (!s) return 0;
-    return parseFloat(String(s).replace(/[\s  ]/g, '').replace(',', '.')) || 0;
+    if (s === null || s === undefined || s === '') return 0;
+    if (typeof s === 'number') return isFinite(s) ? s : 0;
+    let t = String(s).replace(/[\s\u00a0\u202f]/g, '').replace(/[\u20ac$\u00a3]/g, '').trim();
+    if (!t) return 0;
+    const negatif = /^\(.*\)$/.test(t);          // "(12,34)" = montant négatif en comptabilité
+    if (negatif) t = t.slice(1, -1);
+    const derVirgule = t.lastIndexOf(','), derPoint = t.lastIndexOf('.');
+    if (derVirgule > -1 && derPoint > -1) {
+        // Le séparateur décimal est le dernier des deux, l'autre sépare les milliers
+        if (derVirgule > derPoint) t = t.replace(/\./g, '').replace(',', '.');
+        else t = t.replace(/,/g, '');
+    } else if (derVirgule > -1) {
+        // Une seule virgule : décimale si 1 ou 2 chiffres derrière, sinon séparateur de milliers
+        t = (t.length - derVirgule - 1) <= 2 ? t.replace(',', '.') : t.replace(/,/g, '');
+    }
+    const v = parseFloat(t);
+    if (!isFinite(v)) return 0;
+    return negatif ? -Math.abs(v) : v;
 }
 
 function previewFraisImport(input) {
@@ -2366,6 +2459,8 @@ function previewFraisImport(input) {
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
+            cancelFraisImport(true);
+            document.getElementById('frais-file-name').textContent = file.name;
             const all = parseCSVQuoted(e.target.result);
             // Les rapports FR commencent par ~9 lignes d'explications avant l'en-tête
             const hIdx = all.findIndex(r => r.length > 5 && r.some(c => (c || '').toLowerCase().includes('date/heure') || (c || '').toLowerCase().includes('date/time')));
@@ -2378,7 +2473,9 @@ function previewFraisImport(input) {
             const cSku = col(['sku']);
             const cQty = col(['quantité', 'quantite', 'quantity']);
             const cFraisVente = col(['frais de vente', 'selling fees']);
-            const cFraisFba = col(['expédié par amazon', 'expedie par amazon', 'fba fees']);
+            // "expédié" ne matchait pas l'intitulé réel "frais d'expédition par amazon" :
+            // toute la part FBA des frais était silencieusement omise.
+            const cFraisFba = col(['expédition par amazon', 'expedition par amazon', 'expédié par amazon', 'expedie par amazon', 'fba fees', 'fba']);
             const cFraisAutres = col(['autres frais', 'other transaction']);
             const cTotal = col(['total']);
             if (cOrder === -1 || cType === -1 || cFraisVente === -1) {
@@ -2416,14 +2513,36 @@ function previewFraisImport(input) {
                 (parOrder[oid] = parOrder[oid] || []).push(v);
             });
 
+            // Rapprochement en 3 passes. Avant, le SKU était calculé puis jamais utilisé :
+            // sur une commande à 2 articles de quantité 1, les frais de l'un partaient sur l'autre.
+            const norm = x => String(x || '').trim().toUpperCase();
             const prises = new Set();
-            fraisImportData = Object.values(transactions).map(t => {
-                const candidates = (parOrder[t.oid] || []).filter(v => !prises.has(v.id));
-                // S'il y a plusieurs lignes dans la commande, prendre celle dont la quantité correspond
-                const vente = candidates.find(v => (v.quantite || 1) === t.qte) || candidates[0] || null;
-                if (vente) prises.add(vente.id);
-                return { ...t, frais: parseFloat(t.frais.toFixed(2)), vente };
+            const transacTriees = Object.values(transactions);
+            const resolu = new Map();
+
+            const rapprocher = (choisir) => {
+                transacTriees.forEach(t => {
+                    if (resolu.has(t)) return;
+                    const candidates = (parOrder[t.oid] || []).filter(v => !prises.has(v.id));
+                    if (!candidates.length) return;
+                    const v = choisir(t, candidates);
+                    if (v) { prises.add(v.id); resolu.set(t, v); }
+                });
+            };
+            // 1. SKU du rapport = EAN ou ASIN de la vente (identification certaine)
+            rapprocher((t, c) => {
+                const sku = norm(t.sku);
+                if (!sku) return null;
+                return c.find(v => norm(v.produit_ean) === sku)
+                    || c.find(v => norm(String(v.amazon_order_id).split('|')[1]) === sku)
+                    || null;
             });
+            // 2. à défaut, la quantité
+            rapprocher((t, c) => c.find(v => (v.quantite || 1) === t.qte) || null);
+            // 3. en dernier recours, la première ligne libre de la commande
+            rapprocher((t, c) => c[0]);
+
+            fraisImportData = transacTriees.map(t => ({ ...t, frais: parseFloat(t.frais.toFixed(2)), vente: resolu.get(t) || null }));
 
             const avec = fraisImportData.filter(l => l.vente);
             const stats = [
@@ -2432,6 +2551,7 @@ function previewFraisImport(input) {
                 ['💶 Frais réels à appliquer', avec.reduce((s, l) => s + l.frais, 0).toFixed(2) + '€', '#3498db'],
             ];
             if (remboursements > 0) stats.push(['↩️ Remboursements (info, non traités)', remboursements + ' (' + montantRemb.toFixed(2) + '€)', '#95a5a6']);
+            if (cFraisFba === -1) stats.push(['⚠️ Colonne frais FBA introuvable', 'frais sous-évalués', '#e74c3c']);
             document.getElementById('frais-stats').innerHTML = stats
                 .map(b => `<span style="background:${b[2]};color:white;padding:6px 12px;border-radius:10px;font-size:13px;font-weight:600;">${b[0]} : ${b[1]}</span>`)
                 .join('');
@@ -2458,7 +2578,7 @@ function previewFraisImport(input) {
             }
             document.getElementById('frais-count').textContent = avec.length;
             document.getElementById('frais-preview').style.display = 'block';
-        } catch (err) { toastError('Erreur lecture', err.message); }
+        } catch (err) { cancelFraisImport(true); toastError('Erreur lecture', err.message); }
     };
     reader.readAsText(file, 'UTF-8');
 }
@@ -2497,11 +2617,11 @@ async function confirmFraisImport() {
     }
 }
 
-function cancelFraisImport() {
+function cancelFraisImport(garderFichier) {
     fraisImportData = null;
     document.getElementById('frais-preview').style.display = 'none';
     document.getElementById('frais-file-name').textContent = '';
-    document.getElementById('frais-file-input').value = '';
+    if (!garderFichier) document.getElementById('frais-file-input').value = '';
 }
 
 // ═══════ EXPORT EXCEL ═══════
@@ -2882,7 +3002,7 @@ function displayMouvements() {
         const color = typeColors[m.type] || '#666';
         h += `<tr>
             <td>${date}</td>
-            <td><span style="color:${color};font-weight:700;">${icon} ${m.type}</span></td>
+            <td><span style="color:${color};font-weight:700;">${icon} ${escapeHtml(m.type)}</span></td>
             <td><strong>${escapeHtml(m.produit_nom||'-')}</strong></td>
             <td>${escapeHtml(m.produit_ean||'-')}</td>
             <td style="font-weight:700;">${m.quantite||0}</td>
@@ -3432,6 +3552,11 @@ async function startInventaire() {
     if (inventaireActif && !await srConfirm('Un inventaire est déjà en cours.\nRecommencer et perdre les comptages en cours ?', 'Recommencer')) return;
     
     const enStock = products.filter(p => !p.vendu && !p.invendable);
+    // Un même EAN peut exister sur plusieurs fiches : il faut le savoir au moment du scan,
+    // sinon tout le comptage part sur la première fiche trouvée.
+    const parEan = {};
+    enStock.forEach(p => { const e = String(p.ean || '').trim(); if (e) parEan[e] = (parEan[e] || 0) + 1; });
+
     inventaireData = enStock.map(p => ({
         id: p.id,
         ean: p.ean || '',
@@ -3439,9 +3564,17 @@ async function startInventaire() {
         categorie: p.categorie || '',
         emplacement: p.emplacement || '',
         theorique: p.quantite || 0,
+        theoriqueEntrepot: p.qte_entrepot || 0,
+        horsSite: (p.qte_fba || 0) + (p.qte_fbm || 0),
+        eanPartage: (parEan[String(p.ean || '').trim()] || 0) > 1,
         compte: null,
         ecart: null
     }));
+
+    const partages = new Set(inventaireData.filter(i => i.eanPartage).map(i => i.ean));
+    if (partages.size) {
+        toastWarning('Codes en double', `${partages.size} EAN existent sur plusieurs fiches. Le scan vous demandera sur laquelle imputer le comptage.`);
+    }
     
     inventaireActif = true;
     document.getElementById('inventaire-vide').style.display = 'none';
@@ -3519,10 +3652,22 @@ function inventaireScanEAN() {
     const ean = input.value.trim();
     if (!ean) return;
     
-    const item = inventaireData.find(i => i.ean === ean);
+    const correspondances = inventaireData.filter(i => i.ean === ean);
+    const item = correspondances.length === 1 ? correspondances[0] : null;
     const feedback = document.getElementById('inv-scan-feedback');
     
-    if (!item) {
+    if (correspondances.length > 1) {
+        // Avant : tout le comptage allait sur la première fiche, les autres restaient
+        // non comptées et donc ignorées à la validation.
+        playSound('doublon');
+        if (feedback) {
+            const detail = correspondances.map(i => `« ${escapeHtml(i.nom)} » (théorique ${i.theorique})`).join(' · ');
+            feedback.innerHTML = `⚠️ ${correspondances.length} fiches partagent l'EAN ${escapeHtml(ean)} : ${detail}.<br>Saisissez la quantité à la main sur la bonne ligne.`;
+            feedback.style.color = '#e67e22'; feedback.style.display = 'block';
+        }
+        inventaireFilter = 'all';
+        displayInventaire();
+    } else if (!item) {
         playSound('ko');
         if (feedback) { feedback.textContent = '❌ EAN non trouvé dans le stock : ' + ean; feedback.style.color = '#e74c3c'; feedback.style.display = 'block'; }
     } else {
@@ -3546,6 +3691,8 @@ async function startInventaireScanner() {
         toastError('Scanner non disponible', 'Vérifiez votre connexion internet.');
         return;
     }
+    if (invCodeReader) return;           // un 2e clic créait un lecteur en double → comptage x2
+    stopAllScanners('inventaire');
     try {
         invCodeReader = new ZXing.BrowserMultiFormatReader();
         const video = document.getElementById('inv-video');
@@ -3563,56 +3710,109 @@ async function startInventaireScanner() {
                 inventaireScanEAN();
             }
         });
-    } catch (e) { toastError('Erreur caméra', e.message); }
+    } catch (e) { stopInventaireScanner(); toastError('Erreur caméra', e.message); }
 }
 
 function stopInventaireScanner() {
-    if (invCodeReader) { invCodeReader.reset(); invCodeReader = null; }
-    document.getElementById('inv-video').style.display = 'none';
-    document.getElementById('inv-stop-scanner').style.display = 'none';
+    if (invCodeReader) { try { invCodeReader.reset(); } catch(e) {} invCodeReader = null; }
+    const v = document.getElementById('inv-video'); if (v) v.style.display = 'none';
+    const b = document.getElementById('inv-stop-scanner'); if (b) b.style.display = 'none';
 }
 
 async function validerInventaire() {
-    const ecarts = inventaireData.filter(i => i.compte !== null && i.ecart !== 0);
+    stopInventaireScanner();
     const comptes = inventaireData.filter(i => i.compte !== null);
-    
     if (!comptes.length) return toastError('Aucun comptage', 'Aucun produit compté.');
-    
-    const msg = `Résumé de l'inventaire :\n- ${comptes.length} produits comptés\n- ${comptes.length - ecarts.length} conformes\n- ${ecarts.length} écarts\n\n${ecarts.length > 0 ? 'Les écarts vont ajuster les quantités en stock.\n\n' : ''}Valider et appliquer ?`;
-    if (!await srConfirm(msg, `Valider l'inventaire`)) return;
-    
-    for (const item of ecarts) {
+
+    // Le comptage physique fait foi : on ÉCRIT la valeur comptée, on n'ajoute plus
+    // un écart calculé sur un instantané qui a pu vieillir pendant le comptage.
+    const aAppliquer = [], conflits = [], impossibles = [], disparus = [];
+
+    comptes.forEach(item => {
         const p = products.find(x => x.id === item.id);
-        if (!p) continue;
-        
-        // Ajuster la quantité entrepôt (on suppose l'écart est en entrepôt)
-        const newEntrepot = Math.max(0, (p.qte_entrepot || 0) + item.ecart);
-        const newTotal = newEntrepot + (p.qte_fba || 0) + (p.qte_fbm || 0);
-        
-        await sb.from('produits').update({
-            qte_entrepot: newEntrepot,
-            quantite: newTotal,
-            vendu: newTotal <= 0
-        }).eq('id', item.id);
-        
-        await logMouvement(item.id, 'ajustement', Math.abs(item.ecart),
-            'inventaire', 'entrepot',
-            `Inventaire: ${item.ecart > 0 ? '+' : ''}${item.ecart} (théo: ${item.theorique}, réel: ${item.compte})`,
-            ''
-        );
+        if (!p) { disparus.push(item); return; }
+
+        const stockActuel = p.quantite || 0;
+        const horsSite = (p.qte_fba || 0) + (p.qte_fbm || 0);
+        const nouvelEntrepot = item.compte - horsSite;
+
+        if (stockActuel !== item.theorique) {
+            // Le stock a bougé depuis le début de l'inventaire (vente, réception, autre appareil)
+            conflits.push({ item, p, stockActuel, nouvelEntrepot, horsSite });
+            return;
+        }
+        if (nouvelEntrepot < 0) {
+            // Le comptage est inférieur au stock déporté (FBA/FBM), qui n'est pas comptable en rayon.
+            // Avant : Math.max(0, …) écrasait l'écart en silence tout en annonçant un ajustement.
+            impossibles.push({ item, horsSite });
+            return;
+        }
+        if (stockActuel === item.compte) return;   // rien à faire
+        aAppliquer.push({ item, p, nouvelEntrepot, horsSite });
+    });
+
+    let messages = [];
+    if (conflits.length) messages.push(`⚠️ ${conflits.length} produit(s) ont bougé depuis le début du comptage.`);
+    if (impossibles.length) messages.push(`⚠️ ${impossibles.length} comptage(s) inférieurs au stock FBA/FBM, non applicables en entrepôt.`);
+    if (disparus.length) messages.push(`⚠️ ${disparus.length} produit(s) ne sont plus dans la liste.`);
+
+    const resume = `Résumé de l'inventaire :\n`
+        + `• ${comptes.length} produits comptés\n`
+        + `• ${comptes.length - aAppliquer.length - conflits.length - impossibles.length - disparus.length} déjà conformes\n`
+        + `• ${aAppliquer.length} ajustement(s) à appliquer\n`
+        + (messages.length ? `\n${messages.join('\n')}\nCes lignes ne seront PAS modifiées.\n` : '')
+        + `\nLa quantité comptée remplacera la quantité en entrepôt. Le stock FBA/FBM n'est pas modifié.\n\nValider ?`;
+
+    if (!aAppliquer.length && !conflits.length && !impossibles.length) {
+        return toastSuccess('Inventaire conforme', 'Aucun écart : tous les comptages correspondent au stock.');
     }
-    
-    toastSuccess('Inventaire validé', `${ecarts.length} ajustement(s) appliqué(s).`);
-    inventaireActif = false;
-    inventaireData = [];
-    document.getElementById('inventaire-mode').style.display = 'none';
-    document.getElementById('inventaire-vide').style.display = 'block';
-    document.getElementById('btn-export-inventaire').style.display = 'none';
+    if (!await srConfirm(resume, `Valider l'inventaire`)) return;
+
+    let ok = 0, echecs = 0;
+    for (const a of aAppliquer) {
+        const nouveauTotal = a.nouvelEntrepot + a.horsSite;
+        const delta = nouveauTotal - (a.p.quantite || 0);
+        const { error } = await sb.from('produits').update({
+            qte_entrepot: a.nouvelEntrepot,
+            quantite: nouveauTotal,
+            vendu: nouveauTotal <= 0
+        }).eq('id', a.item.id);
+        if (error) { echecs++; console.warn('Inventaire, produit ' + a.item.id + ' :', error.message); continue; }
+        await logMouvement(a.item.id, 'ajustement', Math.abs(delta),
+            'inventaire', 'entrepot',
+            `Inventaire: ${delta > 0 ? '+' : ''}${delta} (théo: ${a.item.theorique}, compté: ${a.item.compte})`,
+            '');
+        ok++;
+    }
+
+    // Message honnête : on n'annonce que ce qui a réellement été écrit
+    const detailIgnore = [];
+    if (conflits.length) detailIgnore.push(`${conflits.length} en conflit`);
+    if (impossibles.length) detailIgnore.push(`${impossibles.length} non applicables`);
+    if (disparus.length) detailIgnore.push(`${disparus.length} introuvables`);
+    if (echecs) detailIgnore.push(`${echecs} en erreur`);
+
+    if (ok) toastSuccess('Inventaire validé', `${ok} ajustement(s) appliqué(s)` + (detailIgnore.length ? ` · ignorés : ${detailIgnore.join(', ')}` : '') + '.');
+    else toastWarning('Aucun ajustement appliqué', detailIgnore.join(', ') + '. Le comptage est conservé pour que vous puissiez le reprendre.');
+
+    if (ok && !detailIgnore.length) {
+        // Tout est passé : on peut clore l'inventaire
+        inventaireActif = false;
+        inventaireData = [];
+        document.getElementById('inventaire-mode').style.display = 'none';
+        document.getElementById('inventaire-vide').style.display = 'block';
+        document.getElementById('btn-export-inventaire').style.display = 'none';
+    } else {
+        // Des lignes restent à traiter : on garde l'écran ouvert plutôt que de perdre le comptage
+        aAppliquer.forEach(a => { if (a.item) { a.item.theorique = a.item.compte; a.item.ecart = 0; } });
+    }
     await loadProducts();
+    if (inventaireActif) displayInventaire();
 }
 
 async function annulerInventaire() {
     if (!await srConfirm('Annuler l\'inventaire en cours ?\nTous les comptages seront perdus.', 'Annuler l\'inventaire', true)) return;
+    stopInventaireScanner();
     inventaireActif = false;
     inventaireData = [];
     document.getElementById('inventaire-mode').style.display = 'none';
@@ -3724,7 +3924,7 @@ function exportAdvanced() {
         const headers = Object.keys(data[0]);
         let csv = '\uFEFF' + headers.join(';') + '\n';
         data.forEach(row => {
-            csv += headers.map(h => `"${String(row[h]||'').replace(/"/g,'""')}"`).join(';') + '\n';
+            csv += headers.map(h => `"${String(row[h] ?? '').replace(/"/g,'""')}"`).join(';') + '\n';
         });
         downloadCSV(csv, `stock-radar-${fileName}-${dateStr}.csv`);
     }
@@ -3757,175 +3957,280 @@ function formatAchatExport(a) {
 }
 
 // ═══════ BACKUP / RESTORE ═══════
+// Les 7 tables sauvegardées. L'ordre d'insertion respecte les dépendances,
+// l'ordre de suppression est son inverse.
+const BACKUP_TABLES = ['fournisseurs', 'achats', 'produits', 'factures', 'fournitures', 'ventes', 'mouvements'];
+const BACKUP_ORDRE_SUPPRESSION = ['ventes', 'fournitures', 'factures', 'mouvements', 'produits', 'achats', 'fournisseurs'];
+
+// Nettoyeurs : transforment une ligne du fichier en ligne insérable pour le compte uid
+const BACKUP_NETTOYEURS = {
+    fournisseurs: uid => f => ({
+        user_id: uid, nom: f.nom, contact: f.contact||'', email: f.email||'', tel: f.tel||'', adresse: f.adresse||'',
+        site_web: f.site_web||'', siret: f.siret||'', tva_intra: f.tva_intra||'',
+        conditions_paiement: f.conditions_paiement||'', delai_livraison: f.delai_livraison||'',
+        moq: f.moq||0, franco: f.franco||0, categorie_fournisseur: f.categorie_fournisseur||'',
+        notes: f.notes||''
+    }),
+    achats: uid => a => ({
+        user_id: uid, ean: a.ean, asin: a.asin||'', nom: a.nom, categorie: a.categorie||'',
+        fournisseur_nom: a.fournisseur_nom||'', prix_ht: a.prix_ht||0, prix_ttc: a.prix_ttc||0,
+        quantite: a.quantite||1, recu: a.recu||false, notes: a.notes||'', date_achat: a.date_achat
+    }),
+    produits: uid => p => ({
+        user_id: uid,
+        ean: p.ean, asin: p.asin||'', nom: p.nom, categorie: p.categorie||'', etat: p.etat||'Neuf', etat_stock: p.etat_stock||'neuf',
+        prix_achat: p.prix_achat||0, prix_revente: p.prix_revente||0,
+        qte_fba: p.qte_fba ?? 0, qte_fbm: p.qte_fbm ?? 0, qte_entrepot: p.qte_entrepot ?? 0, quantite: p.quantite ?? 0,
+        amazon_fba: p.amazon_fba ?? false, amazon_fbm: p.amazon_fbm ?? false,
+        vinted: p.vinted||false, leboncoin: p.leboncoin||false,
+        invendable: p.invendable||false, vendu: p.vendu||false,
+        date_vente: p.date_vente||null, prix_vente_reel: p.prix_vente_reel||0,
+        plateforme_vente: p.plateforme_vente||null,
+        statut: p.statut||'recu', emplacement: p.emplacement||'',
+        seuil_stock: p.seuil_stock ?? 0,
+        fba_attente: p.fba_attente||false,
+        photos: p.photos||[], notes: p.notes||'', date_ajout: p.date_ajout
+    }),
+    factures: uid => fa => ({
+        user_id: uid,
+        numero: fa.numero, fournisseur_id: null, fournisseur_nom: fa.fournisseur_nom||'',
+        date_facture: fa.date_facture, date_echeance: fa.date_echeance,
+        montant_ht: fa.montant_ht||0, montant_ttc: fa.montant_ttc||0,
+        payee: fa.payee||false, date_paiement: fa.date_paiement||null, notes: fa.notes||''
+    }),
+    fournitures: uid => fo => ({
+        user_id: uid,
+        nom: fo.nom, categorie: fo.categorie||'', fournisseur_nom: fo.fournisseur_nom||'',
+        quantite: fo.quantite||1, prix_ht: fo.prix_ht||0, prix_ttc: fo.prix_ttc||0,
+        date_achat: fo.date_achat, recurrent: fo.recurrent||'', notes: fo.notes||''
+    }),
+    ventes: uid => v => ({
+        user_id: uid, produit_id: null,
+        produit_ean: v.produit_ean||'', produit_nom: v.produit_nom||'',
+        canal: v.canal||'Autre', quantite: v.quantite||1,
+        prix_unitaire: v.prix_unitaire||0, prix_total: v.prix_total||0,
+        prix_achat_unitaire: v.prix_achat_unitaire||0,
+        frais: v.frais||0, benefice: v.benefice||0,
+        date_vente: v.date_vente||null, notes: v.notes||''
+    }),
+    mouvements: uid => m => ({
+        user_id: uid, produit_id: null,
+        produit_ean: m.produit_ean||'', produit_nom: m.produit_nom||'',
+        type: m.type||'', quantite: m.quantite||0,
+        de_emplacement: m.de_emplacement||'', vers_emplacement: m.vers_emplacement||'',
+        raison: m.raison||'', notes: m.notes||'',
+        created_at: m.created_at||new Date().toISOString()
+    }),
+};
+
+// Lit une table ENTIÈRE depuis la base, par pages de 1000 (limite PostgREST).
+// On ne se sert plus des tableaux affichés à l'écran : `mouvements` y est plafonné à 200.
+async function lireTableComplete(table, uid) {
+    const PAS = 1000;
+    const lignes = [];
+    for (let debut = 0; ; debut += PAS) {
+        const { data, error } = await sb.from(table).select('*')
+            .eq('user_id', uid)
+            .order('id', { ascending: true })
+            .range(debut, debut + PAS - 1);
+        if (error) throw new Error(`Lecture de la table "${table}" : ${error.message}`);
+        lignes.push(...(data || []));
+        if (!data || data.length < PAS) break;
+    }
+    return lignes;
+}
+
+async function construireSnapshot(uid, email) {
+    const snap = { version: 'stock-radar-v2', date: new Date().toISOString(), user_id: uid, user_email: email };
+    for (const t of BACKUP_TABLES) snap[t] = await lireTableComplete(t, uid);
+    return snap;
+}
+
+function telechargerJSON(obj, nomFichier) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nomFichier;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 15000);
+}
+
+function backupNomCompte() {
+    return isAdmin && viewingUserId !== currentUser?.id
+        ? (allUsers.find(u => u.user_id === viewingUserId)?.email || viewingUserId)
+        : currentUser?.email;
+}
+
 async function backupData() {
     // Bloquer le backup en mode admin "Tous les comptes" — données mélangées non fiables
     if (isAdmin && !viewingUserId) {
         toastError('Backup impossible', 'Sélectionnez un compte spécifique avant de lancer le backup.');
         return;
     }
+    const uid = getEffectiveUserId();
+    if (!uid) return toastError('Non connecté', 'Vous devez être connecté pour sauvegarder.');
+    const email = backupNomCompte();
 
-    const effectiveUid = getEffectiveUserId();
-    const effectiveEmail = isAdmin && viewingUserId !== currentUser?.id
-        ? (allUsers.find(u => u.user_id === viewingUserId)?.email || viewingUserId)
-        : currentUser?.email;
+    try {
+        toastInfo('Sauvegarde en cours', 'Lecture complète des données depuis la base…');
+        const snap = await construireSnapshot(uid, email);
+        const safeName = (email || 'compte').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        telechargerJSON(snap, `stock-radar-backup-${safeName}-${new Date().toISOString().split('T')[0]}.json`);
+        const detail = BACKUP_TABLES.map(t => `${snap[t].length} ${t}`).join(' · ');
+        toastSuccess('Sauvegarde téléchargée', detail);
+    } catch (e) {
+        toastError('Sauvegarde échouée', e.message + " — aucun fichier n'a été produit.");
+        console.error(e);
+    }
+}
 
-    const backup = {
-        version: 'stock-radar-v2',
-        date: new Date().toISOString(),
-        user_id: effectiveUid,
-        user_email: effectiveEmail,
-        fournisseurs: fournisseurs,
-        achats: achats,
-        produits: products,
-        factures: factures,
-        fournitures: fournitures,
-        mouvements: mouvements,
-        ventes: ventes
-    };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    const safeName = (effectiveEmail || 'compte').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    a.download = `stock-radar-backup-${safeName}-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
+// Télécharge l'état actuel du compte AVANT toute restauration.
+// Si ce filet échoue, la restauration est abandonnée : mieux vaut ne rien faire
+// que de supprimer des données sans pouvoir les récupérer.
+async function filetDeSecurite(uid, email) {
+    toastInfo('Filet de sécurité', 'Téléchargement de vos données actuelles avant remplacement…');
+    const snap = await construireSnapshot(uid, email);
+    const safeName = (email || 'compte').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const horodatage = new Date().toISOString().replace(/[:.]/g, '-').split('T');
+    telechargerJSON(snap, `AVANT-RESTAURATION-${safeName}-${horodatage[0]}-${horodatage[1].slice(0,8)}.json`);
+    return snap;
+}
+
+// Décrit ce qu'un fichier de sauvegarde va remplacer, et ce qu'il va laisser intact
+function analyserBackup(backup) {
+    const presentes = BACKUP_TABLES.filter(t => Array.isArray(backup[t]));
+    const absentes = BACKUP_TABLES.filter(t => !presentes.includes(t));
+    const total = presentes.reduce((s, t) => s + backup[t].length, 0);
+    return { presentes, absentes, total };
+}
+
+// Applique un objet backup (fichier manuel ou sauvegarde auto) sur le compte uid.
+// Règle de sécurité : une table ABSENTE du fichier n'est ni supprimée ni touchée.
+async function appliquerBackup(backup, uid) {
+    const { presentes, absentes } = analyserBackup(backup);
+    if (!presentes.length) {
+        throw new Error("Ce fichier ne contient aucune table exploitable. Rien n'a été supprimé.");
+    }
+
+    // 1. Préparer toutes les lignes AVANT la moindre suppression :
+    //    si le fichier est mal formé, on échoue sans avoir rien détruit.
+    const aInserer = {};
+    for (const t of presentes) {
+        try {
+            aInserer[t] = backup[t].map(BACKUP_NETTOYEURS[t](uid));
+        } catch (e) {
+            throw new Error(`Le fichier est illisible sur la table "${t}" (${e.message}). Rien n'a été supprimé.`);
+        }
+    }
+
+    // 2. Supprimer, uniquement les tables présentes dans le fichier
+    for (const t of BACKUP_ORDRE_SUPPRESSION) {
+        if (!presentes.includes(t)) continue;
+        const { error } = await sb.from(t).delete().eq('user_id', uid);
+        if (error) throw new Error(`Échec de la suppression dans "${t}" : ${error.message}`);
+    }
+
+    // 3. Réinsérer par lots de 50, en contrôlant CHAQUE lot
+    for (const t of BACKUP_TABLES) {
+        if (!presentes.includes(t)) continue;
+        const lignes = aInserer[t];
+        for (let i = 0; i < lignes.length; i += 50) {
+            const { error } = await sb.from(t).insert(lignes.slice(i, i + 50));
+            if (error) {
+                throw new Error(`Échec de l'insertion dans "${t}" (lignes ${i + 1} à ${Math.min(i + 50, lignes.length)}) : ${error.message}`);
+            }
+        }
+    }
+
+    return { presentes, absentes };
+}
+
+// Message de confirmation commun aux deux chemins de restauration
+function messageRestauration(backup, entete) {
+    const { presentes, absentes } = analyserBackup(backup);
+    let msg = entete + '\n\nSERONT REMPLACÉES :\n'
+        + presentes.map(t => `• ${backup[t].length} ${t}`).join('\n');
+    if (absentes.length) {
+        msg += '\n\nABSENTES DU FICHIER, donc CONSERVÉES telles quelles :\n'
+            + absentes.map(t => `• ${t}`).join('\n');
+    }
+    const sansPhotos = Array.isArray(backup.produits) && backup.produits.length
+        && !backup.produits.some(p => Array.isArray(p.photos) && p.photos.length);
+    if (sansPhotos) msg += '\n\n⚠️ Ce fichier ne contient aucune photo produit.';
+    msg += '\n\nUne copie de vos données actuelles sera téléchargée avant remplacement.';
+    return msg;
+}
+
+// Exécute la restauration avec filet de sécurité + messages d'erreur exploitables
+async function executerRestauration(backup, uid, email) {
+    let filet = null;
+    try {
+        filet = await filetDeSecurite(uid, email);
+    } catch (e) {
+        toastError('Restauration annulée', 'Impossible de sauvegarder vos données actuelles (' + e.message + "). Rien n'a été modifié.");
+        return false;
+    }
+    try {
+        const { presentes, absentes } = await appliquerBackup(backup, uid);
+        const resume = presentes.join(', ') + (absentes.length ? ` · conservées : ${absentes.join(', ')}` : '');
+        toastSuccess('Restauration terminée', resume + ' — rechargement…');
+        setTimeout(() => location.reload(), 1200);
+        return true;
+    } catch (e) {
+        console.error(e);
+        toastError('Restauration interrompue',
+            e.message + ' — Vos données d\'avant restauration sont dans le fichier AVANT-RESTAURATION téléchargé il y a un instant. Rechargez-le pour revenir en arrière.');
+        return false;
+    }
 }
 
 async function restoreData(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Sécurité : on doit avoir un utilisateur connecté
-    if (!currentUser?.id) {
-        toastError('Non connecté', 'Vous devez être connecté pour effectuer une restauration.');
-        event.target.value = '';
-        return;
-    }
-    const uid = currentUser.id;
-
-    if (!await srConfirm('Cette opération va SUPPRIMER toutes vos données actuelles.\n\nSeules VOS données seront supprimées.', 'Restaurer la sauvegarde', true)) {
-        event.target.value = '';
-        return;
-    }
-
     try {
+        if (!currentUser?.id) {
+            return toastError('Non connecté', 'Vous devez être connecté pour effectuer une restauration.');
+        }
+        // Même règle que le backup : pas de restauration en mode "Tous les comptes",
+        // sinon on écrirait sur le compte de l'admin en croyant viser celui affiché.
+        if (isAdmin && !viewingUserId) {
+            return toastError('Restauration impossible', 'Sélectionnez un compte spécifique avant de restaurer.');
+        }
+        const uid = getEffectiveUserId();
+        const email = backupNomCompte();
+
         const text = await file.text();
-        const backup = JSON.parse(text);
+        let backup;
+        try { backup = JSON.parse(text); }
+        catch { return toastError('Fichier illisible', "Ce fichier n'est pas un JSON valide."); }
 
-        if (!backup.version || !backup.version.startsWith('stock-radar')) {
-            toastError('Fichier invalide', 'Format de sauvegarde non reconnu.');
-            return;
+        if (!backup.version || !String(backup.version).startsWith('stock-radar')) {
+            return toastError('Fichier invalide', 'Format de sauvegarde non reconnu.');
         }
 
-        // Vérifier que la sauvegarde appartient bien à cet utilisateur
+        const { presentes, total } = analyserBackup(backup);
+        if (!presentes.length) {
+            return toastError('Fichier vide', "Ce fichier ne contient aucune des 7 tables attendues. Rien n'a été modifié.");
+        }
+
         if (backup.user_id && backup.user_id !== uid) {
-            if (!await srConfirm('Ce fichier appartient à un autre compte.\nVoulez-vous quand même restaurer sur votre compte ?', 'Compte différent', false)) {
-                event.target.value = '';
-                return;
-            }
+            const qui = backup.user_email ? ` (${backup.user_email})` : '';
+            if (!await srConfirm(`Ce fichier appartient à un autre compte${qui}.\n\nRestaurer quand même sur ${email || 'ce compte'} ?`, 'Compte différent', false)) return;
         }
 
-        const info = `Données du fichier :\n- ${(backup.fournisseurs||[]).length} fournisseurs\n- ${(backup.achats||[]).length} achats\n- ${(backup.produits||[]).length} produits\n- ${(backup.ventes||[]).length} ventes\n- ${(backup.fournitures||[]).length} fournitures\n- ${(backup.mouvements||[]).length} mouvements\n\nDate de sauvegarde : ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'inconnue'}\n\nConfirmer la restauration ?`;
-        if (!await srConfirm(info, 'Confirmer la restauration')) return;
+        const entete = `Sauvegarde du ${backup.date ? new Date(backup.date).toLocaleString('fr-FR') : 'date inconnue'} — ${total} lignes.`;
+        if (!await srConfirm(messageRestauration(backup, entete), 'Confirmer la restauration', true)) return;
 
-        await appliquerBackup(backup, uid);
-
-        toastSuccess('Restauration terminée', 'Rechargement en cours...');
-        location.reload();
+        await executerRestauration(backup, uid, email);
     } catch (e) {
         toastError('Erreur restauration', e.message);
         console.error(e);
+    } finally {
+        // Toujours réinitialisé : sans ça, re-sélectionner le même fichier ne déclenche
+        // plus l'événement 'change' et il ne se passe plus rien.
+        event.target.value = '';
     }
-    event.target.value = '';
-}
-
-// Applique un objet backup (fichier manuel ou sauvegarde auto) sur le compte uid
-async function appliquerBackup(backup, uid) {
-        // ✅ Suppression filtrée sur user_id uniquement — les autres comptes ne sont PAS touchés
-        await sb.from('ventes').delete().eq('user_id', uid);
-        await sb.from('fournitures').delete().eq('user_id', uid);
-        await sb.from('factures').delete().eq('user_id', uid);
-        await sb.from('mouvements').delete().eq('user_id', uid);
-        await sb.from('produits').delete().eq('user_id', uid);
-        await sb.from('achats').delete().eq('user_id', uid);
-        await sb.from('fournisseurs').delete().eq('user_id', uid);
-
-        // ✅ Insertion avec user_id explicite sur chaque ligne
-        if (backup.fournisseurs?.length) {
-            const fClean = backup.fournisseurs.map(f => ({
-                user_id: uid, nom: f.nom, contact: f.contact||'', email: f.email||'', tel: f.tel||'', adresse: f.adresse||'',
-                site_web: f.site_web||'', siret: f.siret||'', tva_intra: f.tva_intra||'',
-                conditions_paiement: f.conditions_paiement||'', delai_livraison: f.delai_livraison||'',
-                moq: f.moq||0, franco: f.franco||0, categorie_fournisseur: f.categorie_fournisseur||'',
-                notes: f.notes||''
-            }));
-            for (let i = 0; i < fClean.length; i += 50) await sb.from('fournisseurs').insert(fClean.slice(i, i+50));
-        }
-        if (backup.achats?.length) {
-            const aClean = backup.achats.map(a => ({ user_id: uid, ean: a.ean, asin: a.asin||'', nom: a.nom, categorie: a.categorie||'', fournisseur_nom: a.fournisseur_nom||'', prix_ht: a.prix_ht||0, prix_ttc: a.prix_ttc||0, quantite: a.quantite||1, recu: a.recu||false, notes: a.notes||'', date_achat: a.date_achat }));
-            for (let i = 0; i < aClean.length; i += 50) await sb.from('achats').insert(aClean.slice(i, i+50));
-        }
-        if (backup.produits?.length) {
-            const pClean = backup.produits.map(p => ({
-                user_id: uid,
-                ean: p.ean, asin: p.asin||'', nom: p.nom, categorie: p.categorie||'', etat: p.etat||'Neuf', etat_stock: p.etat_stock||'neuf',
-                prix_achat: p.prix_achat||0, prix_revente: p.prix_revente||0,
-                qte_fba: p.qte_fba ?? 0, qte_fbm: p.qte_fbm ?? 0, qte_entrepot: p.qte_entrepot ?? 0, quantite: p.quantite ?? 0,
-                amazon_fba: p.amazon_fba ?? false, amazon_fbm: p.amazon_fbm ?? false,
-                vinted: p.vinted||false, leboncoin: p.leboncoin||false,
-                invendable: p.invendable||false, vendu: p.vendu||false,
-                date_vente: p.date_vente||null, prix_vente_reel: p.prix_vente_reel||0,
-                plateforme_vente: p.plateforme_vente||null,
-                statut: p.statut||'recu', emplacement: p.emplacement||'',
-                seuil_stock: p.seuil_stock ?? 0,
-                fba_attente: p.fba_attente||false,
-                photos: p.photos||[], notes: p.notes||'', date_ajout: p.date_ajout
-            }));
-            for (let i = 0; i < pClean.length; i += 50) await sb.from('produits').insert(pClean.slice(i, i+50));
-        }
-        if (backup.factures?.length) {
-            const faClean = backup.factures.map(fa => ({
-                user_id: uid,
-                numero: fa.numero, fournisseur_id: null, fournisseur_nom: fa.fournisseur_nom||'',
-                date_facture: fa.date_facture, date_echeance: fa.date_echeance,
-                montant_ht: fa.montant_ht||0, montant_ttc: fa.montant_ttc||0,
-                payee: fa.payee||false, date_paiement: fa.date_paiement||null, notes: fa.notes||''
-            }));
-            for (let i = 0; i < faClean.length; i += 50) await sb.from('factures').insert(faClean.slice(i, i+50));
-        }
-        if (backup.fournitures?.length) {
-            const foClean = backup.fournitures.map(fo => ({
-                user_id: uid,
-                nom: fo.nom, categorie: fo.categorie||'', fournisseur_nom: fo.fournisseur_nom||'',
-                quantite: fo.quantite||1, prix_ht: fo.prix_ht||0, prix_ttc: fo.prix_ttc||0,
-                date_achat: fo.date_achat, recurrent: fo.recurrent||'', notes: fo.notes||''
-            }));
-            for (let i = 0; i < foClean.length; i += 50) await sb.from('fournitures').insert(foClean.slice(i, i+50));
-        }
-        if (backup.ventes?.length) {
-            const vClean = backup.ventes.map(v => ({
-                user_id: uid,
-                produit_id: null,
-                produit_ean: v.produit_ean||'', produit_nom: v.produit_nom||'',
-                canal: v.canal||'Autre', quantite: v.quantite||1,
-                prix_unitaire: v.prix_unitaire||0, prix_total: v.prix_total||0,
-                prix_achat_unitaire: v.prix_achat_unitaire||0,
-                frais: v.frais||0, benefice: v.benefice||0,
-                date_vente: v.date_vente||null, notes: v.notes||''
-            }));
-            for (let i = 0; i < vClean.length; i += 50) await sb.from('ventes').insert(vClean.slice(i, i+50));
-        }
-        if (backup.mouvements?.length) {
-            const mClean = backup.mouvements.map(m => ({
-                user_id: uid,
-                produit_id: null,
-                produit_ean: m.produit_ean||'', produit_nom: m.produit_nom||'',
-                type: m.type||'', quantite: m.quantite||0,
-                de_emplacement: m.de_emplacement||'', vers_emplacement: m.vers_emplacement||'',
-                raison: m.raison||'', notes: m.notes||'',
-                created_at: m.created_at||new Date().toISOString()
-            }));
-            for (let i = 0; i < mClean.length; i += 50) await sb.from('mouvements').insert(mClean.slice(i, i+50));
-        }
 }
 
 // ═══════ SAUVEGARDES AUTOMATIQUES ═══════
@@ -3982,22 +4287,25 @@ async function telechargerSauvegarde(id) {
 }
 
 async function restaurerSauvegarde(id) {
+    if (isAdmin && !viewingUserId) {
+        return toastError('Restauration impossible', 'Sélectionnez un compte spécifique avant de restaurer.');
+    }
     const uid = getEffectiveUserId();
     if (!uid) return toastError('Non connecté', 'Vous devez être connecté pour restaurer.');
     const donnees = await fetchSauvegarde(id);
     if (!donnees) return;
+
+    const { presentes } = analyserBackup(donnees);
+    if (!presentes.length) {
+        return toastError('Sauvegarde inexploitable', "Cette sauvegarde ne contient aucune des 7 tables attendues. Rien n'a été modifié.");
+    }
+
     const s = sauvegardesList.find(x => x.id === id);
     const d = s ? new Date(s.created_at).toLocaleString('fr-FR') : '?';
-    const info = `Restaurer la sauvegarde automatique du ${d} ?\n\nContenu :\n- ${(donnees.fournisseurs||[]).length} fournisseurs\n- ${(donnees.achats||[]).length} achats\n- ${(donnees.produits||[]).length} produits\n- ${(donnees.ventes||[]).length} ventes\n- ${(donnees.fournitures||[]).length} fournitures\n\n⚠️ Toutes les données actuelles du compte seront REMPLACÉES.\n(Les photos produits ne sont pas incluses dans les sauvegardes automatiques.)`;
-    if (!await srConfirm(info, 'Restaurer la sauvegarde', true)) return;
-    try {
-        await appliquerBackup(donnees, uid);
-        toastSuccess('Restauration terminée', 'Rechargement en cours...');
-        location.reload();
-    } catch (e) {
-        toastError('Erreur restauration', e.message);
-        console.error(e);
-    }
+    const entete = `Restaurer la sauvegarde automatique du ${d} ?`;
+    if (!await srConfirm(messageRestauration(donnees, entete), 'Restaurer la sauvegarde', true)) return;
+
+    await executerRestauration(donnees, uid, backupNomCompte());
 }
 
 // ═══════ AIDE ACCORDÉON ═══════
@@ -4015,11 +4323,15 @@ let quickScanCooldown = false;
 let quickScanHistory = [];
 
 function openQuickScan() {
+    stopAllScanners('quick');            // sinon le scanner "Nouveau produit" continue de remplir le formulaire
     const overlay = document.getElementById('quick-scan-overlay');
     overlay.classList.add('active');
     document.getElementById('quick-scan-result').textContent = 'Démarrage de la caméra...';
     document.getElementById('quick-scan-result').className = 'quick-scan-result';
     quickScanLastEAN = '';
+    quickScanHistory = [];               // sinon on retrouve les scans de la session précédente
+    const hist = document.getElementById('quick-scan-history');
+    if (hist) hist.innerHTML = '';
     startQuickScanner();
 }
 
@@ -4034,6 +4346,7 @@ async function startQuickScanner() {
         document.getElementById('quick-scan-result').className = 'quick-scan-result ko';
         return;
     }
+    if (quickScanReader) return;
     try {
         quickScanReader = new ZXing.BrowserMultiFormatReader();
         const video = document.getElementById('quick-scan-video');
@@ -4078,13 +4391,14 @@ async function startQuickScanner() {
         document.getElementById('quick-scan-result').textContent = 'Pointez la caméra vers un code-barres...';
     } catch (e) {
         playSound('ko');
+        stopQuickScanner();
         document.getElementById('quick-scan-result').textContent = '❌ Erreur caméra : ' + e.message;
         document.getElementById('quick-scan-result').className = 'quick-scan-result ko';
     }
 }
 
 function stopQuickScanner() {
-    if (quickScanReader) { quickScanReader.reset(); quickScanReader = null; }
+    if (quickScanReader) { try { quickScanReader.reset(); } catch(e) {} quickScanReader = null; }
 }
 
 function displayQuickScanHistory() {
@@ -4119,6 +4433,11 @@ function quickScanAction(action) {
         if (inventaireActif) {
             document.getElementById('inv-scan-ean').value = quickScanLastEAN;
             inventaireScanEAN();
+        } else {
+            // Avant : le code scanné était perdu sans le moindre message
+            const champ = document.getElementById('inv-scan-ean');
+            if (champ) champ.value = quickScanLastEAN;
+            toastWarning('Aucun inventaire en cours', `Lancez « Nouvel inventaire » — le code ${quickScanLastEAN} est déjà prêt dans le champ de saisie.`);
         }
     }
 }

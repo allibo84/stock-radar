@@ -1513,8 +1513,8 @@
                     <!-- Filtres -->
                     <div class="search-filters">
                         <div class="search-row">
-                            <input type="text" class="search-input" id="stock-search" placeholder="🔍 Rechercher nom, EAN, ASIN, catégorie, notes..." oninput="displayStock()">
-                            <select class="search-input" id="stock-sort" onchange="displayStock()">
+                            <input type="text" class="search-input" id="stock-search" placeholder="🔍 Rechercher nom, EAN, ASIN, catégorie, notes..." oninput="stockApplyFilters()">
+                            <select class="search-input" id="stock-sort" onchange="stockApplyFilters()">
                                 <option value="date-desc">Date ↓ récent</option>
                                 <option value="date-asc">Date ↑ ancien</option>
                                 <option value="qte-desc">Quantité ↓</option>
@@ -1534,13 +1534,13 @@
                             <div class="filters-row">
                                 <div class="filter-group">
                                     <label>Catégorie</label>
-                                    <select id="stock-filter-cat" onchange="displayStock()">
+                                    <select id="stock-filter-cat" onchange="stockApplyFilters()">
                                         <option value="">Toutes</option>
                                     </select>
                                 </div>
                                 <div class="filter-group">
                                     <label>Plateforme</label>
-                                    <select id="stock-filter-canal" onchange="displayStock()">
+                                    <select id="stock-filter-canal" onchange="stockApplyFilters()">
                                         <option value="">Toutes</option>
                                         <option value="fba">Amazon FBA</option>
                                         <option value="fbm">Amazon FBM</option>
@@ -1550,7 +1550,7 @@
                                 </div>
                                 <div class="filter-group">
                                     <label>Emplacement</label>
-                                    <select id="stock-filter-emplacement" onchange="displayStock()">
+                                    <select id="stock-filter-emplacement" onchange="stockApplyFilters()">
                                         <option value="">Tous</option>
                                         <option value="entrepot">Entrepôt seulement</option>
                                         <option value="fba_attente">FBA en attente</option>
@@ -1561,21 +1561,21 @@
                                 </div>
                                 <div class="filter-group">
                                     <label>Date depuis</label>
-                                    <input type="date" id="stock-filter-date-from" onchange="displayStock()">
+                                    <input type="date" id="stock-filter-date-from" onchange="stockApplyFilters()">
                                 </div>
                                 <div class="filter-group">
                                     <label>Date jusqu'à</label>
-                                    <input type="date" id="stock-filter-date-to" onchange="displayStock()">
+                                    <input type="date" id="stock-filter-date-to" onchange="stockApplyFilters()">
                                 </div>
                                 <div class="filter-group">
                                     <label>Fournisseur</label>
-                                    <select id="stock-filter-fournisseur" onchange="displayStock()">
+                                    <select id="stock-filter-fournisseur" onchange="stockApplyFilters()">
                                         <option value="">Tous</option>
                                     </select>
                                 </div>
                                 <div class="filter-group">
                                     <label>Statut</label>
-                                    <select id="stock-filter-statut" onchange="displayStock()">
+                                    <select id="stock-filter-statut" onchange="stockApplyFilters()">
                                         <option value="">Tous</option>
                                         <option value="recu">📦 Reçu</option>
                                         <option value="a_controler">🔍 À contrôler</option>
@@ -2390,9 +2390,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20260818-2"></script>
-    <script src="app-cloud.js?v=20260818-2"></script>
-    <script src="auth.js?v=20260818-2"></script>
+    <script src="config.js?v=20260818-4"></script>
+    <script src="app-cloud.js?v=20260818-4"></script>
+    <script src="auth.js?v=20260818-4"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {
