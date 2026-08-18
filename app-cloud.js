@@ -544,7 +544,7 @@ function displayAchats() {
 }
 
 function filterAchats() {
-    const s = document.getElementById('search-achats')?.value.toLowerCase() || '';
+    const s = (document.getElementById('search-achats')?.value || '').trim().toLowerCase();
     const f = document.getElementById('filter-achat-fournisseur')?.value || '';
     const r = document.getElementById('filter-achat-recu')?.value || '';
     const dateDebut = document.getElementById('filter-achat-date-debut')?.value || '';
@@ -1145,7 +1145,7 @@ function stockChangePerPage() {
 }
 
 function getFilteredStock() {
-    const search = (document.getElementById('stock-search')?.value || '').toLowerCase();
+    const search = (document.getElementById('stock-search')?.value || '').trim().toLowerCase();
     const sort = document.getElementById('stock-sort')?.value || 'date-desc';
     const canal = document.getElementById('stock-filter-canal')?.value || '';
     const cat = document.getElementById('stock-filter-cat')?.value || '';
@@ -1171,6 +1171,7 @@ function getFilteredStock() {
         list = list.filter(p => 
             (p.nom||'').toLowerCase().includes(search) || 
             (p.ean||'').toLowerCase().includes(search) ||
+            (p.asin||'').toLowerCase().includes(search) ||
             (p.categorie||'').toLowerCase().includes(search) ||
             (p.notes||'').toLowerCase().includes(search)
         );
@@ -2566,7 +2567,7 @@ function displayVentes() {
     const c = document.getElementById('ventes-container');
     if (!c) return;
 
-    const q = (document.getElementById('ventes-search')?.value || '').toLowerCase();
+    const q = (document.getElementById('ventes-search')?.value || '').trim().toLowerCase();
     const canal = document.getElementById('ventes-filter-canal')?.value || '';
     const dateFrom = document.getElementById('ventes-filter-from')?.value || '';
     const dateTo = document.getElementById('ventes-filter-to')?.value || '';
@@ -3981,20 +3982,22 @@ function globalSearch(query, isMobile = false) {
     const dropdown = document.getElementById(resultsId);
     if (!dropdown) return;
     
-    if (!query || query.length < 2) {
+    const cleanQuery = (query || '').trim();
+    if (cleanQuery.length < 2) {
         dropdown.style.display = 'none';
         return;
     }
 
     searchTimeout = setTimeout(() => {
-        const q = query.toLowerCase();
+        const q = cleanQuery.toLowerCase();
         let results = [];
         
         // Chercher dans les produits
         products.filter(p => !p.vendu).forEach(p => {
             if ((p.nom||'').toLowerCase().includes(q) || (p.ean||'').toLowerCase().includes(q) || 
+                (p.asin||'').toLowerCase().includes(q) ||
                 (p.categorie||'').toLowerCase().includes(q) || (p.notes||'').toLowerCase().includes(q)) {
-                results.push({ type: 'stock', id: p.id, nom: p.nom, detail: `EAN: ${p.ean||'-'} · ${p.quantite||0} unités · ${(p.prix_revente||0).toFixed(2)}€`, badge: p.etat_stock || 'neuf' });
+                results.push({ type: 'stock', id: p.id, nom: p.nom, detail: `EAN: ${p.ean||'-'}${p.asin ? ' · ASIN: '+p.asin : ''} · ${p.quantite||0} unités · ${(p.prix_revente||0).toFixed(2)}€`, badge: p.etat_stock || 'neuf' });
             }
         });
         
@@ -4016,7 +4019,7 @@ function globalSearch(query, isMobile = false) {
         });
 
         if (!results.length) {
-            dropdown.innerHTML = '<div class="search-result-item" style="color:var(--text-secondary);">Aucun résultat pour "' + escapeHtml(query) + '"</div>';
+            dropdown.innerHTML = '<div class="search-result-item" style="color:var(--text-secondary);">Aucun résultat pour "' + escapeHtml(cleanQuery) + '"</div>';
         } else {
             dropdown.innerHTML = results.slice(0, 15).map(r => `
                 <div class="search-result-item" onclick="goToSearchResult('${r.type}', ${r.id})">
