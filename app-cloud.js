@@ -451,7 +451,7 @@ async function deleteFacture(id) {
 }
 
 function updateFournisseursSelect() {
-    ['a-fournisseur', 'filter-achat-fournisseur', 'four-fournisseur'].forEach(sid => {
+    ['a-fournisseur', 'filter-achat-fournisseur', 'four-fournisseur', 'grossiste-fournisseur'].forEach(sid => {
         const sel = document.getElementById(sid);
         if (!sel) return;
         const val = sel.value;
@@ -1754,6 +1754,27 @@ async function deleteProduct(id) {
 }
 
 // ═══════ IMPORT GROSSISTE ═══════
+let grossisteImportEnCours = false;
+
+// Retourne la ligne de stock neuf active correspondant à cet EAN (ou null)
+function grossisteProduitExistant(ean) {
+    const e = String(ean || '').trim().toUpperCase();
+    if (!e) return null;
+    return products.find(p => !p.vendu && !p.invendable
+        && (p.etat_stock || 'neuf') === 'neuf'
+        && String(p.ean || '').toUpperCase() === e) || null;
+}
+
+// Coefficient TVA saisi dans le panneau (20 % par défaut)
+function grossisteCoefTva() {
+    const t = parseFloat(document.getElementById('grossiste-tva')?.value);
+    return 1 + ((isNaN(t) || t < 0) ? 20 : t) / 100;
+}
+
+function grossistePrixEstHT() {
+    return document.getElementById('grossiste-prix-ttc')?.checked !== true;
+}
+
 function previewGrossisteImport(input) {
     const file = input.files[0];
     if (!file) return;
@@ -1772,34 +1793,39 @@ function previewGrossisteImport(input) {
             }
             if (!rows.length) return toastError('Fichier vide', 'Le fichier ne contient aucune donnée.');
 
-            // Auto-map columns
+            // Auto-map columns — l'ASIN a désormais sa propre colonne
             const cols = Object.keys(rows[0]);
             const findCol = (keywords) => cols.find(c => keywords.some(k => c.toLowerCase().includes(k)));
-            const colEan = findCol(['ean', 'gtin', 'code', 'barr', 'asin', 'upc']);
+            const colAsin = findCol(['asin']);
+            const colEan = cols.find(c => ['ean', 'gtin', 'barr', 'upc'].some(k => c.toLowerCase().includes(k)))
+                        || cols.find(c => c.toLowerCase().includes('code') && c !== colAsin);
             const colNom = findCol(['nom', 'name', 'title', 'titre', 'produit', 'designation', 'description', 'libelle']);
             const colPrix = findCol(['prix', 'price', 'ht', 'ttc', 'cost', 'cout', 'tarif', 'ppc']);
             const colQte = findCol(['qte', 'quantit', 'qty', 'nb', 'nombre']);
             const colCat = findCol(['cat', 'categor', 'type', 'rayon']);
 
-            if (!colNom && !colEan) return toastError('Colonnes non détectées', 'Impossible de détecter les colonnes. Vérifiez que le fichier contient EAN ou Nom.');
+            if (!colNom && !colEan && !colAsin) return toastError('Colonnes non détectées', 'Impossible de détecter les colonnes. Vérifiez que le fichier contient EAN, ASIN ou Nom.');
 
-            grossisteData = rows.map(r => ({
-                ean: String(r[colEan] || '').trim(),
-                nom: String(r[colNom] || '').trim(),
-                prix: parseFloat(r[colPrix]) || 0,
-                quantite: parseInt(r[colQte]) || 1,
-                categorie: String(r[colCat] || '').trim(),
-            })).filter(r => r.nom || r.ean);
+            grossisteData = rows.map(r => {
+                const ean = String(colEan ? (r[colEan] ?? '') : '').trim();
+                const asin = String(colAsin ? (r[colAsin] ?? '') : '').trim().toUpperCase();
+                return {
+                    ean: ean || asin,          // repli : sans colonne EAN, on utilise l'ASIN comme code
+                    eanManquant: !ean && !!asin,
+                    asin: asin,
+                    nom: String(colNom ? (r[colNom] ?? '') : '').trim(),
+                    prix: parseMontantFR(colPrix ? r[colPrix] : 0),
+                    quantite: parseInt(r[colQte]) || 1,
+                    categorie: String(colCat ? (r[colCat] ?? '') : '').trim(),
+                };
+            }).filter(r => r.nom || r.ean);
 
-            // Preview table
-            let h = '<div class="products-table"><table><thead><tr><th>EAN</th><th>Nom</th><th>Prix</th><th>Qté</th><th>Catégorie</th></tr></thead><tbody>';
-            grossisteData.slice(0, 50).forEach(r => {
-                h += `<tr><td>${escapeHtml(r.ean)}</td><td>${escapeHtml(r.nom)}</td><td>${r.prix.toFixed(2)}€</td><td>${r.quantite}</td><td>${escapeHtml(r.categorie)}</td></tr>`;
-            });
-            if (grossisteData.length > 50) h += `<tr><td colspan="5" style="text-align:center;color:var(--text-secondary)">... et ${grossisteData.length - 50} de plus</td></tr>`;
-            h += '</tbody></table></div>';
-            document.getElementById('grossiste-preview-table').innerHTML = h;
-            document.getElementById('grossiste-count').textContent = grossisteData.length;
+            if (!grossisteData.length) return toastError('Aucune ligne exploitable', 'Aucune ligne ne contient de nom ni de code produit.');
+
+            const dateEl = document.getElementById('grossiste-date');
+            if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
+
+            displayGrossistePreview();
             document.getElementById('grossiste-preview').style.display = 'block';
         } catch (err) { toastError('Erreur lecture', err.message); }
     };
@@ -1807,34 +1833,218 @@ function previewGrossisteImport(input) {
     else reader.readAsBinaryString(file);
 }
 
+function displayGrossistePreview() {
+    if (!grossisteData || !grossisteData.length) return;
+    const estHT = grossistePrixEstHT();
+    const coef = grossisteCoefTva();
+    const emplacement = document.getElementById('grossiste-emplacement')?.value || 'entrepot';
+    const labelEmp = emplacement === 'fba' ? 'FBA' : emplacement === 'fbm' ? 'FBM' : 'entrepôt';
+
+    let nbFusion = 0, nbNouveau = 0, nbSansEan = 0, totalHT = 0, totalTTC = 0, totalQte = 0;
+    const vus = new Set();
+
+    const lignes = grossisteData.map(r => {
+        const ttc = estHT ? r.prix * coef : r.prix;
+        const ht  = estHT ? r.prix : r.prix / coef;
+        const qte = r.quantite || 1;
+        const exist = grossisteProduitExistant(r.ean);
+        const cle = String(r.ean || r.nom).toUpperCase();
+        if (!vus.has(cle)) {
+            vus.add(cle);
+            if (exist) nbFusion++; else nbNouveau++;
+        }
+        if (r.eanManquant) nbSansEan++;
+        totalHT += ht * qte; totalTTC += ttc * qte; totalQte += qte;
+        return { r, ht, ttc, qte, exist };
+    });
+
+    const pill = (txt, bg, col) => `<span style="display:inline-block;background:${bg};color:${col};padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;margin-right:8px;">${txt}</span>`;
+    let resume = pill(`${grossisteData.length} ligne(s)`, 'rgba(52,152,219,.15)', '#2a5d8f')
+        + pill(`${totalQte} unité(s) → ${labelEmp}`, 'rgba(39,174,96,.15)', '#1e7a45')
+        + pill(`${nbNouveau} nouveau(x) produit(s)`, 'rgba(39,174,96,.15)', '#1e7a45')
+        + pill(`${nbFusion} déjà en stock (incrémenté + PMP)`, 'rgba(243,156,18,.18)', '#9a6100')
+        + pill(`${totalHT.toFixed(2)}€ HT · ${totalTTC.toFixed(2)}€ TTC`, 'rgba(0,0,0,.06)', 'var(--text-secondary)');
+    if (nbSansEan) resume += pill(`⚠️ ${nbSansEan} ligne(s) sans EAN — ASIN utilisé comme code`, 'rgba(231,76,60,.15)', '#b4342b');
+    document.getElementById('grossiste-resume').innerHTML = resume;
+
+    let h = '<div class="products-table"><table><thead><tr><th>EAN</th><th>ASIN</th><th>Nom</th><th>Prix HT</th><th>Prix TTC</th><th>Qté</th><th>Catégorie</th><th>Stock actuel</th></tr></thead><tbody>';
+    lignes.slice(0, 50).forEach(l => {
+        const badge = l.exist
+            ? `<span style="color:#9a6100;font-weight:700;">↻ ${l.exist.quantite || 0} u.</span>`
+            : '<span style="color:#1e7a45;font-weight:700;">+ nouveau</span>';
+        h += `<tr><td>${escapeHtml(l.r.ean)}${l.r.eanManquant ? ' <span style="color:#b4342b;" title="Aucune colonne EAN — ASIN utilisé">⚠️</span>' : ''}</td><td>${escapeHtml(l.r.asin || '-')}</td><td>${escapeHtml(l.r.nom)}</td><td>${l.ht.toFixed(2)}€</td><td>${l.ttc.toFixed(2)}€</td><td>${l.qte}</td><td>${escapeHtml(l.r.categorie)}</td><td>${badge}</td></tr>`;
+    });
+    if (lignes.length > 50) h += `<tr><td colspan="8" style="text-align:center;color:var(--text-secondary)">... et ${lignes.length - 50} de plus</td></tr>`;
+    h += '</tbody></table></div>';
+    document.getElementById('grossiste-preview-table').innerHTML = h;
+    document.getElementById('grossiste-count').textContent = grossisteData.length;
+}
+
+async function quickAddFournisseurGrossiste() {
+    const nom = prompt('Nom du nouveau fournisseur :');
+    if (!nom || !nom.trim()) return;
+    const { data, error } = await sb.from('fournisseurs').insert([{ nom: nom.trim(), user_id: getEffectiveUserId() }]).select();
+    if (error) return toastError('Erreur', error.message);
+    toastSuccess('Fournisseur créé', nom.trim());
+    await loadFournisseurs();
+    if (data && data[0]) document.getElementById('grossiste-fournisseur').value = data[0].id;
+}
+
 async function confirmGrossisteImport() {
     if (!grossisteData || !grossisteData.length) return;
-    const emplacement = document.getElementById('grossiste-emplacement').value;
-    const uid = getEffectiveUserId();
-    const batch = grossisteData.map(r => ({
-        user_id: uid,
-        ean: r.ean, nom: r.nom, categorie: r.categorie,
-        etat: 'Neuf', etat_stock: 'neuf',
-        prix_achat: r.prix, prix_revente: 0,
-        qte_fba: emplacement === 'fba' ? r.quantite : 0,
-        qte_fbm: emplacement === 'fbm' ? r.quantite : 0,
-        qte_entrepot: emplacement === 'entrepot' ? r.quantite : 0,
-        quantite: r.quantite,
-        amazon_fba: emplacement === 'fba',
-        amazon_fbm: emplacement === 'fbm',
-        date_ajout: new Date().toISOString(),
-    }));
+    if (grossisteImportEnCours) return toastWarning('Import en cours', 'Patientez, les lignes sont en train d\'être enregistrées…');
 
-    // Insert by chunks of 100
-    for (let i = 0; i < batch.length; i += 100) {
-        const chunk = batch.slice(i, i + 100);
-        const { error } = await sb.from('produits').insert(chunk);
-        if (error) { toastError('Erreur import', error.message); return; }
+    const emplacement = document.getElementById('grossiste-emplacement').value;
+    const fId = document.getElementById('grossiste-fournisseur')?.value || '';
+    const fObj = fournisseurs.find(f => String(f.id) === String(fId));
+    const dateAchat = document.getElementById('grossiste-date')?.value || new Date().toISOString().split('T')[0];
+    const estHT = grossistePrixEstHT();
+    const coef = grossisteCoefTva();
+    const tauxTva = ((coef - 1) * 100).toFixed(coef * 100 % 1 === 0 ? 0 : 1);
+
+    if (!fId && !await srConfirm("Aucun fournisseur sélectionné.\n\nLes achats seront créés sans fournisseur, et le filtre par fournisseur ne les retrouvera pas.\n\nContinuer quand même ?", 'Fournisseur manquant')) return;
+
+    const champ = emplacement === 'fba' ? 'qte_fba' : emplacement === 'fbm' ? 'qte_fbm' : 'qte_entrepot';
+    const labelEmp = emplacement === 'fba' ? 'FBA' : emplacement === 'fbm' ? 'FBM' : 'entrepôt';
+
+    // ── 1. Résolution : une entrée par référence, une ligne d'achat par ligne du fichier
+    const cibles = new Map();
+    const aCreer = [];
+    const lignes = [];
+
+    grossisteData.forEach(r => {
+        const qte = r.quantite || 1;
+        const prixTTC = +((estHT ? r.prix * coef : r.prix)).toFixed(2);
+        const prixHT  = +((estHT ? r.prix : r.prix / coef)).toFixed(2);
+        const cle = String(r.ean || r.nom || '').toUpperCase();
+
+        let t = cibles.get(cle);
+        if (!t) {
+            const exist = grossisteProduitExistant(r.ean);
+            t = {
+                existantId: exist ? exist.id : null,
+                qteCanalBase: exist ? (exist[champ] || 0) : 0,
+                stockBase: exist ? (exist.quantite || 0) : 0,
+                paBase: exist ? (exist.prix_achat || 0) : 0,
+                qteAjoutee: 0, valeurAjoutee: 0,
+                creerIndex: null, modele: r, produitId: null,
+            };
+            if (!exist) { t.creerIndex = aCreer.length; aCreer.push(null); }
+            cibles.set(cle, t);
+        }
+        t.qteAjoutee += qte;
+        t.valeurAjoutee += prixTTC * qte;
+        lignes.push({ r, cle, qte, prixHT, prixTTC });
+    });
+
+    const nbFusion = [...cibles.values()].filter(t => t.creerIndex === null).length;
+    const nbNouveau = aCreer.length;
+
+    const msg = `Importer ${lignes.length} ligne(s) ?\n\n`
+        + `• ${lignes.length} achat(s) créé(s) et marqué(s) reçus${fObj ? ' — fournisseur : ' + fObj.nom : ''}\n`
+        + `• ${nbNouveau} nouveau(x) produit(s) en ${labelEmp}\n`
+        + `• ${nbFusion} produit(s) déjà en stock : quantité ajoutée et prix d'achat recalculé en moyenne pondérée\n`
+        + `• Prix du fichier lus en ${estHT ? 'HT' : 'TTC'} (TVA ${tauxTva} %)`;
+    if (!await srConfirm(msg, 'Importer la commande grossiste')) return;
+
+    grossisteImportEnCours = true;
+    const btn = document.getElementById('grossiste-import-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.innerHTML = '⏳ Import en cours…'; }
+
+    try {
+        const uid = getEffectiveUserId();
+
+        // ── 2. Créer les nouveaux produits (par lots de 100)
+        cibles.forEach(t => {
+            if (t.creerIndex === null) return;
+            const r = t.modele;
+            aCreer[t.creerIndex] = {
+                user_id: uid,
+                ean: r.ean, asin: r.asin || '', nom: r.nom, categorie: r.categorie || '',
+                etat: 'Neuf', etat_stock: 'neuf', statut: 'recu', emplacement: '',
+                prix_achat: t.qteAjoutee > 0 ? +(t.valeurAjoutee / t.qteAjoutee).toFixed(2) : 0,
+                prix_revente: 0,
+                qte_fba: emplacement === 'fba' ? t.qteAjoutee : 0,
+                qte_fbm: emplacement === 'fbm' ? t.qteAjoutee : 0,
+                qte_entrepot: emplacement === 'entrepot' ? t.qteAjoutee : 0,
+                quantite: t.qteAjoutee,
+                amazon_fba: emplacement === 'fba', amazon_fbm: emplacement === 'fbm',
+                vinted: false, leboncoin: false, invendable: false, vendu: false,
+                photos: [],
+                notes: fObj ? 'Import grossiste — ' + fObj.nom : 'Import grossiste',
+                date_ajout: new Date().toISOString(),
+            };
+        });
+
+        const idsCrees = [];
+        for (let i = 0; i < aCreer.length; i += 100) {
+            const { data, error } = await sb.from('produits').insert(aCreer.slice(i, i + 100)).select('id');
+            if (error) throw new Error('Création des produits : ' + error.message);
+            (data || []).forEach(p => idsCrees.push(p.id));
+        }
+        if (idsCrees.length !== aCreer.length) throw new Error(`Création incomplète : ${idsCrees.length}/${aCreer.length} produits créés. Aucun achat n'a été enregistré, relancez l'import.`);
+
+        // ── 3. Incrémenter les produits existants + prix d'achat moyen pondéré
+        let nbMaj = 0;
+        for (const t of cibles.values()) {
+            if (t.creerIndex !== null) { t.produitId = idsCrees[t.creerIndex]; continue; }
+            t.produitId = t.existantId;
+            const nouveauStock = t.stockBase + t.qteAjoutee;
+            const pmp = nouveauStock > 0
+                ? +(((t.stockBase * t.paBase) + t.valeurAjoutee) / nouveauStock).toFixed(2)
+                : t.paBase;
+            const upd = { prix_achat: pmp, quantite: nouveauStock, vendu: false };
+            upd[champ] = t.qteCanalBase + t.qteAjoutee;
+            if (emplacement === 'fba') upd.amazon_fba = true;
+            if (emplacement === 'fbm') upd.amazon_fbm = true;
+            const { error } = await sb.from('produits').update(upd).eq('id', t.existantId);
+            if (error) throw new Error('Mise à jour du produit ' + (t.modele.nom || t.existantId) + ' : ' + error.message);
+            nbMaj++;
+        }
+
+        // ── 4. Créer les achats, déjà reliés à leur produit
+        const achatsBatch = lignes.map(l => ({
+            user_id: uid,
+            ean: l.r.ean, asin: l.r.asin || '', nom: l.r.nom, categorie: l.r.categorie || '',
+            fournisseur_id: fId ? parseInt(fId) : null,
+            fournisseur_nom: fObj ? fObj.nom : '',
+            prix_ht: l.prixHT, prix_ttc: l.prixTTC,
+            quantite: l.qte,
+            date_achat: dateAchat,
+            recu: true,
+            produit_genere_id: cibles.get(l.cle).produitId,
+            notes: 'Import grossiste',
+        }));
+        for (let i = 0; i < achatsBatch.length; i += 100) {
+            const { error } = await sb.from('achats').insert(achatsBatch.slice(i, i + 100));
+            if (error) throw new Error('Création des achats : ' + error.message + ' — le stock a bien été mis à jour, mais les lignes d\'achat sont incomplètes.');
+        }
+
+        // ── 5. Journaliser les réceptions
+        const mvts = [...cibles.values()].map(t => ({
+            user_id: uid, produit_id: t.produitId,
+            produit_ean: t.modele.ean || '', produit_nom: t.modele.nom || '',
+            type: 'reception', quantite: t.qteAjoutee,
+            de_emplacement: 'achat', vers_emplacement: emplacement,
+            raison: 'Import grossiste', notes: fObj ? fObj.nom : '',
+        }));
+        for (let i = 0; i < mvts.length; i += 100) {
+            const { error } = await sb.from('mouvements').insert(mvts.slice(i, i + 100));
+            if (error) console.warn('Log mouvements import grossiste:', error.message);
+        }
+
+        toastSuccess('Import réussi', `${achatsBatch.length} achat(s) · ${nbNouveau} nouveau(x) produit(s) · ${nbMaj} produit(s) incrémenté(s) en ${labelEmp}.`);
+        cancelGrossisteImport();
+        await Promise.all([loadProducts(), loadAchats(), loadMouvements()]);
+        updateDashboard();
+        switchTab('stock');
+    } catch (e) {
+        toastError('Erreur import', e.message);
+    } finally {
+        grossisteImportEnCours = false;
+        const b = document.getElementById('grossiste-import-btn');
+        if (b) { b.disabled = false; b.style.opacity = '1'; b.innerHTML = '✅ Importer <span id="grossiste-count">' + (grossisteData ? grossisteData.length : 0) + '</span> lignes'; }
     }
-    toastSuccess('Import réussi', `${batch.length} produits importés dans le stock.`);
-    cancelGrossisteImport();
-    await loadProducts();
-    switchTab('stock');
 }
 
 function cancelGrossisteImport() {
@@ -1842,6 +2052,8 @@ function cancelGrossisteImport() {
     document.getElementById('grossiste-preview').style.display = 'none';
     document.getElementById('grossiste-file-name').textContent = '';
     document.getElementById('grossiste-file-input').value = '';
+    const r = document.getElementById('grossiste-resume');
+    if (r) r.innerHTML = '';
 }
 
 function parseCSV(text) {
