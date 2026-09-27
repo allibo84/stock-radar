@@ -1370,13 +1370,21 @@
                         <p style="color:var(--text-secondary); margin-bottom:15px;">Importez un fichier Excel ou CSV de votre commande grossiste. Les colonnes seront détectées automatiquement.</p>
                         <div style="background:var(--filter-bg); padding:15px; border-radius:10px; margin-bottom:20px; font-size:13px; color:var(--text-secondary);">
                             <strong>Colonnes attendues :</strong> EAN/Code-barres, ASIN (optionnel), Nom/Titre, Prix (HT ou TTC), Quantité, Catégorie (optionnel)<br>
-                            L'import crée <strong>un achat reçu</strong> pour chaque ligne <strong>et</strong> met le stock à jour.
+                            <strong>Commande</strong> : crée un achat <strong>en attente</strong> par ligne, le stock ne bouge pas (il sera ajouté quand vous cocherez « Reçu » dans Mes Achats).<br>
+                            <strong>Facture</strong> : crée un achat <strong>reçu</strong> par ligne <strong>et</strong> ajoute la marchandise au stock.
                         </div>
                         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:15px;">
                             <label class="scan-button" style="cursor:pointer;"><span>📂 Choisir un fichier</span><input type="file" id="grossiste-file-input" accept=".xlsx,.xls,.csv" style="display:none;" onchange="previewGrossisteImport(this)"></label>
                             <span id="grossiste-file-name" style="color:var(--text-secondary); font-size:14px;"></span>
                         </div>
                         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:15px; margin-bottom:18px;">
+                            <div>
+                                <label style="font-weight:600; margin-bottom:6px; display:block;">Type de fichier :</label>
+                                <select id="grossiste-mode" onchange="grossisteMajMode()" style="width:100%; padding:10px; border:2px solid var(--input-border); border-radius:10px; background:var(--input-bg); color:var(--text-color);">
+                                    <option value="commande">🕒 Commande — achats en attente</option>
+                                    <option value="facture">🧾 Facture — reçu + ajout au stock</option>
+                                </select>
+                            </div>
                             <div>
                                 <label style="font-weight:600; margin-bottom:6px; display:block;">Fournisseur :</label>
                                 <div style="display:flex; gap:6px;">
@@ -1390,7 +1398,7 @@
                                 <label style="font-weight:600; margin-bottom:6px; display:block;">Date d'achat :</label>
                                 <input type="date" id="grossiste-date" style="width:100%; padding:10px; border:2px solid var(--input-border); border-radius:10px; background:var(--input-bg); color:var(--text-color);">
                             </div>
-                            <div>
+                            <div id="grossiste-emplacement-bloc" style="display:none;">
                                 <label style="font-weight:600; margin-bottom:6px; display:block;">Emplacement de réception :</label>
                                 <select id="grossiste-emplacement" onchange="displayGrossistePreview()" style="width:100%; padding:10px; border:2px solid var(--input-border); border-radius:10px; background:var(--input-bg); color:var(--text-color);">
                                     <option value="entrepot">🏭 Entrepôt</option>
@@ -2390,9 +2398,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20260818-4"></script>
-    <script src="app-cloud.js?v=20260818-4"></script>
-    <script src="auth.js?v=20260818-4"></script>
+    <script src="config.js?v=20260927-1"></script>
+    <script src="app-cloud.js?v=20260927-1"></script>
+    <script src="auth.js?v=20260927-1"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {

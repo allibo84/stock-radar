@@ -673,6 +673,33 @@ async function toggleRecu(id, v) {
 
     await sb.from('achats').update({ recu: v }).eq('id', id);
 
+    // Réception d'un produit déjà en stock (même EAN, neuf) : on incrémente la ligne
+    // existante avec prix d'achat moyen pondéré, comme l'import facture — pas de doublon.
+    const existant = (v === true && achat) ? grossisteProduitExistant(achat.ean) : null;
+    if (existant) {
+        const qte = achat.quantite || 1;
+        const pa = achat.prix_ttc || achat.prix_ht || 0;
+        const stockBase = existant.quantite || 0;
+        const nouveauStock = stockBase + qte;
+        const pmp = nouveauStock > 0 ? +(((stockBase * (existant.prix_achat || 0)) + pa * qte) / nouveauStock).toFixed(2) : pa;
+        const { error } = await sb.from('produits').update({
+            prix_achat: pmp, quantite: nouveauStock, vendu: false,
+            qte_entrepot: (existant.qte_entrepot || 0) + qte,
+        }).eq('id', existant.id);
+        if (error) {
+            await sb.from('achats').update({ recu: false }).eq('id', id);
+            toastError('Réception impossible', error.message);
+        } else {
+            await sb.from('achats').update({ produit_genere_id: existant.id }).eq('id', id);
+            await logMouvement(existant.id, 'reception', qte, 'achat', 'entrepot', 'Réception achat', achat.fournisseur_nom || '');
+            toastSuccess('Réception confirmée', `${qte} u. ajoutée(s) au stock existant (entrepôt) — prix d'achat moyen : ${pmp.toFixed(2)}€`);
+        }
+        await loadProducts();
+        updateDashboard();
+        await loadAchats();
+        return;
+    }
+
     if (v === true && achat) {
         const pr = {
             user_id: getEffectiveUserId(),
@@ -1809,6 +1836,17 @@ function grossisteCoefTva() {
     return 1 + ((isNaN(t) || t < 0) ? 20 : t) / 100;
 }
 
+// Mode d'import : 'commande' (achats en attente, stock inchangé) ou 'facture' (reçu + stock)
+function grossisteModeCommande() {
+    return (document.getElementById('grossiste-mode')?.value || 'commande') !== 'facture';
+}
+
+function grossisteMajMode() {
+    const bloc = document.getElementById('grossiste-emplacement-bloc');
+    if (bloc) bloc.style.display = grossisteModeCommande() ? 'none' : '';
+    displayGrossistePreview();
+}
+
 function grossistePrixEstHT() {
     return document.getElementById('grossiste-prix-ttc')?.checked !== true;
 }
@@ -1899,11 +1937,17 @@ function displayGrossistePreview() {
     });
 
     const pill = (txt, bg, col) => `<span style="display:inline-block;background:${bg};color:${col};padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;margin-right:8px;">${txt}</span>`;
-    let resume = pill(`${grossisteData.length} ligne(s)`, 'rgba(52,152,219,.15)', '#2a5d8f')
-        + pill(`${totalQte} unité(s) → ${labelEmp}`, 'rgba(39,174,96,.15)', '#1e7a45')
-        + pill(`${nbNouveau} nouveau(x) produit(s)`, 'rgba(39,174,96,.15)', '#1e7a45')
-        + pill(`${nbFusion} déjà en stock (incrémenté + PMP)`, 'rgba(243,156,18,.18)', '#9a6100')
-        + pill(`${totalHT.toFixed(2)}€ HT · ${totalTTC.toFixed(2)}€ TTC`, 'rgba(0,0,0,.06)', 'var(--text-secondary)');
+    const modeCommande = grossisteModeCommande();
+    let resume = pill(`${grossisteData.length} ligne(s)`, 'rgba(52,152,219,.15)', '#2a5d8f');
+    if (modeCommande) {
+        resume += pill(`🕒 ${totalQte} unité(s) en attente de réception`, 'rgba(243,156,18,.18)', '#9a6100')
+            + pill('Stock inchangé', 'rgba(0,0,0,.06)', 'var(--text-secondary)');
+    } else {
+        resume += pill(`${totalQte} unité(s) → ${labelEmp}`, 'rgba(39,174,96,.15)', '#1e7a45')
+            + pill(`${nbNouveau} nouveau(x) produit(s)`, 'rgba(39,174,96,.15)', '#1e7a45')
+            + pill(`${nbFusion} déjà en stock (incrémenté + PMP)`, 'rgba(243,156,18,.18)', '#9a6100');
+    }
+    resume += pill(`${totalHT.toFixed(2)}€ HT · ${totalTTC.toFixed(2)}€ TTC`, 'rgba(0,0,0,.06)', 'var(--text-secondary)');
     if (nbSansEan) resume += pill(`⚠️ ${nbSansEan} ligne(s) sans EAN — ASIN utilisé comme code`, 'rgba(231,76,60,.15)', '#b4342b');
     document.getElementById('grossiste-resume').innerHTML = resume;
 
@@ -1943,6 +1987,60 @@ async function confirmGrossisteImport() {
     const tauxTva = ((coef - 1) * 100).toFixed(coef * 100 % 1 === 0 ? 0 : 1);
 
     if (!fId && !await srConfirm("Aucun fournisseur sélectionné.\n\nLes achats seront créés sans fournisseur, et le filtre par fournisseur ne les retrouvera pas.\n\nContinuer quand même ?", 'Fournisseur manquant')) return;
+
+    // ── Mode COMMANDE : uniquement des achats en attente, aucun mouvement de stock
+    if (grossisteModeCommande()) {
+        const lignesCmd = grossisteData.map(r => ({
+            r, qte: r.quantite || 1,
+            prixTTC: +((estHT ? r.prix * coef : r.prix)).toFixed(2),
+            prixHT:  +((estHT ? r.prix : r.prix / coef)).toFixed(2),
+        }));
+        const totalQteCmd = lignesCmd.reduce((s, l) => s + l.qte, 0);
+        const msgCmd = `Importer ${lignesCmd.length} ligne(s) ?\n\n`
+            + `• ${lignesCmd.length} achat(s) créé(s) en ATTENTE de réception${fObj ? ' — fournisseur : ' + fObj.nom : ''}\n`
+            + `• ${totalQteCmd} unité(s) commandée(s) — le stock n'est PAS modifié\n`
+            + `• Le stock sera ajouté en cochant « Reçu » sur chaque achat dans Mes Achats\n`
+            + `• Prix du fichier lus en ${estHT ? 'HT' : 'TTC'} (TVA ${tauxTva} %)`;
+        if (!await srConfirm(msgCmd, 'Importer la commande grossiste')) return;
+
+        grossisteImportEnCours = true;
+        const btnC = document.getElementById('grossiste-import-btn');
+        if (btnC) { btnC.disabled = true; btnC.style.opacity = '0.6'; btnC.innerHTML = '⏳ Import en cours…'; }
+        try {
+            const uid = getEffectiveUserId();
+            const achatsCmd = lignesCmd.map(l => ({
+                user_id: uid,
+                ean: l.r.ean, asin: l.r.asin || '', nom: l.r.nom, categorie: l.r.categorie || '',
+                fournisseur_id: fId ? parseInt(fId) : null,
+                fournisseur_nom: fObj ? fObj.nom : '',
+                prix_ht: l.prixHT, prix_ttc: l.prixTTC,
+                quantite: l.qte,
+                date_achat: dateAchat,
+                recu: false,
+                notes: 'Import commande grossiste',
+            }));
+            let nbOk = 0;
+            for (let i = 0; i < achatsCmd.length; i += 100) {
+                const chunk = achatsCmd.slice(i, i + 100);
+                const { error } = await sb.from('achats').insert(chunk);
+                if (error) throw new Error(`Création des achats : ${error.message} — ${nbOk}/${achatsCmd.length} achat(s) enregistré(s) avant l'erreur.`);
+                nbOk += chunk.length;
+            }
+            toastSuccess('Commande importée', `${nbOk} achat(s) en attente de réception. Cochez « Reçu » dans Mes Achats pour les ajouter au stock.`);
+            cancelGrossisteImport();
+            await loadAchats();
+            updateDashboard();
+            switchTab('achats');
+        } catch (e) {
+            toastError('Erreur import', e.message);
+            await loadAchats();
+        } finally {
+            grossisteImportEnCours = false;
+            const b = document.getElementById('grossiste-import-btn');
+            if (b) { b.disabled = false; b.style.opacity = '1'; b.innerHTML = '✅ Importer <span id="grossiste-count">' + (grossisteData ? grossisteData.length : 0) + '</span> lignes'; }
+        }
+        return;
+    }
 
     const champ = emplacement === 'fba' ? 'qte_fba' : emplacement === 'fbm' ? 'qte_fbm' : 'qte_entrepot';
     const labelEmp = emplacement === 'fba' ? 'FBA' : emplacement === 'fbm' ? 'FBM' : 'entrepôt';
