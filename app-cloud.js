@@ -258,7 +258,10 @@ function displayRetours() {
     const resume = document.getElementById('retours-resume');
     if (resume) {
         const unitesVendues = ventes.filter(v => v.amazon_order_id).reduce((s, v) => s + (v.quantite || 0), 0);
-        const taux = unitesVendues > 0 && list.length === retours.length ? ` · taux de retour Amazon : ${(retours.reduce((s, r) => s + (r.quantite || 0), 0) / unitesVendues * 100).toFixed(1)} %` : '';
+        // Taux calculé seulement sur les retours dont la vente est dans Stock Radar : sinon des retours
+        // de ventes jamais importées (avant le premier import) gonfleraient le pourcentage.
+        const unitesRattachees = retours.filter(r => r.vente_id).reduce((s, r) => s + (r.quantite || 0), 0);
+        const taux = unitesVendues > 0 && list.length === retours.length ? ` · taux de retour sur les ventes importées : ${(unitesRattachees / unitesVendues * 100).toFixed(1)} %` : '';
         resume.textContent = `${list.length}${list.length !== retours.length ? ' / ' + retours.length : ''} remboursement${list.length > 1 ? 's' : ''} · ${unites} unité${unites > 1 ? 's' : ''} · ${fmtEur(rembourse)} de produits remboursés · effet net sur le compte : ${fmtEur(net)}${taux}`;
     }
 
