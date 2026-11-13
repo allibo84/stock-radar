@@ -56,6 +56,8 @@ let currentPhotos = [], currentVenteProductId = null;
 let activeStockView = 'all';
 let stockCurrentPage = 1;
 let stockPerPage = 25;
+let achatsCurrentPage = 1, achatsPerPage = 25, achatsCleFiltres = null;
+try { const n = parseInt(localStorage.getItem('achatsPerPage')); if ([10, 25, 50, 100].includes(n)) achatsPerPage = n; } catch (e) {}
 let charts = {};
 let achatsFiltersInit = false, grossisteData = null;
 let realtimeChannel = null;
@@ -582,21 +584,71 @@ function displayAchats() {
     if (!c) return;
     const filtered = filterAchats();
     if (!filtered.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun achat</h3></div>'; updateAchatsStats(); return; }
+
+    // — Pagination — retour en page 1 dès que la recherche, un filtre ou le tri change
+    const cleFiltres = ['search-achats', 'filter-achat-fournisseur', 'filter-achat-recu', 'filter-achat-date-debut', 'filter-achat-date-fin', 'filter-achat-tri']
+        .map(id => document.getElementById(id)?.value || '').join('|');
+    if (cleFiltres !== achatsCleFiltres) { achatsCleFiltres = cleFiltres; achatsCurrentPage = 1; }
+    const totalItems = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / achatsPerPage));
+    if (achatsCurrentPage > totalPages) achatsCurrentPage = totalPages;
+    const startIdx = (achatsCurrentPage - 1) * achatsPerPage;
+    const pageList = filtered.slice(startIdx, startIdx + achatsPerPage);
     let h = `<div id="achats-selection-bar" style="margin-bottom:10px;display:none;gap:10px;flex-wrap:wrap;">
         <button class="scan-button" style="padding:6px 14px;font-size:13px;" onclick="copySelectedCodes('ean')">📋 Copier EAN sélectionnés</button>
         <button class="scan-button" style="padding:6px 14px;font-size:13px;background:#ff9900;" onclick="copySelectedCodes('asin')">📋 Copier ASIN sélectionnés</button>
         <span id="achats-selected-count" style="font-size:13px;color:var(--text-secondary);padding:8px 0;"></span>
     </div>`;
     h += '<div class="products-table"><table><thead><tr><th style="width:30px;"><input type="checkbox" id="achats-select-all" onchange="toggleAllAchats(this.checked)"></th><th>Date</th><th>EAN</th><th>ASIN</th><th>Produit</th><th>Fournisseur</th><th>Qté</th><th>Prix HT</th><th>Prix TTC</th><th>Reçu</th><th>Actions</th></tr></thead><tbody>';
-    filtered.forEach(a => {
+    pageList.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
         const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>'
             : achatEstPartiel(a) ? `<span class="badge badge-partiel" style="cursor:pointer" title="Reçu partiellement — cliquer pour saisir la suite">📦 ${achatQteRecue(a)}/${a.quantite || 1}</span>`
             : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
         h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td onclick="event.stopPropagation()"><input type="checkbox" class="achat-check" data-id="${a.id}" data-ean="${escapeHtml(a.ean||'')}" data-asin="${escapeHtml(a.asin||'')}" onchange="updateAchatsSelection()"></td><td>${d}</td><td><span class="code-copiable">${boutonCopier(a.ean, 'EAN')}${escapeHtml(a.ean)}</span></td><td><span class="code-copiable">${boutonCopier(a.asin, 'ASIN')}${escapeHtml(a.asin||'-')}</span></td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button>${(a.asin || a.ean) ? `<button class="btn-small" style="background:#1565c0;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerAmp('${escapeHtml(a.asin || a.ean)}')" title="Analyser sur SellerAmp">⚡</button>` : ''}${a.asin ? `<button class="btn-small" style="background:#ff9900;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerCentral('${escapeHtml(a.asin)}')" title="Ajouter l'offre sur Amazon Seller Central">➕</button>` : ''}<button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
     });
-    c.innerHTML = h + '</tbody></table></div>';
+    h += '</tbody></table></div>';
+
+    const from = startIdx + 1, to = Math.min(startIdx + achatsPerPage, totalItems);
+    let pageButtons = `<button class="page-btn" onclick="achatsGoPage(${achatsCurrentPage - 1})" ${achatsCurrentPage === 1 ? 'disabled' : ''} aria-label="Page précédente">‹</button>`;
+    const pages = [];
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= achatsCurrentPage - 1 && i <= achatsCurrentPage + 1)) pages.push(i);
+        else if (pages[pages.length - 1] !== '…') pages.push('…');
+    }
+    pages.forEach(pg => {
+        if (pg === '…') pageButtons += `<span class="page-btn" style="cursor:default;border:none">…</span>`;
+        else pageButtons += `<button class="page-btn ${pg === achatsCurrentPage ? 'active' : ''}" onclick="achatsGoPage(${pg})">${pg}</button>`;
+    });
+    pageButtons += `<button class="page-btn" onclick="achatsGoPage(${achatsCurrentPage + 1})" ${achatsCurrentPage === totalPages ? 'disabled' : ''} aria-label="Page suivante">›</button>`;
+    h += `<div class="pagination-bar">
+        <div class="pagination-info">${from}–${to} sur ${totalItems} achats</div>
+        <div class="pagination-controls">${pageButtons}</div>
+        <div class="per-page-wrap">
+            <span class="per-page-label">Lignes par page :</span>
+            <select class="per-page-select" id="achats-per-page" onchange="achatsChangePerPage()">
+                ${[10, 25, 50, 100].map(n => `<option value="${n}" ${achatsPerPage === n ? 'selected' : ''}>${n}</option>`).join('')}
+            </select>
+        </div>
+    </div>`;
+    c.innerHTML = h;
     updateAchatsStats();
+}
+
+function achatsGoPage(p) {
+    const total = Math.max(1, Math.ceil(filterAchats().length / achatsPerPage));
+    if (p < 1 || p > total) return;
+    achatsCurrentPage = p;
+    displayAchats();
+    document.getElementById('achats-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function achatsChangePerPage() {
+    const n = parseInt(document.getElementById('achats-per-page')?.value);
+    if ([10, 25, 50, 100].includes(n)) achatsPerPage = n;
+    try { localStorage.setItem('achatsPerPage', achatsPerPage); } catch (e) {}
+    achatsCurrentPage = 1;
+    displayAchats();
 }
 
 function filterAchats() {
