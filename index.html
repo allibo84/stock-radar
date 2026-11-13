@@ -890,6 +890,19 @@
         .copy-code-btn { width:20px; height:20px; margin-right:4px; }
         .badge-partiel { background:#fdebd0; color:#9c5700; }
         body.dark-theme .badge-partiel { background:#5c3d0a; color:#ffd699; }
+        /* Sous-onglets (Achats / Fournitures) */
+        .sous-onglets { display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid var(--border); margin-bottom:18px; }
+        .sous-onglet { padding:10px 16px; border:none; border-bottom:3px solid transparent; background:transparent; color:var(--text-2); font:inherit; font-size:14px; font-weight:500; cursor:pointer; }
+        .sous-onglet:hover { color:var(--text-1); }
+        .sous-onglet.active { border-bottom-color:var(--brand); color:var(--text-1); font-weight:700; }
+        /* Accès rapides du dashboard */
+        .acces-rapides { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin-bottom:20px; }
+        .acces-rapide { display:flex; align-items:center; gap:10px; min-height:56px; padding:10px 14px; text-align:left; background:var(--bg-elevated); color:var(--text-1); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-sm); font:inherit; font-size:14px; font-weight:600; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+        .acces-rapide:hover { border-color:var(--brand); box-shadow:var(--shadow); }
+        .acces-rapide:focus-visible, .sous-onglet:focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
+        .acces-rapide.principal { background:var(--brand); color:#fff; border-color:var(--brand); }
+        .acces-rapide small { display:block; font-size:12px; font-weight:500; opacity:.85; }
+        .acces-rapide-icone { font-size:20px; line-height:1; }
     </style>
 </head>
 <body>
@@ -942,20 +955,17 @@
                     <span class="menu-item-icon">📊</span><span>Dashboard</span>
                 </div>
                 <div class="menu-section-label" style="color:rgba(255,255,255,.4);">Achats</div>
-                <div class="menu-item" data-tab="fournisseurs">
-                    <span class="menu-item-icon">🏪</span><span>Fournisseurs</span>
-                </div>
                 <div class="menu-item" data-tab="achats">
                     <span class="menu-item-icon">🛒</span><span>Mes Achats</span>
                 </div>
-                <div class="menu-item" data-tab="factures">
-                    <span class="menu-item-icon">🧾</span><span>Factures</span>
-                </div>
-                <div class="menu-item" data-tab="fournitures">
-                    <span class="menu-item-icon">📎</span><span>Fournitures</span>
-                </div>
                 <div class="menu-item" data-tab="import-grossiste">
                     <span class="menu-item-icon">📥</span><span>Import Grossiste</span>
+                </div>
+                <div class="menu-item" data-tab="fournisseurs">
+                    <span class="menu-item-icon">🏪</span><span>Fournisseurs</span>
+                </div>
+                <div class="menu-item" data-tab="factures">
+                    <span class="menu-item-icon">🧾</span><span>Factures</span>
                 </div>
                 <div class="menu-section-label" style="color:rgba(255,255,255,.4);">Stock</div>
                 <div class="menu-item" data-tab="stock">
@@ -976,15 +986,15 @@
                 <div class="menu-item" data-tab="alertes">
                     <span class="menu-item-icon">🔔</span><span>Alertes Stock</span>
                 </div>
-                <div class="menu-item" data-tab="inventaire">
-                    <span class="menu-item-icon">📊</span><span>Inventaire</span>
-                </div>
-                <div class="menu-section-label" style="color:rgba(255,255,255,.4);">Outils</div>
+                <div class="menu-section-label" style="color:rgba(255,255,255,.4);">Réglages</div>
                 <div class="menu-item" data-tab="outils-export">
                     <span class="menu-item-icon">📤</span><span>Export & Sauvegarde</span>
                 </div>
+                <div class="menu-item" data-tab="inventaire">
+                    <span class="menu-item-icon">📊</span><span>Inventaire</span>
+                </div>
                 <div class="menu-item" data-tab="aide">
-                    <span class="menu-item-icon">❓</span><span>Aide & Guide</span>
+                    <span class="menu-item-icon">❓</span><span>Aide & raccourcis</span>
                 </div>
             </div>
             <div class="menu-footer" style="color:rgba(255,255,255,.3);border-top:1px solid rgba(255,255,255,.07);padding:12px 16px;">⌨️ Ctrl+N · Ctrl+F · Ctrl+S · Ctrl+D
@@ -1015,6 +1025,14 @@
                 <!-- ══════ DASHBOARD ══════ -->
                 <div id="dashboard" class="tab-content active">
                     <div class="section-header"><h2>📊 Vue d'ensemble</h2></div>
+                    <div class="acces-rapides" aria-label="Accès rapides">
+                        <button type="button" class="acces-rapide principal" onclick="allerAchatsEnAttente()"><span class="acces-rapide-icone">📦</span><span>Réceptionner un achat<small id="acces-attente"></small></span></button>
+                        <button type="button" class="acces-rapide" onclick="allerNouvelAchat()"><span class="acces-rapide-icone">🛒</span><span>Nouvel achat</span></button>
+                        <button type="button" class="acces-rapide" onclick="switchTab('import-grossiste')"><span class="acces-rapide-icone">📥</span><span>Import grossiste</span></button>
+                        <button type="button" class="acces-rapide" onclick="switchTab('stock')"><span class="acces-rapide-icone">🔄</span><span>Stock, transferts et ventes<small>Vinted, Leboncoin, FBA</small></span></button>
+                        <button type="button" class="acces-rapide" onclick="switchTab('ventes')"><span class="acces-rapide-icone">💰</span><span>Mes ventes</span></button>
+                        <button type="button" class="acces-rapide" onclick="switchTab('outils-export')"><span class="acces-rapide-icone">💾</span><span>Export & sauvegarde</span></button>
+                    </div>
                     <div id="dash-alerts" style="margin-bottom:20px;"></div>
                     <div class="dash-kpi-row">
                         <div class="stat-card kpi-main" data-accent="green"><div class="stat-number" id="dash-ca-realise">0€</div><div class="stat-label">CA réalisé</div></div>
@@ -1097,6 +1115,10 @@
 
                 <!-- ══════ ACHATS ══════ -->
                 <div id="achats" class="tab-content">
+                    <div class="sous-onglets" role="tablist" aria-label="Sections des achats">
+                        <button type="button" role="tab" aria-selected="true" class="sous-onglet active" onclick="switchTab('achats')">🛒 Achats de produits</button>
+                        <button type="button" role="tab" aria-selected="false" class="sous-onglet" onclick="switchTab('fournitures')">📎 Fournitures & frais</button>
+                    </div>
                     <div class="section-header">
                         <h2>🛒 Mes Achats</h2>
                         <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -1188,6 +1210,10 @@
 
                 <!-- ══════ FOURNITURES ══════ -->
                 <div id="fournitures" class="tab-content">
+                    <div class="sous-onglets" role="tablist" aria-label="Sections des achats">
+                        <button type="button" role="tab" aria-selected="false" class="sous-onglet" onclick="switchTab('achats')">🛒 Achats de produits</button>
+                        <button type="button" role="tab" aria-selected="true" class="sous-onglet active" onclick="switchTab('fournitures')">📎 Fournitures & frais</button>
+                    </div>
                     <div class="section-header">
                         <h2>📎 Fournitures & Frais</h2>
                         <button class="scan-button" onclick="toggleFournitureForm()">➕ Ajouter</button>
@@ -1711,26 +1737,12 @@
                                 <div id="sauvegardes-auto-container"><p style="color:var(--text-secondary);font-size:13px;">Chargement...</p></div>
                             </div>
                         </div>
-
-                        <!-- Raccourcis clavier -->
-                        <div style="background:var(--card-bg);padding:25px;border-radius:15px;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
-                            <h3 style="margin-bottom:15px;">⌨️ Raccourcis clavier</h3>
-                            <p style="color:var(--text-secondary);margin-bottom:20px;font-size:14px;">Gagnez du temps avec les raccourcis.</p>
-                            <div style="display:grid;gap:8px;">
-                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Nouveau produit</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + N</kbd></div>
-                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Recherche globale</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + F</kbd></div>
-                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Lancer le scanner</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + S</kbd></div>
-                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Dashboard</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + D</kbd></div>
-                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Mon Stock</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + K</kbd></div>
-                                <div style="display:flex;justify-content:space-between;padding:8px;background:var(--filter-bg);border-radius:8px;"><span>Exporter stock Excel</span><kbd style="background:var(--input-bg);padding:3px 8px;border-radius:4px;font-size:12px;border:1px solid var(--input-border);">Ctrl + E</kbd></div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
                 <!-- ══════ AIDE & GUIDE ══════ -->
                 <div id="aide" class="tab-content">
-                    <div class="section-header"><h2>❓ Aide & Guide complet</h2></div>
+                    <div class="section-header"><h2>❓ Aide & raccourcis</h2></div>
                     <p style="color:var(--text-secondary);margin-bottom:25px;font-size:15px;">Bienvenue dans Stock Radar ! Ce guide vous explique tout ce que vous pouvez faire avec l'application.</p>
 
                     <!-- Vue d'ensemble -->
@@ -2191,9 +2203,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261113-7"></script>
-    <script src="app-cloud.js?v=20261113-7"></script>
-    <script src="auth.js?v=20261113-7"></script>
+    <script src="config.js?v=20261113-8"></script>
+    <script src="app-cloud.js?v=20261113-8"></script>
+    <script src="auth.js?v=20261113-8"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {

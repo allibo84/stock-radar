@@ -197,7 +197,9 @@ function switchTab(tabName) {
     document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
     const tab = document.getElementById(tabName);
     if (tab) tab.classList.add('active');
-    const menuItem = document.querySelector(`.menu-item[data-tab="${tabName}"]`);
+    // Les pages rangées en sous-onglet allument l'entrée de menu de leur page mère
+    const ongletMenu = { fournitures: 'achats' }[tabName] || tabName;
+    const menuItem = document.querySelector(`.menu-item[data-tab="${ongletMenu}"]`);
     if (menuItem) menuItem.classList.add('active');
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('overlay').style.display = 'none';
@@ -205,6 +207,20 @@ function switchTab(tabName) {
     if (tabName === 'dashboard') updateDashboard();
     if (tabName === 'ventes') displayVentes();
     if (tabName === 'outils-export') loadSauvegardes();
+}
+
+// Accès rapides du dashboard
+function allerAchatsEnAttente() {
+    const filtre = document.getElementById('filter-achat-recu');
+    if (filtre) filtre.value = 'non';
+    switchTab('achats');
+    displayAchats();
+}
+function allerNouvelAchat() {
+    switchTab('achats');
+    const section = document.getElementById('achat-form-section');
+    if (section && (section.style.display === 'none' || !section.style.display)) toggleAchatForm();
+    section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 document.addEventListener('click', e => {
@@ -3015,6 +3031,8 @@ function updateDashboard() {
     const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
 
     el('dash-total-produits', enStock.reduce((s,p)=>s+(p.quantite||0),0));
+    const nbAttente = achats.filter(a => !a.recu).length;
+    el('acces-attente', nbAttente > 0 ? `${nbAttente} en attente` : 'Aucun en attente');
     el('dash-total-vendus', ventes.reduce((s,v)=>s+(v.quantite||0),0));
     const valStockAchat = enStock.reduce((s,p) => s + ((p.prix_achat||0)*(p.quantite||0)), 0);
     el('dash-valeur-stock', valStockAchat.toFixed(2) + '€');
