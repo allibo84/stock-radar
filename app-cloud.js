@@ -594,18 +594,14 @@ function displayAchats() {
     if (achatsCurrentPage > totalPages) achatsCurrentPage = totalPages;
     const startIdx = (achatsCurrentPage - 1) * achatsPerPage;
     const pageList = filtered.slice(startIdx, startIdx + achatsPerPage);
-    let h = `<div id="achats-selection-bar" style="margin-bottom:10px;display:none;gap:10px;flex-wrap:wrap;">
-        <button class="scan-button" style="padding:6px 14px;font-size:13px;" onclick="copySelectedCodes('ean')">📋 Copier EAN sélectionnés</button>
-        <button class="scan-button" style="padding:6px 14px;font-size:13px;background:#ff9900;" onclick="copySelectedCodes('asin')">📋 Copier ASIN sélectionnés</button>
-        <span id="achats-selected-count" style="font-size:13px;color:var(--text-secondary);padding:8px 0;"></span>
-    </div>`;
-    h += '<div class="products-table"><table><thead><tr><th style="width:30px;"><input type="checkbox" id="achats-select-all" onchange="toggleAllAchats(this.checked)"></th><th>Date</th><th>EAN</th><th>ASIN</th><th>Produit</th><th>Fournisseur</th><th>Qté</th><th>Prix HT</th><th>Prix TTC</th><th>Reçu</th><th>Actions</th></tr></thead><tbody>';
+    let h = '';
+    h += '<div class="products-table"><table><thead><tr><th>Date</th><th>EAN</th><th>ASIN</th><th>Produit</th><th>Fournisseur</th><th>Qté</th><th>Prix HT</th><th>Prix TTC</th><th>Reçu</th><th>Actions</th></tr></thead><tbody>';
     pageList.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
         const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>'
             : achatEstPartiel(a) ? `<span class="badge badge-partiel" style="cursor:pointer" title="Reçu partiellement — cliquer pour saisir la suite">📦 ${achatQteRecue(a)}/${a.quantite || 1}</span>`
             : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
-        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td onclick="event.stopPropagation()"><input type="checkbox" class="achat-check" data-id="${a.id}" data-ean="${escapeHtml(a.ean||'')}" data-asin="${escapeHtml(a.asin||'')}" onchange="updateAchatsSelection()"></td><td>${d}</td><td><span class="code-copiable">${boutonCopier(a.ean, 'EAN')}${escapeHtml(a.ean)}</span></td><td><span class="code-copiable">${boutonCopier(a.asin, 'ASIN')}${escapeHtml(a.asin||'-')}</span></td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button>${(a.asin || a.ean) ? `<button class="btn-small" style="background:#1565c0;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerAmp('${escapeHtml(a.asin || a.ean)}')" title="Analyser sur SellerAmp">⚡</button>` : ''}${a.asin ? `<button class="btn-small" style="background:#ff9900;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerCentral('${escapeHtml(a.asin)}')" title="Ajouter l'offre sur Amazon Seller Central">➕</button>` : ''}<button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
+        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td>${d}</td><td><span class="code-copiable">${boutonCopier(a.ean, 'EAN')}${escapeHtml(a.ean)}</span></td><td><span class="code-copiable">${boutonCopier(a.asin, 'ASIN')}${escapeHtml(a.asin||'-')}</span></td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button>${(a.asin || a.ean) ? `<button class="btn-small" style="background:#1565c0;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerAmp('${escapeHtml(a.asin || a.ean)}')" title="Analyser sur SellerAmp">⚡</button>` : ''}${a.asin ? `<button class="btn-small" style="background:#ff9900;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerCentral('${escapeHtml(a.asin)}')" title="Ajouter l'offre sur Amazon Seller Central">➕</button>` : ''}<button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
     });
     h += '</tbody></table></div>';
 
@@ -698,48 +694,6 @@ function resetAchatsFilters() {
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     document.getElementById('filter-achat-tri').value = 'recent';
     displayAchats();
-}
-
-function toggleAllAchats(checked) {
-    document.querySelectorAll('.achat-check').forEach(cb => cb.checked = checked);
-    updateAchatsSelection();
-}
-
-function updateAchatsSelection() {
-    const checked = document.querySelectorAll('.achat-check:checked');
-    const barre = document.getElementById('achats-selection-bar');
-    if (barre) barre.style.display = checked.length > 0 ? 'flex' : 'none';
-    const count = checked.length;
-    const countEl = document.getElementById('achats-selected-count');
-    if (countEl) countEl.textContent = count > 0 ? `${count} sélectionné${count > 1 ? 's' : ''}` : '';
-}
-
-function copySelectedCodes(type) {
-    const checked = document.querySelectorAll('.achat-check:checked');
-    if (!checked.length) return toastError('Sélection vide', 'Sélectionnez au moins un achat.');
-    
-    const codes = [];
-    checked.forEach(cb => {
-        const code = type === 'asin' ? cb.dataset.asin : cb.dataset.ean;
-        if (code && code !== '-' && code.trim()) codes.push(code.trim());
-    });
-
-    if (!codes.length) return toastWarning('Aucun code', `Aucun ${type.toUpperCase()} trouvé dans la sélection.`);
-
-    const text = codes.join('\n');
-    navigator.clipboard.writeText(text).then(() => {
-        const msg = `✅ ${codes.length} ${type.toUpperCase()} copié${codes.length > 1 ? 's' : ''} !`;
-        toastSuccess("Codes copiés", msg);
-    }).catch(() => {
-        // Fallback
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        toastSuccess('Codes copiés', `${codes.length} ${type.toUpperCase()} copié${codes.length > 1 ? 's' : ''} dans le presse-papiers.`);
-    });
 }
 
 function updateAchatsStats() {
