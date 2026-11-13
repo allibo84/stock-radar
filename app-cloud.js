@@ -79,34 +79,63 @@ async function loadAllData() {
     setupRealtimeSync();
 }
 
-async function loadFournisseurs() {
-    let query = sb.from('fournisseurs').select('*').order('nom');
+// Lit une table en entier, par pages de 1000 : Supabase plafonne chaque requête à
+// 1000 lignes, et au-delà les plus anciennes disparaissaient en silence des écrans
+// et des totaux. Le tri secondaire sur id rend la pagination stable.
+async function chargerTable(table, colTri, ascendant, libelle) {
+    const PAS = 1000;
     const uid = getUserFilter();
-    if (uid) query = query.eq('user_id', uid);
-    const { data, error } = await query;
-    if (error) console.warn('Erreur fournisseurs:', error.message);
+    const lignes = [];
+    for (let debut = 0; ; debut += PAS) {
+        let query = sb.from(table).select('*')
+            .order(colTri, { ascending: ascendant })
+            .order('id', { ascending: true })
+            .range(debut, debut + PAS - 1);
+        if (uid) query = query.eq('user_id', uid);
+        const { data, error } = await query;
+        if (error) {
+            console.warn('Erreur ' + libelle + ':', error.message);
+            if (debut > 0) toastError('Chargement incomplet', `Seule une partie des ${libelle} a pu être chargée (${lignes.length} lignes). Rechargez la page.`);
+            break;
+        }
+        lignes.push(...(data || []));
+        if (!data || data.length < PAS) break;
+    }
+    return lignes;
+}
+
+// Clés des commandes Amazon déjà en base (paginé pour la même raison)
+async function amzClesDejaImportees(uid) {
+    const PAS = 1000;
+    const cles = new Set();
+    for (let debut = 0; ; debut += PAS) {
+        const { data, error } = await sb.from('ventes').select('amazon_order_id')
+            .eq('user_id', uid).neq('amazon_order_id', '')
+            .order('id', { ascending: true })
+            .range(debut, debut + PAS - 1);
+        if (error) throw new Error('Lecture des ventes déjà importées : ' + error.message);
+        (data || []).forEach(v => cles.add(v.amazon_order_id));
+        if (!data || data.length < PAS) break;
+    }
+    return cles;
+}
+
+async function loadFournisseurs() {
+    const data = await chargerTable('fournisseurs', 'nom', true, 'fournisseurs');
     fournisseurs = data || [];
     displayFournisseurs();
     updateFournisseursSelect();
 }
 
 async function loadAchats() {
-    let query = sb.from('achats').select('*').order('date_achat', { ascending: false });
-    const uid = getUserFilter();
-    if (uid) query = query.eq('user_id', uid);
-    const { data, error } = await query;
-    if (error) console.warn('Erreur achats:', error.message);
+    const data = await chargerTable('achats', 'date_achat', false, 'achats');
     achats = data || [];
     populateAchatsFilters();
     displayAchats();
 }
 
 async function loadProducts() {
-    let query = sb.from('produits').select('*').order('date_ajout', { ascending: false });
-    const uid = getUserFilter();
-    if (uid) query = query.eq('user_id', uid);
-    const { data, error } = await query;
-    if (error) console.warn('Erreur produits:', error.message);
+    const data = await chargerTable('produits', 'date_ajout', false, 'produits');
     products = (data || []).map(p => ({
         ...p,
         etat_stock: p.etat_stock ?? 'neuf',
@@ -136,11 +165,7 @@ async function loadMouvements() {
 }
 
 async function loadVentes() {
-    let query = sb.from('ventes').select('*').order('date_vente', { ascending: false });
-    const uid = getUserFilter();
-    if (uid) query = query.eq('user_id', uid);
-    const { data, error } = await query;
-    if (error) console.warn('Erreur ventes:', error.message);
+    const data = await chargerTable('ventes', 'date_vente', false, 'ventes');
     ventes = data || [];
     displayVentes();
 }
@@ -349,11 +374,7 @@ function closeFournisseurModal() {
 
 // ═══════ FACTURES ═══════
 async function loadFactures() {
-    let query = sb.from('factures').select('*').order('date_facture', { ascending: false });
-    const uid = getUserFilter();
-    if (uid) query = query.eq('user_id', uid);
-    const { data, error } = await query;
-    if (error) console.warn('Erreur factures:', error.message);
+    const data = await chargerTable('factures', 'date_facture', false, 'factures');
     factures = data || [];
     displayFactures();
     updateFacturesSelect();
@@ -2297,8 +2318,7 @@ function previewAmazonImport(input) {
 
             // Commandes déjà importées (anti-doublon)
             const uid = getEffectiveUserId();
-            const { data: existing } = await sb.from('ventes').select('amazon_order_id').eq('user_id', uid).neq('amazon_order_id', '');
-            const dejaImporte = new Set((existing || []).map(v => v.amazon_order_id));
+            const dejaImporte = await amzClesDejaImportees(uid);
 
             const prixEstUnitaire = document.getElementById('amz-prix-unitaire')?.checked || false;
             const dateDu = document.getElementById('amz-date-du')?.value || '';
@@ -2309,6 +2329,10 @@ function previewAmazonImport(input) {
             achats.forEach(a => {
                 if (a.asin && a.ean) asinVersEan[String(a.asin).toUpperCase()] = a.ean;
             });
+
+            // Stock restant par fiche pendant l'aperçu : plusieurs lignes du rapport peuvent
+            // consommer le même produit, chacune doit voir ce que la précédente a pris.
+            const resteApercu = {};
 
             amazonImportData = rows.map(r => {
                 const asin = (cAsin ? r[cAsin] : '').toUpperCase();
@@ -2321,15 +2345,17 @@ function previewAmazonImport(input) {
                 const canal = (canalRaw.includes('afn') || canalRaw.includes('amazon')) ? 'Amazon FBA' : 'Amazon FBM';
                 const cle = r[cOrder] + '|' + ((cItem && r[cItem]) || asin || sku);
 
-                // Rapprochement : ASIN d'abord, puis SKU = EAN ou SKU = ASIN
-                let produit = products.find(x => !x.vendu && asin && (x.asin || '').toUpperCase() === asin)
-                    || products.find(x => !x.vendu && sku && ((x.ean || '') === sku || (x.asin || '').toUpperCase() === sku.toUpperCase()))
-                    || products.find(x => asin && (x.asin || '').toUpperCase() === asin);
-                // Plan C : passer par les achats (ASIN → EAN → produit)
-                if (!produit && asin && asinVersEan[asin]) {
+                // Rapprochement : ASIN d'abord, puis SKU = EAN ou SKU = ASIN, puis ASIN → EAN via les achats.
+                // On garde TOUTES les fiches correspondantes : le choix de celle(s) à décrémenter
+                // se fait ensuite sur le stock réel du canal, la plus ancienne d'abord (FIFO).
+                let candidats = asin ? products.filter(x => (x.asin || '').toUpperCase() === asin) : [];
+                if (!candidats.length && sku) {
+                    const skuMaj = sku.toUpperCase();
+                    candidats = products.filter(x => (x.ean || '') === sku || (x.asin || '').toUpperCase() === skuMaj);
+                }
+                if (!candidats.length && asin && asinVersEan[asin]) {
                     const eanPont = asinVersEan[asin];
-                    produit = products.find(x => !x.vendu && x.ean === eanPont)
-                        || products.find(x => x.ean === eanPont);
+                    candidats = products.filter(x => x.ean === eanPont);
                 }
 
                 const dateLigne = normalizeDateAmz(cDate ? r[cDate] : '');
@@ -2342,7 +2368,11 @@ function previewAmazonImport(input) {
                 else if (devise && devise !== 'EUR') etat = 'devise';
                 else if ((dateDu && dateLigne < dateDu) || (dateAu && dateLigne > dateAu)) etat = 'hors_periode';
                 else if (dejaImporte.has(cle)) etat = 'deja';
-                else if (!produit) etat = 'introuvable';
+                else if (!candidats.length) etat = 'introuvable';
+
+                // Seules les lignes réellement importées consomment le stock de l'aperçu
+                const alloc = (etat === 'ok') ? amzAllouer(candidats, canal, qte, resteApercu) : null;
+                const produit = alloc ? alloc.principal : (amzTrierCandidats(candidats, canal)[0] || null);
 
                 const totalLigne = prixEstUnitaire ? (prixBrut * (qte || 1) + portBrut) : (prixBrut + portBrut);
                 const prixUnit = qte > 0 ? totalLigne / qte : totalLigne;
@@ -2350,7 +2380,10 @@ function previewAmazonImport(input) {
                     cle, orderId: cOrder ? r[cOrder] : '',
                     date: dateLigne,
                     asin, sku, nom: cName ? r[cName] : '',
-                    qte, prixUnit, canal, etat, produit
+                    qte, prixUnit, canal, etat, produit,
+                    candidatIds: candidats.map(x => x.id),
+                    manque: alloc ? alloc.manque : 0,
+                    nbFiches: alloc ? alloc.parts.length : 0,
                 };
             });
 
@@ -2360,13 +2393,60 @@ function previewAmazonImport(input) {
     reader.readAsText(file, 'UTF-8');
 }
 
+// ── Rapprochement des ventes Amazon avec le stock ──
+// Ordre de consommation : fiches non rebut ayant du stock sur le canal vendu,
+// de la plus ancienne à la plus récente (FIFO). À défaut de stock sur le canal,
+// la vente est rattachée à une fiche pour le prix d'achat, sans rien déduire.
+function amzStockCanal(p, canal) {
+    return canal === 'Amazon FBA' ? (p.qte_fba || 0) : (p.qte_fbm || 0);
+}
+function amzTrierCandidats(candidats, canal) {
+    const anciennete = (p) => p.date_ajout || '';
+    return [...candidats].sort((a, b) => {
+        const sa = amzStockCanal(a, canal) > 0 ? 0 : 1, sb2 = amzStockCanal(b, canal) > 0 ? 0 : 1;
+        if (sa !== sb2) return sa - sb2;                                   // stock sur le canal d'abord
+        const ia = a.invendable ? 1 : 0, ib = b.invendable ? 1 : 0;
+        if (ia !== ib) return ia - ib;                                    // les rebuts en dernier
+        if (sa === 0) return anciennete(a).localeCompare(anciennete(b)) || (a.id - b.id);   // FIFO
+        const va = a.vendu ? 1 : 0, vb = b.vendu ? 1 : 0;
+        if (va !== vb) return va - vb;                                    // sans stock canal : fiche encore active
+        return anciennete(b).localeCompare(anciennete(a)) || (b.id - a.id);                 // puis la plus récente
+    });
+}
+// Répartit `qte` sur les fiches candidates. `reste` (id → stock canal restant) est
+// partagé entre les lignes d'un même import. Renvoie les parts à déduire, la quantité
+// qui n'a pas pu l'être (`manque`), la fiche de rattachement et le prix d'achat moyen.
+function amzAllouer(candidats, canal, qte, reste) {
+    const tries = amzTrierCandidats(candidats, canal);
+    if (!tries.length) return null;
+    const parts = [];
+    let aPlacer = qte;
+    for (const p of tries) {
+        if (aPlacer <= 0) break;
+        if (!(p.id in reste)) reste[p.id] = amzStockCanal(p, canal);
+        const pris = Math.min(reste[p.id], aPlacer);
+        if (pris <= 0) continue;
+        reste[p.id] -= pris;
+        aPlacer -= pris;
+        parts.push({ produit: p, qte: pris });
+    }
+    const principal = parts.length ? parts[0].produit : tries[0];
+    // Prix d'achat : moyenne pondérée des fiches réellement consommées ;
+    // les unités non couvertes par le stock prennent celui de la fiche de rattachement.
+    const coutParts = parts.reduce((s, x) => s + (x.produit.prix_achat || 0) * x.qte, 0);
+    const prixAchat = qte > 0 ? +((coutParts + (principal.prix_achat || 0) * aPlacer) / qte).toFixed(2) : (principal.prix_achat || 0);
+    return { parts, manque: aPlacer, principal, prixAchat };
+}
+
 function displayAmazonPreview() {
     const list = amazonImportData || [];
     const compte = (etat) => list.filter(l => l.etat === etat).length;
     const nbOk = compte('ok');
+    const nbManque = list.filter(l => l.etat === 'ok' && l.manque > 0).length;
 
     const badges = [
         ['✅ À importer', nbOk, '#27ae60'],
+        ['⚠️ Dont stock insuffisant sur le canal', nbManque, '#c0392b'],
         ['⏭️ Déjà importées', compte('deja'), '#3498db'],
         ['❓ Introuvables dans le stock', compte('introuvable'), '#e67e22'],
         ['📅 Hors période', compte('hors_periode'), '#9b59b6'],
@@ -2397,7 +2477,7 @@ function displayAmazonPreview() {
             <td style="font-size:12px;">${escapeHtml(l.orderId)}</td>
             <td style="font-size:12px;">${escapeHtml(l.asin || l.sku || '-')}</td>
             <td style="font-size:12px;">${escapeHtml((l.nom || '').substring(0, 50))}</td>
-            <td>${l.produit ? '<strong>' + escapeHtml(l.produit.nom) + '</strong>' : '<span style="color:#e67e22;">non trouvé</span>'}</td>
+            <td>${l.produit ? '<strong>' + escapeHtml(l.produit.nom) + '</strong>' : '<span style="color:#e67e22;">non trouvé</span>'}${l.etat === 'ok' && l.nbFiches > 1 ? `<div style="font-size:11px;color:var(--text-secondary);">réparti sur ${l.nbFiches} fiches (la plus ancienne d'abord)</div>` : ''}${l.etat === 'ok' && l.manque > 0 ? `<div style="font-size:11px;color:#c0392b;font-weight:600;">⚠️ ${l.manque} u. sans stock ${l.canal === 'Amazon FBA' ? 'FBA' : 'FBM'} à déduire</div>` : ''}</td>
             <td>${l.canal === 'Amazon FBA' ? '📦 FBA' : '🏠 FBM'}</td>
             <td style="font-weight:700;">${l.qte}</td>
             <td>${l.prixUnit.toFixed(2)}€</td>
@@ -2419,7 +2499,8 @@ async function confirmAmazonImport() {
     if (!lignes.length) return toastError('Rien à importer', 'Aucune ligne valide (vérifiez que vos produits ont bien leur ASIN renseigné).');
 
     const fraisPct = parseFloat(document.getElementById('amz-frais-pct')?.value) || 0;
-    const msg = `Importer ${lignes.length} vente(s) Amazon ?\n\n- Le stock FBA/FBM sera décrémenté\n- Les ventes seront ajoutées à l'historique\n- Frais estimés : ${fraisPct}% du prix de vente\n\nL'import prend environ 1 seconde par vente — laissez la page ouverte jusqu'au message de fin.`;
+    const nbManqueAvant = lignes.filter(l => l.manque > 0).length;
+    const msg = `Importer ${lignes.length} vente(s) Amazon ?\n\n- Le stock FBA/FBM sera décrémenté (fiche la plus ancienne d'abord)\n` + (nbManqueAvant ? `- ⚠️ ${nbManqueAvant} vente(s) dépassent le stock du canal : elles seront enregistrées, mais le stock manquant ne pourra pas être déduit\n` : '') + `- Les ventes seront ajoutées à l'historique\n- Frais estimés : ${fraisPct}% du prix de vente\n\nL'import prend environ 1 seconde par vente — laissez la page ouverte jusqu'au message de fin.`;
     if (!await srConfirm(msg, 'Importer les ventes Amazon')) return;
 
     amazonImportEnCours = true;
@@ -2428,16 +2509,24 @@ async function confirmAmazonImport() {
 
     try {
     // Re-vérifier les commandes déjà en base juste avant d'écrire (anti double-clic / autre appareil)
-    const { data: existants } = await sb.from('ventes').select('amazon_order_id').eq('user_id', getEffectiveUserId()).neq('amazon_order_id', '');
-    const dejaEnBase = new Set((existants || []).map(v => v.amazon_order_id));
+    const dejaEnBase = await amzClesDejaImportees(getEffectiveUserId());
     lignes = lignes.filter(l => !dejaEnBase.has(l.cle));
     if (!lignes.length) { toastInfo('Déjà importé', 'Toutes ces commandes sont déjà dans l\'historique.'); return; }
 
-    let ok = 0, erreurs = 0, i = 0;
+    // Stock frais avant d'écrire : l'aperçu a pu vieillir (vente manuelle, autre appareil)
+    await loadProducts();
+    const parId = new Map(products.map(x => [x.id, x]));
+    const reste = {};
+
+    let ok = 0, erreurs = 0, i = 0, nonDeduites = 0, ventesSansStock = 0;
     for (const l of lignes) {
         i++;
         if (btn) btn.innerHTML = `⏳ Import en cours… ${i} / ${lignes.length}`;
-        const p = l.produit;
+        const candidats = (l.candidatIds || []).map(id => parId.get(id)).filter(Boolean);
+        const alloc = amzAllouer(candidats, l.canal, l.qte, reste);
+        if (!alloc) { erreurs++; console.warn('Import vente: produit disparu', l.cle); continue; }
+        const p = alloc.principal;
+        const isFba = l.canal === 'Amazon FBA';
         const prixUnit = parseFloat(l.prixUnit.toFixed(2));
         const prixTotal = parseFloat((prixUnit * l.qte).toFixed(2));
         const frais = parseFloat((prixTotal * fraisPct / 100).toFixed(2));
@@ -2451,33 +2540,41 @@ async function confirmAmazonImport() {
             quantite: l.qte,
             prix_unitaire: prixUnit,
             prix_total: prixTotal,
-            prix_achat_unitaire: p.prix_achat || 0,
+            prix_achat_unitaire: alloc.prixAchat,
             frais: frais,
-            benefice: parseFloat(((prixUnit - (p.prix_achat || 0)) * l.qte - frais).toFixed(2)),
+            benefice: parseFloat(((prixUnit - alloc.prixAchat) * l.qte - frais).toFixed(2)),
             date_vente: l.date,
-            notes: 'Import Amazon',
+            notes: 'Import Amazon' + (alloc.manque > 0 ? ` — ${alloc.manque} u. non déduite(s) du stock ${isFba ? 'FBA' : 'FBM'} (stock insuffisant)` : ''),
             amazon_order_id: l.cle,
         };
         const { error } = await sb.from('ventes').insert([vente]);
-        if (error) { erreurs++; console.warn('Import vente:', error.message); continue; }
+        if (error) {
+            // La vente n'existe pas : rendre le stock réservé aux lignes suivantes
+            alloc.parts.forEach(x => { reste[x.produit.id] += x.qte; });
+            erreurs++; console.warn('Import vente:', error.message); continue;
+        }
 
-        const isFba = l.canal === 'Amazon FBA';
-        const newFba = isFba ? Math.max(0, (p.qte_fba || 0) - l.qte) : (p.qte_fba || 0);
-        const newFbm = !isFba ? Math.max(0, (p.qte_fbm || 0) - l.qte) : (p.qte_fbm || 0);
-        const newTotal = newFba + newFbm + (p.qte_entrepot || 0);
-        await sb.from('produits').update({
-            qte_fba: newFba, qte_fbm: newFbm, quantite: newTotal,
-            vendu: newTotal <= 0,
-            prix_vente_reel: prixUnit, date_vente: l.date, plateforme_vente: l.canal,
-        }).eq('id', p.id);
-        // Mettre à jour l'objet local : plusieurs lignes peuvent concerner le même produit
-        p.qte_fba = newFba; p.qte_fbm = newFbm; p.quantite = newTotal;
-
-        await logMouvement(p.id, 'vente', l.qte, isFba ? 'fba' : 'fbm', 'vendu', 'Vente Amazon ' + l.orderId, '');
+        for (const part of alloc.parts) {
+            const f = part.produit;
+            const newFba = isFba ? (f.qte_fba || 0) - part.qte : (f.qte_fba || 0);
+            const newFbm = !isFba ? (f.qte_fbm || 0) - part.qte : (f.qte_fbm || 0);
+            const newTotal = newFba + newFbm + (f.qte_entrepot || 0);
+            const { error: errStock } = await sb.from('produits').update({
+                qte_fba: newFba, qte_fbm: newFbm, quantite: newTotal,
+                vendu: newTotal <= 0,
+                prix_vente_reel: prixUnit, date_vente: l.date, plateforme_vente: l.canal,
+            }).eq('id', f.id);
+            if (errStock) { nonDeduites += part.qte; console.warn('Import vente, stock:', errStock.message); continue; }
+            // Mettre à jour l'objet local : plusieurs lignes peuvent concerner le même produit
+            f.qte_fba = newFba; f.qte_fbm = newFbm; f.quantite = newTotal; f.vendu = newTotal <= 0;
+            await logMouvement(f.id, 'vente', part.qte, isFba ? 'fba' : 'fbm', 'vendu', 'Vente Amazon ' + l.orderId, '');
+        }
+        if (alloc.manque > 0) { nonDeduites += alloc.manque; ventesSansStock++; }
         ok++;
     }
 
     toastSuccess('Import terminé', `${ok} vente(s) importée(s)` + (erreurs ? ` · ${erreurs} erreur(s)` : ''));
+    if (nonDeduites > 0) showToast('warning', 'Stock à vérifier', `${nonDeduites} unité(s) vendue(s) n'ont pas pu être déduites du stock` + (ventesSansStock ? ` (${ventesSansStock} vente(s) au-delà du stock du canal)` : '') + `. Ces ventes portent la mention « non déduite » dans leurs notes.`, 12000);
     cancelAmazonImport();
     await Promise.all([loadProducts(), loadVentes(), loadMouvements()]);
     updateDashboard();
@@ -2790,11 +2887,12 @@ function updateDashboard() {
     el('dash-ca-realise', ca.toFixed(2) + '€');
     const benefice = ventes.reduce((s,v) => s + (v.benefice || 0), 0);
     el('dash-benefice', benefice.toFixed(2) + '€');
-    const marges = ventes.filter(v => v.prix_achat_unitaire > 0).map(v => {
-        const totalAchat = (v.prix_achat_unitaire || 0) * (v.quantite || 1);
-        return totalAchat > 0 ? ((v.prix_total - totalAchat) / totalAchat * 100) : 0;
-    });
-    el('dash-marge-moyenne', (marges.length ? (marges.reduce((a,b)=>a+b,0)/marges.length) : 0).toFixed(1) + '%');
+    // Marge nette pondérée : (CA − achats − frais) / CA, sur les ventes dont le prix d'achat est connu.
+    // L'ancienne moyenne des % par vente donnait le même poids à une vente de 5 € et à une de 500 €.
+    const ventesChiffrees = ventes.filter(v => v.prix_achat_unitaire > 0 && v.prix_total > 0);
+    const caChiffre = ventesChiffrees.reduce((s,v) => s + (v.prix_total || 0), 0);
+    const netChiffre = ventesChiffrees.reduce((s,v) => s + (v.prix_total || 0) - (v.prix_achat_unitaire || 0) * (v.quantite || 1) - (v.frais || 0), 0);
+    el('dash-marge-moyenne', (caChiffre > 0 ? (netChiffre / caChiffre * 100) : 0).toFixed(1) + '%');
 
     // Bénéfice potentiel avec explication
     const valRevente = enStock.reduce((s,p) => s + ((p.prix_revente||0)*(p.quantite||0)), 0);
@@ -2900,12 +2998,26 @@ function createCharts() {
     if (typeof Chart === 'undefined') return;
 
     // Evolution mensuelle
-    const months = {};
-    products.forEach(p => { if (!p.date_ajout) return; const m = new Date(p.date_ajout).toLocaleDateString('fr-FR',{month:'short',year:'numeric'}); months[m] = (months[m]||0) + (p.quantite||1); });
-    const mLabels = Object.keys(months).slice(-6);
+    // Les 6 derniers mois calendaires, du plus ancien au plus récent : unités achetées
+    // (table achats) et unités vendues (table ventes). L'ancien graphique lisait le stock
+    // RESTANT des fiches produit et affichait les 6 mois les plus anciens.
+    const moisCles = [], maintenant = new Date();
+    for (let k = 5; k >= 0; k--) {
+        const d = new Date(maintenant.getFullYear(), maintenant.getMonth() - k, 1);
+        moisCles.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+    }
+    const cumulMois = (liste, champDate) => {
+        const t = Object.fromEntries(moisCles.map(m => [m, 0]));
+        liste.forEach(x => { const m = String(x[champDate] || '').slice(0, 7); if (m in t) t[m] += (x.quantite || 1); });
+        return moisCles.map(m => t[m]);
+    };
+    const mLabels = moisCles.map(m => new Date(+m.slice(0, 4), +m.slice(5) - 1, 1).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }));
     if (charts.evolution) charts.evolution.destroy();
     const c1 = document.getElementById('chartEvolution');
-    if (c1) charts.evolution = new Chart(c1, { type:'bar', data:{labels:mLabels, datasets:[{label:'Unités ajoutées',data:mLabels.map(m=>months[m]),backgroundColor:'rgba(45,90,39,0.75)'}]}, options:{responsive:true,plugins:{legend:{display:false}}} });
+    if (c1) charts.evolution = new Chart(c1, { type:'bar', data:{labels:mLabels, datasets:[
+        {label:'Unités achetées',data:cumulMois(achats,'date_achat'),backgroundColor:'rgba(45,90,39,0.75)'},
+        {label:'Unités vendues',data:cumulMois(ventes,'date_vente'),backgroundColor:'rgba(255,153,0,0.8)'}
+    ]}, options:{responsive:true,plugins:{legend:{display:true,position:'bottom'}}} });
 
     // Répartition stock
     const enStock = products.filter(p => !p.vendu);
@@ -3431,11 +3543,7 @@ async function confirmBulkTransfert() {
 let fournitures = [];
 
 async function loadFournitures() {
-    let query = sb.from('fournitures').select('*').order('date_achat', { ascending: false });
-    const uid = getUserFilter();
-    if (uid) query = query.eq('user_id', uid);
-    const { data, error } = await query;
-    if (error) console.warn('Erreur fournitures:', error.message);
+    const data = await chargerTable('fournitures', 'date_achat', false, 'fournitures');
     fournitures = data || [];
     displayFournitures();
     updateFournituresSelect();

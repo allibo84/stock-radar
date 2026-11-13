@@ -1154,7 +1154,7 @@
                     <div class="dash-secondary-row">
                         <div class="stat-card kpi-sub"><div class="stat-number" id="dash-total-produits">0</div><div class="stat-label">En stock</div></div>
                         <div class="stat-card kpi-sub"><div class="stat-number" id="dash-total-vendus">0</div><div class="stat-label">Vendus</div></div>
-                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-marge-moyenne">0%</div><div class="stat-label">Marge moy.</div></div>
+                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-marge-moyenne">0%</div><div class="stat-label" title="(CA − achats − frais) / CA, sur les ventes dont le prix d'achat est connu">Marge nette</div></div>
                         <div class="stat-card kpi-sub"><div class="stat-number" id="dash-valeur-entrepot">0€</div><div class="stat-label">Entrepôt</div></div>
                     </div>
                     <div class="stats" style="grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;">
@@ -1164,7 +1164,7 @@
                         <div class="stat-card" data-accent="red"><div class="stat-number" id="dash-qte-rebut">0</div><div class="stat-label">Rebut</div></div>
                     </div>
                     <div class="charts-grid">
-                        <div class="chart-card"><h3>Évolution mensuelle</h3><canvas id="chartEvolution" height="200"></canvas></div>
+                        <div class="chart-card"><h3>Achats et ventes — 6 derniers mois</h3><canvas id="chartEvolution" height="200"></canvas></div>
                         <div class="chart-card"><h3>Répartition stock</h3><canvas id="chartRepartition" height="200"></canvas></div>
                         <div class="chart-card"><h3>Top 5 catégories</h3><canvas id="chartCategories" height="200"></canvas></div>
                         <div class="chart-card"><h3>CA par canal</h3><canvas id="chartCanaux" height="200"></canvas></div>
@@ -2398,9 +2398,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20260927-1"></script>
-    <script src="app-cloud.js?v=20260927-1"></script>
-    <script src="auth.js?v=20260927-1"></script>
+    <script src="config.js?v=20261113-1"></script>
+    <script src="app-cloud.js?v=20261113-1"></script>
+    <script src="auth.js?v=20261113-1"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {
