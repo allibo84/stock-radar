@@ -1020,6 +1020,8 @@
         .copy-code-btn:hover { background:rgba(52,152,219,0.15); }
         .copy-code-btn:focus-visible { outline:2px solid #3498db; outline-offset:1px; }
         .copy-code-btn.copied { color:#27ae60; background:rgba(39,174,96,0.15); }
+        .code-copiable { display:inline-flex; align-items:center; white-space:nowrap; }
+        .copy-code-btn { width:20px; height:20px; margin-right:4px; }
         .badge-partiel { background:#fdebd0; color:#9c5700; }
         body.dark-theme .badge-partiel { background:#5c3d0a; color:#ffd699; }
     </style>
@@ -2405,9 +2407,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261113-3"></script>
-    <script src="app-cloud.js?v=20261113-3"></script>
-    <script src="auth.js?v=20261113-3"></script>
+    <script src="config.js?v=20261113-4"></script>
+    <script src="app-cloud.js?v=20261113-4"></script>
+    <script src="auth.js?v=20261113-4"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {
