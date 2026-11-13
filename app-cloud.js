@@ -189,6 +189,13 @@ function setupRealtimeSync() {
 }
 
 // ═══════ NAVIGATION ═══════
+const GROUPES_MENU = {
+    'achats': [['achats', 'Achats'], ['import-grossiste', 'Import grossiste'], ['fournisseurs', 'Fournisseurs'], ['factures', 'Factures'], ['fournitures', 'Fournitures & frais']],
+    'stock': [['stock', 'Mon stock'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['alertes', 'Alertes stock'], ['inventaire', 'Inventaire']],
+    'ventes': [['ventes', 'Mes ventes'], ['import-amazon', 'Import Amazon']],
+    'outils-export': [['outils-export', 'Export & sauvegarde'], ['aide', 'Aide & raccourcis']],
+};
+
 function switchTab(tabName) {
     // Sans ça, la caméra reste allumée en arrière-plan et continue d'écrire dans le formulaire
     if (tabName !== 'nouveau-produit') stopScanner();
@@ -197,10 +204,16 @@ function switchTab(tabName) {
     document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
     const tab = document.getElementById(tabName);
     if (tab) tab.classList.add('active');
-    // Les pages rangées en sous-onglet allument l'entrée de menu de leur page mère
-    const ongletMenu = { fournitures: 'achats' }[tabName] || tabName;
-    const menuItem = document.querySelector(`.menu-item[data-tab="${ongletMenu}"]`);
+    // Le menu n'a que 5 entrées : chaque page allume l'entrée de son groupe,
+    // et les autres pages du groupe sont proposées en sous-onglets.
+    const groupe = Object.keys(GROUPES_MENU).find(g => GROUPES_MENU[g].some(t => t[0] === tabName));
+    const menuItem = document.querySelector(`.menu-item[data-tab="${groupe || tabName}"]`);
     if (menuItem) menuItem.classList.add('active');
+    const barre = document.getElementById('sous-onglets-bar');
+    if (barre) {
+        barre.innerHTML = groupe ? `<div class="sous-onglets" role="tablist">${GROUPES_MENU[groupe].map(([id, libelle]) =>
+            `<button type="button" role="tab" aria-selected="${id === tabName}" class="sous-onglet${id === tabName ? ' active' : ''}" onclick="switchTab('${id}')">${libelle}</button>`).join('')}</div>` : '';
+    }
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('overlay').style.display = 'none';
     if (tabName === 'stock') displayStock();
@@ -222,6 +235,13 @@ function allerNouvelAchat() {
     if (section && (section.style.display === 'none' || !section.style.display)) toggleAchatForm();
     section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+// Le menu se pilote aussi au clavier (Entrée ou Espace)
+document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const mi = e.target.closest && e.target.closest('.menu-item');
+    if (mi && mi.dataset.tab) { e.preventDefault(); switchTab(mi.dataset.tab); }
+});
 
 document.addEventListener('click', e => {
     const mi = e.target.closest('.menu-item');
@@ -595,9 +615,30 @@ async function copierCode(btn) {
     }
 }
 
+// Pastilles de statut : elles pilotent le <select id="filter-achat-recu"> (masqué),
+// que filterAchats() continue de lire tel quel.
+function renderAchatsPastilles() {
+    const c = document.getElementById('achats-pastilles');
+    if (!c) return;
+    const actif = document.getElementById('filter-achat-recu')?.value || '';
+    const defs = [
+        ['', 'Tous', achats.length],
+        ['non', 'En attente', achats.filter(a => !a.recu).length],
+        ['partiel', 'Reçu partiellement', achats.filter(a => achatEstPartiel(a)).length],
+        ['oui', 'Reçus', achats.filter(a => a.recu).length],
+    ];
+    c.innerHTML = defs.map(([v, lib, n]) => `<button type="button" class="pastille" aria-pressed="${v === actif}" onclick="setAchatsStatut('${v}')">${lib} · ${n}</button>`).join('');
+}
+function setAchatsStatut(v) {
+    const sel = document.getElementById('filter-achat-recu');
+    if (sel) sel.value = v;
+    displayAchats();
+}
+
 function displayAchats() {
     const c = document.getElementById('achats-container');
     if (!c) return;
+    renderAchatsPastilles();
     const filtered = filterAchats();
     if (!filtered.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun achat</h3></div>'; updateAchatsStats(); return; }
 
@@ -610,14 +651,27 @@ function displayAchats() {
     if (achatsCurrentPage > totalPages) achatsCurrentPage = totalPages;
     const startIdx = (achatsCurrentPage - 1) * achatsPerPage;
     const pageList = filtered.slice(startIdx, startIdx + achatsPerPage);
-    let h = '';
-    h += '<div class="products-table"><table><thead><tr><th>Date</th><th>EAN</th><th>ASIN</th><th>Produit</th><th>Fournisseur</th><th>Qté</th><th>Prix HT</th><th>Prix TTC</th><th>Reçu</th><th>Actions</th></tr></thead><tbody>';
+    let h = '<div class="products-table"><table class="achats-table"><thead><tr><th>Date</th><th>Produit</th><th>Fournisseur</th><th class="num">Qté</th><th class="num">Prix TTC</th><th>Statut</th><th>Actions</th></tr></thead><tbody>';
     pageList.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
-        const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>'
-            : achatEstPartiel(a) ? `<span class="badge badge-partiel" style="cursor:pointer" title="Reçu partiellement — cliquer pour saisir la suite">📦 ${achatQteRecue(a)}/${a.quantite || 1}</span>`
-            : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
-        h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td>${d}</td><td><span class="code-copiable">${boutonCopier(a.ean, 'EAN')}${escapeHtml(a.ean)}</span></td><td><span class="code-copiable">${boutonCopier(a.asin, 'ASIN')}${escapeHtml(a.asin||'-')}</span></td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button>${(a.asin || a.ean) ? `<button class="btn-small" style="background:#1565c0;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerAmp('${escapeHtml(a.asin || a.ean)}')" title="Analyser sur SellerAmp">⚡</button>` : ''}${a.asin ? `<button class="btn-small" style="background:#ff9900;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerCentral('${escapeHtml(a.asin)}')" title="Ajouter l'offre sur Amazon Seller Central">➕</button>` : ''}<button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
+        const statut = a.recu
+            ? `<button type="button" class="pill pill-ok pill-btn" onclick="toggleRecu(${a.id},false)" title="Cliquer pour repasser en attente">Reçu</button>`
+            : achatEstPartiel(a)
+                ? `<span class="pill pill-warn" title="Reçu partiellement">Partiel ${achatQteRecue(a)}/${a.quantite || 1}</span><button type="button" class="btn-recep" onclick="toggleRecu(${a.id},true)">Recevoir la suite</button>`
+                : `<span class="pill pill-warn">En attente</span><button type="button" class="btn-recep" onclick="toggleRecu(${a.id},true)">Réceptionner</button>`;
+        const actions = `<button type="button" class="ico-btn ico-dup" onclick="duplicateAchat(${a.id})" title="Dupliquer" aria-label="Dupliquer l'achat"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg></button>`
+            + ((a.asin || a.ean) ? `<button type="button" class="ico-btn ico-sas" onclick="openSellerAmp('${escapeHtml(a.asin || a.ean)}')" title="Analyser sur SellerAmp" aria-label="Analyser sur SellerAmp"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L5 14h6l-1 8 8-12h-6z"/></svg></button>` : '')
+            + (a.asin ? `<button type="button" class="ico-btn ico-sc" onclick="openSellerCentral('${escapeHtml(a.asin)}')" title="Ajouter l'offre sur Amazon Seller Central" aria-label="Ajouter l'offre sur Amazon Seller Central"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>` : '')
+            + `<button type="button" class="ico-btn ico-del" onclick="deleteAchat(${a.id})" title="Supprimer" aria-label="Supprimer l'achat"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>`;
+        h += `<tr onclick="editAchat(${a.id})">
+            <td style="white-space:nowrap;">${d}</td>
+            <td><div class="achat-nom">${escapeHtml(a.nom)}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(a.ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(a.ean || '-')}</span></span><span class="code-copiable">${boutonCopier(a.asin, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(a.asin || '-')}</span></span></div></td>
+            <td>${escapeHtml(a.fournisseur_nom || '-')}</td>
+            <td class="num"><strong>${a.quantite || 1}</strong></td>
+            <td class="num">${(a.prix_ttc || 0).toFixed(2)}€<div class="sous-prix">${(a.prix_ht || 0).toFixed(2)}€ HT</div></td>
+            <td onclick="event.stopPropagation()">${statut}</td>
+            <td onclick="event.stopPropagation()"><div class="achat-actions">${actions}</div></td>
+        </tr>`;
     });
     h += '</tbody></table></div>';
 
@@ -721,7 +775,7 @@ function updateAchatsStats() {
                        (document.getElementById('filter-achat-date-fin')?.value || '') !== '';
     const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
     el('achats-total', filtered.length + (isFiltered ? ' / ' + achats.length : ''));
-    el('achats-total-label', isFiltered ? 'Achats filtrés' : 'Total achats');
+    el('achats-total-label', isFiltered ? 'achats filtrés' : 'achats');
     el('achats-qte', filtered.reduce((s, a) => s + (a.quantite || 1), 0));
     el('achats-montant-ht', filtered.reduce((s, a) => s + ((a.prix_ht || 0) * (a.quantite || 1)), 0).toFixed(2) + '€');
     el('achats-montant', filtered.reduce((s, a) => s + ((a.prix_ttc || 0) * (a.quantite || 1)), 0).toFixed(2) + '€');
@@ -746,11 +800,12 @@ function srReception(achat) {
         document.getElementById('sr-reception-modal')?.remove();
         const modal = document.createElement('div');
         modal.id = 'sr-reception-modal';
-        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px);';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9998;display:flex;align-items:stretch;justify-content:flex-end;';
         modal.innerHTML = `
-            <div style="background:var(--bg-elevated);border-radius:var(--radius-xl);padding:28px;max-width:440px;width:100%;border:1px solid var(--border);box-shadow:var(--shadow-lg);">
+            <div role="dialog" aria-modal="true" aria-label="Réception de l'achat" style="background:var(--bg-elevated);padding:26px 24px;max-width:420px;width:100%;height:100%;box-sizing:border-box;overflow-y:auto;border-left:1px solid var(--border);box-shadow:var(--shadow-lg);display:flex;flex-direction:column;">
                 <div style="font-size:15px;font-weight:700;color:var(--text-1);margin-bottom:6px;">Réception de l'achat</div>
-                <div style="font-size:13.5px;color:var(--text-2);line-height:1.5;margin-bottom:14px;">${escapeHtml(achat.nom || '')}</div>
+                <div style="font-size:15px;font-weight:600;color:var(--text-1);line-height:1.4;">${escapeHtml(achat.nom || '')}</div>
+                <div style="font-size:13px;color:var(--text-2);margin:4px 0 16px;">${escapeHtml(achat.fournisseur_nom || 'Fournisseur non renseigné')}${achat.date_achat ? ' · acheté le ' + new Date(achat.date_achat).toLocaleDateString('fr-FR') : ''} · ${(achat.prix_ttc || 0).toFixed(2)}€ TTC l'unité · entre en stock à l'entrepôt</div>
                 <div style="display:flex;gap:8px;margin-bottom:16px;font-size:13px;">
                     <div style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);"><div style="color:var(--text-2);">Commandé</div><strong style="color:var(--text-1);font-size:16px;">${q}</strong></div>
                     <div style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);"><div style="color:var(--text-2);">Déjà reçu</div><strong style="color:var(--text-1);font-size:16px;">${deja}</strong></div>
@@ -762,7 +817,7 @@ function srReception(achat) {
                     <button id="sr-reception-tout" type="button" style="padding:10px 14px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--bg-elevated);color:var(--text-1);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;">Tout le reste (${reste})</button>
                 </div>
                 <div id="sr-reception-info" style="font-size:12.5px;min-height:18px;margin:8px 0 18px;color:var(--text-2);"></div>
-                <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:auto;">
                     <button id="sr-reception-cancel" type="button" style="padding:9px 18px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--bg-elevated);color:var(--text-1);font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;">Annuler</button>
                     <button id="sr-reception-ok" type="button" style="padding:9px 18px;border-radius:var(--radius);border:none;background:var(--brand);color:white;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">Valider la réception</button>
                 </div>
@@ -3026,48 +3081,45 @@ async function exportStockExcel() {
 }
 
 // ═══════ DASHBOARD ═══════
+// Période des chiffres de vente de l'accueil ('30', '90', 'annee', 'tout')
+let dashPeriode = 'tout';
+try { const v = localStorage.getItem('dashPeriode'); if (['30', '90', 'annee', 'tout'].includes(v)) dashPeriode = v; } catch (e) {}
+function setDashPeriode(v) {
+    dashPeriode = v;
+    try { localStorage.setItem('dashPeriode', v); } catch (e) {}
+    updateDashboard();
+}
+function ventesPeriode() {
+    if (dashPeriode === 'tout') return ventes;
+    const now = new Date();
+    const debut = dashPeriode === 'annee' ? new Date(now.getFullYear(), 0, 1) : new Date(now.getTime() - Number(dashPeriode) * 86400000);
+    const iso = dateLocaleISO(debut);
+    return ventes.filter(v => String(v.date_vente || '').slice(0, 10) >= iso);
+}
+function fmtEur(n) { return (n || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
+
 function updateDashboard() {
     const enStock = products.filter(p => !p.vendu && !p.invendable);
+    const vp = ventesPeriode();
     const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    document.querySelectorAll('#dash-periode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.periode === dashPeriode ? 'true' : 'false'));
 
     el('dash-total-produits', enStock.reduce((s,p)=>s+(p.quantite||0),0));
-    const nbAttente = achats.filter(a => !a.recu).length;
-    el('acces-attente', nbAttente > 0 ? `${nbAttente} en attente` : 'Aucun en attente');
-    el('dash-total-vendus', ventes.reduce((s,v)=>s+(v.quantite||0),0));
+    el('dash-nb-ventes', vp.length);
+    el('dash-total-vendus', vp.reduce((s,v)=>s+(v.quantite||0),0));
     const valStockAchat = enStock.reduce((s,p) => s + ((p.prix_achat||0)*(p.quantite||0)), 0);
     el('dash-valeur-stock', valStockAchat.toFixed(2) + '€');
     const valEntrepot = enStock.reduce((s,p) => s + ((p.prix_achat||0)*(p.qte_entrepot||0)), 0);
     el('dash-valeur-entrepot', valEntrepot.toFixed(2) + '€');
 
-    // CA et bénéfice depuis la vraie table ventes
-    const ca = ventes.reduce((s,v) => s + (v.prix_total || 0), 0);
-    el('dash-ca-realise', ca.toFixed(2) + '€');
-    const benefice = ventes.reduce((s,v) => s + (v.benefice || 0), 0);
-    el('dash-benefice', benefice.toFixed(2) + '€');
+    // CA et bénéfice depuis la vraie table ventes, sur la période choisie
+    el('dash-ca-realise', vp.reduce((s,v) => s + (v.prix_total || 0), 0).toFixed(2) + '€');
+    el('dash-benefice', vp.reduce((s,v) => s + (v.benefice || 0), 0).toFixed(2) + '€');
     // Marge nette pondérée : (CA − achats − frais) / CA, sur les ventes dont le prix d'achat est connu.
-    // L'ancienne moyenne des % par vente donnait le même poids à une vente de 5 € et à une de 500 €.
-    const ventesChiffrees = ventes.filter(v => v.prix_achat_unitaire > 0 && v.prix_total > 0);
+    const ventesChiffrees = vp.filter(v => v.prix_achat_unitaire > 0 && v.prix_total > 0);
     const caChiffre = ventesChiffrees.reduce((s,v) => s + (v.prix_total || 0), 0);
     const netChiffre = ventesChiffrees.reduce((s,v) => s + (v.prix_total || 0) - (v.prix_achat_unitaire || 0) * (v.quantite || 1) - (v.frais || 0), 0);
     el('dash-marge-moyenne', (caChiffre > 0 ? (netChiffre / caChiffre * 100) : 0).toFixed(1) + '%');
-
-    // Bénéfice potentiel avec explication
-    const valRevente = enStock.reduce((s,p) => s + ((p.prix_revente||0)*(p.quantite||0)), 0);
-    const benefPot = valRevente - valStockAchat;
-    const sansRevente = enStock.filter(p => !p.prix_revente || p.prix_revente <= 0);
-    el('dash-benefice-potentiel', benefPot.toFixed(2) + '€');
-    const benefCard = document.getElementById('dash-benef-potentiel-card');
-    const benefDetail = document.getElementById('dash-benef-detail');
-    if (benefCard) {
-        benefCard.style.borderLeft = benefPot < 0 ? '4px solid #e74c3c' : benefPot > 0 ? '4px solid #27ae60' : '';
-    }
-    if (benefDetail) {
-        if (sansRevente.length > 0) {
-            benefDetail.innerHTML = `⚠️ ${sansRevente.length} produit${sansRevente.length>1?'s':''} sans prix de revente`;
-        } else {
-            benefDetail.textContent = '';
-        }
-    }
 
     // Sub-stats
     el('dash-qte-fba', enStock.reduce((s,p)=>s+(p.qte_fba||0),0));
@@ -3075,77 +3127,51 @@ function updateDashboard() {
     el('dash-qte-entrepot', enStock.reduce((s,p)=>s+(p.qte_entrepot||0),0));
     el('dash-qte-rebut', products.filter(p => !p.vendu && ((p.etat_stock||'')==='rebut' || p.invendable)).reduce((s,p)=>s+(p.quantite||0),0));
 
-    // Dashboard alerts
+    // — À faire aujourd'hui : uniquement ce qui appelle une action —
+    const enAttente = achats.filter(a => !a.recu);
+    el('menu-badge-achats', enAttente.length > 0 ? enAttente.length : '');
     const alertsDiv = document.getElementById('dash-alerts');
     if (alertsDiv) {
-        let alerts = '';
-        
-        // Achats en attente
-        const enAttente = achats.filter(a => !a.recu);
+        const lignes = [];
+        const ligne = (nb, ton, titre, detail, bouton, action, principal) => lignes.push(
+            `<div class="afaire-ligne"><span class="afaire-nb ${ton}">${nb}</span><div class="afaire-texte"><strong>${titre}</strong><span>${detail}</span></div><button type="button" class="afaire-btn${principal ? ' principal' : ''}" onclick="${action}">${bouton}</button></div>`);
+
         if (enAttente.length > 0) {
             const montantAttente = enAttente.reduce((s,a) => s + ((a.prix_ttc||0)*achatReste(a)), 0);   // seulement ce qui reste à recevoir
-            alerts += `<div class="dash-alert warning" onclick="switchTab('achats')">
-                <span class="dash-alert-icon">📦</span>
-                <div class="dash-alert-text"><strong>${enAttente.length} achat${enAttente.length>1?'s':''} en attente de réception</strong>Montant : ${montantAttente.toFixed(2)}€ TTC</div>
-                <span class="dash-alert-action">→</span>
-            </div>`;
+            const plusAncien = enAttente.map(a => a.date_achat).filter(Boolean).sort()[0];
+            ligne(enAttente.length, 'warn', `Achat${enAttente.length>1?'s':''} à réceptionner`,
+                `Reste à recevoir : ${fmtEur(montantAttente)} TTC` + (plusAncien ? ` · le plus ancien date du ${new Date(plusAncien).toLocaleDateString('fr-FR')}` : ''),
+                'Réceptionner', 'allerAchatsEnAttente()', true);
         }
 
-        // Produits sans prix de revente
-        if (sansRevente.length > 0) {
-            alerts += `<div class="dash-alert danger" onclick="switchTab('stock')">
-                <span class="dash-alert-icon">💰</span>
-                <div class="dash-alert-text"><strong>${sansRevente.length} produit${sansRevente.length>1?'s':''} sans prix de revente</strong>Le bénéfice potentiel est faussé — renseignez les prix pour un calcul fiable</div>
-                <span class="dash-alert-action">→</span>
-            </div>`;
-        }
-
-        // Produits sans seuil d'alerte
-        const sansSeuil = enStock.filter(p => !p.seuil_stock || p.seuil_stock <= 0);
-        if (sansSeuil.length > 0) {
-            alerts += `<div class="dash-alert info" onclick="switchTab('alertes')">
-                <span class="dash-alert-icon">🔔</span>
-                <div class="dash-alert-text"><strong>${sansSeuil.length} produit${sansSeuil.length>1?'s':''} sans seuil d'alerte stock</strong>Configurez les seuils pour être alerté en cas de rupture</div>
-                <span class="dash-alert-action">→</span>
-            </div>`;
-        }
-
-        // Stock critique (quantité = 0 mais pas vendu)
-        const critique = enStock.filter(p => (p.quantite||0) === 0);
-        if (critique.length > 0) {
-            alerts += `<div class="dash-alert danger" onclick="switchTab('alertes')">
-                <span class="dash-alert-icon">🔴</span>
-                <div class="dash-alert-text"><strong>${critique.length} produit${critique.length>1?'s':''} en rupture de stock</strong>Quantité à zéro — réapprovisionnement nécessaire</div>
-                <span class="dash-alert-action">→</span>
-            </div>`;
-        }
-
-        // Factures en retard
-        const today = new Date().toISOString().split('T')[0];
+        const today = dateLocaleISO(new Date());
         const facturesRetard = (typeof factures !== 'undefined' ? factures : []).filter(f => !f.payee && f.date_echeance && f.date_echeance < today);
         if (facturesRetard.length > 0) {
-            const montantRetard = facturesRetard.reduce((s,f) => s + (f.montant_ttc||0), 0);
-            alerts += `<div class="dash-alert danger" onclick="switchTab('factures')">
-                <span class="dash-alert-icon">🧾</span>
-                <div class="dash-alert-text"><strong>${facturesRetard.length} facture${facturesRetard.length>1?'s':''} en retard</strong>Montant dû : ${montantRetard.toFixed(2)}€</div>
-                <span class="dash-alert-action">→</span>
-            </div>`;
+            ligne(facturesRetard.length, 'danger', `Facture${facturesRetard.length>1?'s':''} en retard de paiement`,
+                `Montant dû : ${fmtEur(facturesRetard.reduce((s,f) => s + (f.montant_ttc||0), 0))}`, 'Voir les factures', "switchTab('factures')");
         }
 
-        // Stock vieillissant (> 60 jours sans vente)
-        const oldStock = enStock.filter(p => {
-            if (!p.date_ajout) return false;
-            return (Date.now() - new Date(p.date_ajout)) / 86400000 > 60;
-        });
-        if (oldStock.length > 5) {
-            alerts += `<div class="dash-alert warning" onclick="switchTab('stock')">
-                <span class="dash-alert-icon">⏰</span>
-                <div class="dash-alert-text"><strong>${oldStock.length} produit${oldStock.length>1?'s':''} en stock depuis plus de 60 jours</strong>Pensez à ajuster les prix ou changer de canal de vente</div>
-                <span class="dash-alert-action">→</span>
-            </div>`;
+        const fbaAttente = enStock.filter(p => p.fba_attente);
+        if (fbaAttente.length > 0) {
+            ligne(fbaAttente.length, 'warn', `Produit${fbaAttente.length>1?'s':''} à envoyer en FBA`,
+                `${fbaAttente.reduce((s,p) => s + (p.qte_entrepot||0), 0)} unité(s) en entrepôt, marquées « FBA en attente »`, "Préparer l'envoi", "switchTab('stock');switchStockView('fba_attente')");
         }
 
-        alertsDiv.innerHTML = alerts;
+        const critique = enStock.filter(p => (p.quantite||0) === 0);
+        if (critique.length > 0) {
+            ligne(critique.length, 'danger', `Produit${critique.length>1?'s':''} en rupture de stock`, 'Quantité à zéro', 'Voir le stock', "switchTab('stock')");
+        }
+
+        // Stock dormant : en stock depuis plus de 90 jours et aucune vente ENREGISTRÉE sur 90 jours
+        const il90 = Date.now() - 90 * 86400000, iso90 = dateLocaleISO(new Date(il90));
+        const vendusRecemment = new Set(ventes.filter(v => String(v.date_vente || '').slice(0, 10) >= iso90).map(v => v.produit_id));
+        const dormants = enStock.filter(p => (p.quantite||0) > 0 && p.date_ajout && new Date(p.date_ajout).getTime() < il90 && !vendusRecemment.has(p.id));
+        if (dormants.length > 0) {
+            ligne(dormants.length, '', `Référence${dormants.length>1?'s':''} sans vente enregistrée depuis 90 jours`,
+                `Valeur immobilisée : ${fmtEur(dormants.reduce((s,p) => s + (p.prix_achat||0)*(p.quantite||0), 0))}`, 'Voir le stock', "switchTab('stock')");
+        }
+
+        alertsDiv.innerHTML = lignes.length ? lignes.join('') : '<div class="afaire-vide">Rien à traiter pour le moment.</div>';
     }
 
     createCharts();
@@ -3195,7 +3221,7 @@ function createCharts() {
 
     // CA par canal (depuis la vraie table ventes)
     const canaux = {};
-    ventes.forEach(v => { const c = v.canal || 'Autre'; canaux[c] = (canaux[c]||0) + (v.prix_total||0); });
+    ventesPeriode().forEach(v => { const c = v.canal || 'Autre'; canaux[c] = (canaux[c]||0) + (v.prix_total||0); });
     if (charts.canaux) charts.canaux.destroy();
     const c4 = document.getElementById('chartCanaux');
     if (c4) charts.canaux = new Chart(c4, { type:'doughnut', data:{labels:Object.keys(canaux),datasets:[{data:Object.values(canaux),backgroundColor:['#ff9900','#3f51b5','#00b4b6','#f56b2a','#95a5a6']}]}, options:{responsive:true} });

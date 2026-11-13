@@ -903,6 +903,70 @@
         .acces-rapide.principal { background:var(--brand); color:#fff; border-color:var(--brand); }
         .acces-rapide small { display:block; font-size:12px; font-weight:500; opacity:.85; }
         .acces-rapide-icone { font-size:20px; line-height:1; }
+        /* ═══ Refonte 2026-11 ═══ */
+        .menu-item { padding: 12px 18px; font-size: 14.5px; gap: 12px; }
+        .menu-item:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: -2px; }
+        .menu-svg { width: 19px; height: 19px; flex-shrink: 0; }
+        .menu-badge { margin-left: auto; background: #f6c98a; color: #4a2c00; font-size: 11.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+        .menu-badge:empty { display: none; }
+        .header-new-btn { background: #fff; color: var(--brand); border: none; padding: 7px 14px; border-radius: var(--radius-sm); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .header-new-btn:hover { background: #eef5ec; }
+        #sous-onglets-bar:empty { display: none; }
+        .resume-ligne { color: var(--text-2); font-size: 13.5px; margin-top: 3px; }
+        /* À faire */
+        .afaire { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+        .afaire-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 14px 18px; border-top: 1px solid var(--border); }
+        .afaire-ligne:first-child { border-top: none; }
+        .afaire-nb { flex: 0 0 auto; min-width: 54px; height: 42px; padding: 0 8px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius); font-size: 17px; font-weight: 700; background: #e3e8ef; color: #2b3647; }
+        .afaire-nb.warn { background: #fdebd0; color: #7a4300; }
+        .afaire-nb.danger { background: #fde2df; color: #8f1d12; }
+        .afaire-texte { flex: 1 1 240px; min-width: 0; }
+        .afaire-texte strong { display: block; font-size: 14.5px; color: var(--text-1); }
+        .afaire-texte span { color: var(--text-2); font-size: 13px; }
+        .afaire-btn { min-height: 40px; padding: 0 16px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--bg-elevated); color: var(--text-1); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .afaire-btn.principal { background: var(--brand); border-color: var(--brand); color: #fff; }
+        .afaire-btn:hover { box-shadow: var(--shadow); }
+        .afaire-vide { padding: 18px; color: var(--text-2); }
+        /* Période */
+        .periode { display: flex; flex-wrap: wrap; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; gap: 2px; }
+        .periode button { min-height: 34px; padding: 0 12px; border: none; border-radius: 8px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+        .periode button[aria-pressed="true"] { background: var(--bg-elevated); color: var(--text-1); font-weight: 700; box-shadow: var(--shadow-sm); }
+        /* Pastilles de filtre */
+        .pastilles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .pastille { min-height: 38px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--bg-elevated); color: var(--text-1); font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; }
+        .pastille[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 700; }
+        .pastille:focus-visible, .afaire-btn:focus-visible, .periode button:focus-visible, .ico-btn:focus-visible, .btn-recep:focus-visible, .pill-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+        /* Tableau des achats */
+        .achats-table td { vertical-align: top; }
+        .achats-table tbody tr { cursor: pointer; }
+        .achats-table .num, .achats-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .achat-nom { font-weight: 600; color: var(--text-1); }
+        .achat-codes { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; margin-top: 4px; font-size: 12.5px; color: var(--text-2); }
+        .code-lib { margin-right: 4px; font-weight: 600; }
+        .sous-prix { font-size: 12px; color: var(--text-2); }
+        .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+        .pill-warn { background: #fdebd0; color: #5e3300; }
+        .pill-ok { background: #dff3e6; color: #17603a; }
+        .pill-btn { border: none; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .btn-recep { display: block; margin-top: 6px; min-height: 32px; padding: 0 10px; border: 1px solid var(--brand); border-radius: 8px; background: var(--bg-elevated); color: var(--brand); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .btn-recep:hover { background: var(--brand); color: #fff; }
+        .achat-actions { display: inline-flex; gap: 6px; }
+        .ico-btn { width: 34px; height: 34px; padding: 0; border: none; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .ico-btn svg { width: 16px; height: 16px; }
+        .ico-btn:hover { filter: brightness(1.1); box-shadow: var(--shadow); }
+        .ico-dup { background: #2573b5; color: #fff; }
+        .ico-sas { background: #1a4fa0; color: #fff; }
+        .ico-sc  { background: #ff9900; color: #3d2400; }
+        .ico-del { background: var(--bg-elevated); color: #a52a1d; border: 1px solid #c0392b; }
+        body.dark-theme .pill-warn, body.dark-theme .afaire-nb.warn { background: #5c3d0a; color: #ffd699; }
+        body.dark-theme .pill-ok { background: #173d27; color: #a5e0bb; }
+        body.dark-theme .afaire-nb { background: #2c3644; color: #dfe6ef; }
+        body.dark-theme .afaire-nb.danger { background: #5a1f1a; color: #ffc9c2; }
+        body.dark-theme .ico-del { color: #ff9c90; border-color: #ff9c90; }
+        @media (max-width: 768px) {
+            .header-new-btn { padding: 6px 10px; font-size: 12px; }
+            .dash-kpi-row, .dash-secondary-row { grid-template-columns: repeat(2, 1fr); }
+        }
     </style>
 </head>
 <body>
@@ -937,6 +1001,7 @@
                 </div>
             </div>
             <div class="header-right">
+                <button type="button" class="header-new-btn" onclick="switchTab('nouveau-produit')">+ Nouveau produit</button>
                 <span id="admin-badge" style="display:none;background:#e74c3c;color:white;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:700;">ADMIN</span>
                 <div id="admin-switcher" style="display:none;align-items:center;gap:8px;"></div>
                 <span id="viewing-indicator" style="display:none;background:#f39c12;color:white;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:700;"></span>
@@ -951,50 +1016,20 @@
         <div class="sidebar" id="sidebar" style="background:linear-gradient(175deg,#1e3320 0%,#152819 100%);width:240px;min-width:240px;color:white;">
             <div class="sidebar-header"><img src="logo.png" alt="Stock Radar" class="sidebar-logo"></div>
             <div class="menu-items">
-                <div class="menu-item active" data-tab="dashboard">
-                    <span class="menu-item-icon">📊</span><span>Dashboard</span>
+                <div class="menu-item active" data-tab="dashboard" role="button" tabindex="0">
+                    <svg class="menu-svg" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Accueil</span>
                 </div>
-                <div class="menu-section-label" style="color:rgba(255,255,255,.4);">Achats</div>
-                <div class="menu-item" data-tab="achats">
-                    <span class="menu-item-icon">🛒</span><span>Mes Achats</span>
+                <div class="menu-item" data-tab="achats" role="button" tabindex="0">
+                    <svg class="menu-svg" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg><span>Achats</span><span class="menu-badge" id="menu-badge-achats" title="Achats en attente de réception"></span>
                 </div>
-                <div class="menu-item" data-tab="import-grossiste">
-                    <span class="menu-item-icon">📥</span><span>Import Grossiste</span>
+                <div class="menu-item" data-tab="stock" role="button" tabindex="0">
+                    <svg class="menu-svg" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg><span>Stock</span>
                 </div>
-                <div class="menu-item" data-tab="fournisseurs">
-                    <span class="menu-item-icon">🏪</span><span>Fournisseurs</span>
+                <div class="menu-item" data-tab="ventes" role="button" tabindex="0">
+                    <svg class="menu-svg" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l4-5 3 3 4-6"/></svg><span>Ventes</span>
                 </div>
-                <div class="menu-item" data-tab="factures">
-                    <span class="menu-item-icon">🧾</span><span>Factures</span>
-                </div>
-                <div class="menu-section-label" style="color:rgba(255,255,255,.4);">Stock</div>
-                <div class="menu-item" data-tab="stock">
-                    <span class="menu-item-icon">📦</span><span>Mon Stock</span>
-                </div>
-                <div class="menu-item" data-tab="ventes">
-                    <span class="menu-item-icon">💰</span><span>Mes Ventes</span>
-                </div>
-                <div class="menu-item" data-tab="import-amazon">
-                    <span class="menu-item-icon">🅰️</span><span>Import Amazon</span>
-                </div>
-                <div class="menu-item" data-tab="nouveau-produit">
-                    <span class="menu-item-icon">➕</span><span>Nouveau Produit</span>
-                </div>
-                <div class="menu-item" data-tab="mouvements">
-                    <span class="menu-item-icon">📋</span><span>Journal Mouvements</span>
-                </div>
-                <div class="menu-item" data-tab="alertes">
-                    <span class="menu-item-icon">🔔</span><span>Alertes Stock</span>
-                </div>
-                <div class="menu-section-label" style="color:rgba(255,255,255,.4);">Réglages</div>
-                <div class="menu-item" data-tab="outils-export">
-                    <span class="menu-item-icon">📤</span><span>Export & Sauvegarde</span>
-                </div>
-                <div class="menu-item" data-tab="inventaire">
-                    <span class="menu-item-icon">📊</span><span>Inventaire</span>
-                </div>
-                <div class="menu-item" data-tab="aide">
-                    <span class="menu-item-icon">❓</span><span>Aide & raccourcis</span>
+                <div class="menu-item" data-tab="outils-export" role="button" tabindex="0">
+                    <svg class="menu-svg" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><span>Réglages</span>
                 </div>
             </div>
             <div class="menu-footer" style="color:rgba(255,255,255,.3);border-top:1px solid rgba(255,255,255,.07);padding:12px 16px;">⌨️ Ctrl+N · Ctrl+F · Ctrl+S · Ctrl+D
@@ -1021,30 +1056,39 @@
         <div class="container">
             <div class="loading" id="loading"><div class="loading-spinner"></div><p>Chargement des données...</p></div>
             <div id="main-content" style="display:none;">
+                <div id="sous-onglets-bar"></div>
 
                 <!-- ══════ DASHBOARD ══════ -->
                 <div id="dashboard" class="tab-content active">
-                    <div class="section-header"><h2>📊 Vue d'ensemble</h2></div>
+                    <div class="section-header"><h2>À faire aujourd'hui</h2></div>
+                    <div id="dash-alerts" class="afaire" style="margin-bottom:18px;"></div>
                     <div class="acces-rapides" aria-label="Accès rapides">
-                        <button type="button" class="acces-rapide principal" onclick="allerAchatsEnAttente()"><span class="acces-rapide-icone">📦</span><span>Réceptionner un achat<small id="acces-attente"></small></span></button>
-                        <button type="button" class="acces-rapide" onclick="allerNouvelAchat()"><span class="acces-rapide-icone">🛒</span><span>Nouvel achat</span></button>
-                        <button type="button" class="acces-rapide" onclick="switchTab('import-grossiste')"><span class="acces-rapide-icone">📥</span><span>Import grossiste</span></button>
-                        <button type="button" class="acces-rapide" onclick="switchTab('stock')"><span class="acces-rapide-icone">🔄</span><span>Stock, transferts et ventes<small>Vinted, Leboncoin, FBA</small></span></button>
-                        <button type="button" class="acces-rapide" onclick="switchTab('ventes')"><span class="acces-rapide-icone">💰</span><span>Mes ventes</span></button>
-                        <button type="button" class="acces-rapide" onclick="switchTab('outils-export')"><span class="acces-rapide-icone">💾</span><span>Export & sauvegarde</span></button>
+                        <button type="button" class="acces-rapide" onclick="allerNouvelAchat()"><span>Nouvel achat</span></button>
+                        <button type="button" class="acces-rapide" onclick="switchTab('import-grossiste')"><span>Import grossiste</span></button>
+                        <button type="button" class="acces-rapide" onclick="switchTab('stock')"><span>Stock, transferts et ventes<small>Vinted, Leboncoin, FBA</small></span></button>
+                        <button type="button" class="acces-rapide" onclick="switchTab('ventes')"><span>Mes ventes</span></button>
+                        <button type="button" class="acces-rapide" onclick="switchTab('outils-export')"><span>Export &amp; sauvegarde</span></button>
                     </div>
-                    <div id="dash-alerts" style="margin-bottom:20px;"></div>
+                    <div class="section-header" style="margin-bottom:12px;">
+                        <h2>Chiffres</h2>
+                        <div class="periode" role="group" aria-label="Période des chiffres de vente" id="dash-periode">
+                            <button type="button" data-periode="30" onclick="setDashPeriode('30')">30 jours</button>
+                            <button type="button" data-periode="90" onclick="setDashPeriode('90')">90 jours</button>
+                            <button type="button" data-periode="annee" onclick="setDashPeriode('annee')">Cette année</button>
+                            <button type="button" data-periode="tout" onclick="setDashPeriode('tout')">Depuis le début</button>
+                        </div>
+                    </div>
                     <div class="dash-kpi-row">
-                        <div class="stat-card kpi-main" data-accent="green"><div class="stat-number" id="dash-ca-realise">0€</div><div class="stat-label">CA réalisé</div></div>
+                        <div class="stat-card kpi-main" data-accent="green"><div class="stat-number" id="dash-ca-realise">0€</div><div class="stat-label">Chiffre d'affaires</div></div>
                         <div class="stat-card kpi-main" data-accent="green"><div class="stat-number" id="dash-benefice">0€</div><div class="stat-label">Bénéfice net</div></div>
-                        <div class="stat-card kpi-main"><div class="stat-number" id="dash-valeur-stock">0€</div><div class="stat-label">Valeur stock</div></div>
-                        <div class="stat-card kpi-main" id="dash-benef-potentiel-card"><div class="stat-number" id="dash-benefice-potentiel">0€</div><div class="stat-label">Bénéfice potentiel</div><div id="dash-benef-detail" style="font-size:11px;color:var(--text-3);margin-top:4px;"></div></div>
+                        <div class="stat-card kpi-main"><div class="stat-number" id="dash-marge-moyenne">0%</div><div class="stat-label" title="(CA − achats − frais) / CA, sur les ventes dont le prix d'achat est connu">Marge nette</div></div>
+                        <div class="stat-card kpi-main"><div class="stat-number" id="dash-valeur-stock">0€</div><div class="stat-label">Valeur du stock</div></div>
                     </div>
                     <div class="dash-secondary-row">
-                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-total-produits">0</div><div class="stat-label">En stock</div></div>
-                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-total-vendus">0</div><div class="stat-label">Vendus</div></div>
-                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-marge-moyenne">0%</div><div class="stat-label" title="(CA − achats − frais) / CA, sur les ventes dont le prix d'achat est connu">Marge nette</div></div>
-                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-valeur-entrepot">0€</div><div class="stat-label">Entrepôt</div></div>
+                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-nb-ventes">0</div><div class="stat-label">Ventes</div></div>
+                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-total-vendus">0</div><div class="stat-label">Unités vendues</div></div>
+                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-total-produits">0</div><div class="stat-label">Unités en stock</div></div>
+                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-valeur-entrepot">0€</div><div class="stat-label">Valeur en entrepôt</div></div>
                     </div>
                     <div class="stats" style="grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;">
                         <div class="stat-card" data-accent="orange"><div class="stat-number" id="dash-qte-fba">0</div><div class="stat-label">FBA</div></div>
@@ -1056,7 +1100,7 @@
                         <div class="chart-card"><h3>Achats et ventes — 6 derniers mois</h3><canvas id="chartEvolution" height="200"></canvas></div>
                         <div class="chart-card"><h3>Répartition stock</h3><canvas id="chartRepartition" height="200"></canvas></div>
                         <div class="chart-card"><h3>Top 5 catégories</h3><canvas id="chartCategories" height="200"></canvas></div>
-                        <div class="chart-card"><h3>CA par canal</h3><canvas id="chartCanaux" height="200"></canvas></div>
+                        <div class="chart-card"><h3>CA par canal (période choisie)</h3><canvas id="chartCanaux" height="200"></canvas></div>
                     </div>
                 </div>
 
@@ -1115,12 +1159,11 @@
 
                 <!-- ══════ ACHATS ══════ -->
                 <div id="achats" class="tab-content">
-                    <div class="sous-onglets" role="tablist" aria-label="Sections des achats">
-                        <button type="button" role="tab" aria-selected="true" class="sous-onglet active" onclick="switchTab('achats')">🛒 Achats de produits</button>
-                        <button type="button" role="tab" aria-selected="false" class="sous-onglet" onclick="switchTab('fournitures')">📎 Fournitures & frais</button>
-                    </div>
                     <div class="section-header">
-                        <h2>🛒 Mes Achats</h2>
+                        <div>
+                            <h2>Achats</h2>
+                            <div class="resume-ligne"><span id="achats-total">0</span> <span id="achats-total-label">achats</span> · <span id="achats-qte">0</span> unités · <span id="achats-montant-ht">0€</span> HT · <span id="achats-montant">0€</span> TTC · <span id="achats-en-attente">0</span> en attente</div>
+                        </div>
                         <div style="display:flex;gap:10px;flex-wrap:wrap;">
                             <button class="scan-button" onclick="toggleAchatForm()">➕ Nouvel achat</button>
                             <button class="scan-button export" onclick="exportAchatsCSV()">📊 Export CSV</button>
@@ -1139,11 +1182,12 @@
                             <button type="submit" class="submit-button">💾 Enregistrer</button>
                         </form>
                     </div>
+                    <div id="achats-pastilles" class="pastilles" role="group" aria-label="Filtrer par statut de réception"></div>
                     <div class="search-filters">
                         <div class="search-row">
                             <input type="text" class="search-input" id="search-achats" placeholder="🔍 Rechercher...">
                             <select class="search-input" id="filter-achat-fournisseur"><option value="">Tous fournisseurs</option></select>
-                            <select class="search-input" id="filter-achat-recu"><option value="">Tous</option><option value="oui">✅ Reçu</option><option value="non">⏳ En attente</option><option value="partiel">📦 Reçu partiellement</option></select>
+                            <select class="search-input" id="filter-achat-recu" style="display:none;" aria-hidden="true" tabindex="-1"><option value="">Tous</option><option value="oui">✅ Reçu</option><option value="non">⏳ En attente</option><option value="partiel">📦 Reçu partiellement</option></select>
                         </div>
                         <div class="search-row" style="margin-top:8px;">
                             <div style="display:flex;align-items:center;gap:6px;flex:1;">
@@ -1164,13 +1208,6 @@
                             </select>
                             <button class="scan-button" style="padding:8px 14px;font-size:13px;" onclick="resetAchatsFilters()">✖ Reset</button>
                         </div>
-                    </div>
-                    <div class="stats" id="achats-stats">
-                        <div class="stat-card"><div class="stat-number" id="achats-total">0</div><div class="stat-label" id="achats-total-label">Total achats</div></div>
-                        <div class="stat-card"><div class="stat-number" id="achats-qte">0</div><div class="stat-label">Unités</div></div>
-                        <div class="stat-card"><div class="stat-number" id="achats-montant-ht">0€</div><div class="stat-label">Montant HT</div></div>
-                        <div class="stat-card"><div class="stat-number" id="achats-montant">0€</div><div class="stat-label">Montant TTC</div></div>
-                        <div class="stat-card" style="border-left:4px solid #f39c12;"><div class="stat-number" id="achats-en-attente">0</div><div class="stat-label">En attente</div></div>
                     </div>
                     <div id="achats-container"></div>
                 </div>
@@ -1210,10 +1247,6 @@
 
                 <!-- ══════ FOURNITURES ══════ -->
                 <div id="fournitures" class="tab-content">
-                    <div class="sous-onglets" role="tablist" aria-label="Sections des achats">
-                        <button type="button" role="tab" aria-selected="false" class="sous-onglet" onclick="switchTab('achats')">🛒 Achats de produits</button>
-                        <button type="button" role="tab" aria-selected="true" class="sous-onglet active" onclick="switchTab('fournitures')">📎 Fournitures & frais</button>
-                    </div>
                     <div class="section-header">
                         <h2>📎 Fournitures & Frais</h2>
                         <button class="scan-button" onclick="toggleFournitureForm()">➕ Ajouter</button>
@@ -2203,9 +2236,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261113-8"></script>
-    <script src="app-cloud.js?v=20261113-8"></script>
-    <script src="auth.js?v=20261113-8"></script>
+    <script src="config.js?v=20261113-9"></script>
+    <script src="app-cloud.js?v=20261113-9"></script>
+    <script src="auth.js?v=20261113-9"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {
