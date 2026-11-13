@@ -590,7 +590,9 @@ function displayAchats() {
     h += '<div class="products-table"><table><thead><tr><th style="width:30px;"><input type="checkbox" id="achats-select-all" onchange="toggleAllAchats(this.checked)"></th><th>Date</th><th>EAN</th><th>ASIN</th><th>Produit</th><th>Fournisseur</th><th>Qté</th><th>Prix HT</th><th>Prix TTC</th><th>Reçu</th><th>Actions</th></tr></thead><tbody>';
     filtered.forEach(a => {
         const d = a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-';
-        const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>' : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
+        const recuBadge = a.recu ? '<span class="badge badge-stock" style="cursor:pointer">✅ Reçu</span>'
+            : achatEstPartiel(a) ? `<span class="badge badge-partiel" style="cursor:pointer" title="Reçu partiellement — cliquer pour saisir la suite">📦 ${achatQteRecue(a)}/${a.quantite || 1}</span>`
+            : '<span class="badge badge-invendable" style="cursor:pointer">⏳ Attente</span>';
         h += `<tr style="cursor:pointer" onclick="editAchat(${a.id})"><td onclick="event.stopPropagation()"><input type="checkbox" class="achat-check" data-id="${a.id}" data-ean="${escapeHtml(a.ean||'')}" data-asin="${escapeHtml(a.asin||'')}" onchange="updateAchatsSelection()"></td><td>${d}</td><td style="white-space:nowrap;">${boutonCopier(a.ean, 'EAN')}${escapeHtml(a.ean)}</td><td style="white-space:nowrap;">${boutonCopier(a.asin, 'ASIN')}${escapeHtml(a.asin||'-')}</td><td><strong>${escapeHtml(a.nom)}</strong></td><td>${escapeHtml(a.fournisseur_nom||'-')}</td><td>${a.quantite||1}</td><td>${(a.prix_ht||0).toFixed(2)}€</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td onclick="event.stopPropagation();toggleRecu(${a.id},${!a.recu})">${recuBadge}</td><td onclick="event.stopPropagation()"><div class="action-buttons" style="display:flex;gap:4px;"><button class="btn-small" style="background:#3498db;color:white;padding:4px 8px;border-radius:6px;" onclick="duplicateAchat(${a.id})" title="Dupliquer">📋</button>${(a.asin || a.ean) ? `<button class="btn-small" style="background:#1565c0;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerAmp('${escapeHtml(a.asin || a.ean)}')" title="Analyser sur SellerAmp">⚡</button>` : ''}${a.asin ? `<button class="btn-small" style="background:#ff9900;color:white;padding:4px 8px;border-radius:6px;font-weight:700;" onclick="openSellerCentral('${escapeHtml(a.asin)}')" title="Ajouter l'offre sur Amazon Seller Central">➕</button>` : ''}<button class="btn-small btn-delete" onclick="deleteAchat(${a.id})" title="Supprimer">🗑️</button></div></td></tr>`;
     });
     c.innerHTML = h + '</tbody></table></div>';
@@ -610,6 +612,7 @@ function filterAchats() {
         if (f && String(a.fournisseur_id) !== String(f)) return false;
         if (r === 'oui' && !a.recu) return false;
         if (r === 'non' && a.recu) return false;
+        if (r === 'partiel' && !achatEstPartiel(a)) return false;
         if (dateDebut && a.date_achat && a.date_achat.split('T')[0] < dateDebut) return false;
         if (dateFin && a.date_achat && a.date_achat.split('T')[0] > dateFin) return false;
         return true;
@@ -703,55 +706,145 @@ function updateAchatsStats() {
     el('achats-en-attente', filtered.filter(a => !a.recu).length);
 }
 
-async function toggleRecu(id, v) {
-    // Empêcher la double création de stock — vérification via produit_genere_id
-    const achat = achats.find(a => a.id === id);
+// ═══════ RÉCEPTION DES ACHATS (totale ou partielle) ═══════
+// achats.quantite_recue = unités déjà entrées en stock. NULL sur les achats antérieurs
+// à cette fonction : on s'en remet alors au drapeau `recu` (tout ou rien).
+function achatQteRecue(a) {
+    const q = a.quantite || 1;
+    if (a.recu) return q;
+    return Math.max(0, Math.min(a.quantite_recue || 0, q));
+}
+function achatReste(a) { return (a.quantite || 1) - achatQteRecue(a); }
+function achatEstPartiel(a) { return !a.recu && achatQteRecue(a) > 0; }
 
-    // Cas d'incohérence : produit déjà créé mais recu=false → juste mettre recu=true sans recréer
-    if (v === true && achat?.produit_genere_id && !achat?.recu) {
+// Fenêtre « combien d'unités sont arrivées ? » — renvoie un entier, ou null si annulé
+function srReception(achat) {
+    return new Promise(resolve => {
+        const q = achat.quantite || 1, deja = achatQteRecue(achat), reste = q - deja;
+        document.getElementById('sr-reception-modal')?.remove();
+        const modal = document.createElement('div');
+        modal.id = 'sr-reception-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px);';
+        modal.innerHTML = `
+            <div style="background:var(--bg-elevated);border-radius:var(--radius-xl);padding:28px;max-width:440px;width:100%;border:1px solid var(--border);box-shadow:var(--shadow-lg);">
+                <div style="font-size:15px;font-weight:700;color:var(--text-1);margin-bottom:6px;">Réception de l'achat</div>
+                <div style="font-size:13.5px;color:var(--text-2);line-height:1.5;margin-bottom:14px;">${escapeHtml(achat.nom || '')}</div>
+                <div style="display:flex;gap:8px;margin-bottom:16px;font-size:13px;">
+                    <div style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);"><div style="color:var(--text-2);">Commandé</div><strong style="color:var(--text-1);font-size:16px;">${q}</strong></div>
+                    <div style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);"><div style="color:var(--text-2);">Déjà reçu</div><strong style="color:var(--text-1);font-size:16px;">${deja}</strong></div>
+                    <div style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);"><div style="color:var(--text-2);">Reste</div><strong style="color:var(--text-1);font-size:16px;">${reste}</strong></div>
+                </div>
+                <label for="sr-reception-qte" style="display:block;font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:6px;">Quantité arrivée aujourd'hui</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input id="sr-reception-qte" type="number" inputmode="numeric" min="1" max="${reste}" step="1" value="${reste}" style="flex:1;padding:10px 12px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--bg-elevated);color:var(--text-1);font-size:16px;font-family:inherit;">
+                    <button id="sr-reception-tout" type="button" style="padding:10px 14px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--bg-elevated);color:var(--text-1);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;">Tout le reste (${reste})</button>
+                </div>
+                <div id="sr-reception-info" style="font-size:12.5px;min-height:18px;margin:8px 0 18px;color:var(--text-2);"></div>
+                <div style="display:flex;gap:10px;justify-content:flex-end;">
+                    <button id="sr-reception-cancel" type="button" style="padding:9px 18px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--bg-elevated);color:var(--text-1);font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;">Annuler</button>
+                    <button id="sr-reception-ok" type="button" style="padding:9px 18px;border-radius:var(--radius);border:none;background:var(--brand);color:white;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">Valider la réception</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        const input = modal.querySelector('#sr-reception-qte'), info = modal.querySelector('#sr-reception-info');
+        const lire = () => { const n = Number(input.value); return (Number.isInteger(n) && n >= 1 && n <= reste) ? n : null; };
+        const maj = () => {
+            const n = lire();
+            if (n === null) { info.style.color = 'var(--danger)'; info.textContent = `Saisissez un nombre entier entre 1 et ${reste}.`; }
+            else if (n < reste) { info.style.color = 'var(--text-2)'; info.textContent = `Réception partielle : ${deja + n} sur ${q} — il restera ${reste - n} unité(s) à recevoir.`; }
+            else { info.style.color = 'var(--text-2)'; info.textContent = 'Réception complète : l\'achat passera en « Reçu ».'; }
+        };
+        const fermer = (val) => { modal.remove(); resolve(val); };
+        const valider = () => { const n = lire(); if (n === null) { maj(); input.focus(); return; } fermer(n); };
+        input.oninput = maj;
+        input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); valider(); } if (e.key === 'Escape') fermer(null); };
+        modal.querySelector('#sr-reception-tout').onclick = () => { input.value = reste; maj(); input.focus(); };
+        modal.querySelector('#sr-reception-ok').onclick = valider;
+        modal.querySelector('#sr-reception-cancel').onclick = () => fermer(null);
+        modal.onclick = (e) => { if (e.target === modal) fermer(null); };
+        maj(); input.focus(); input.select();
+    });
+}
+
+let receptionEnCours = false;
+
+async function toggleRecu(id, v) {
+    const achat = achats.find(a => a.id === id);
+    if (!achat) return;
+
+    // Décocher : comportement inchangé (le stock déjà créé n'est pas touché)
+    if (v !== true) {
+        await sb.from('achats').update({ recu: false }).eq('id', id);
+        await loadAchats();
+        return;
+    }
+    if (achat.recu === true) {
+        if (achat.produit_genere_id) toastWarning('Déjà réceptionné', 'Un produit a déjà été créé pour cet achat (ID ' + achat.produit_genere_id + ').');
+        return;
+    }
+    if (receptionEnCours) return;
+
+    // Tout est déjà en stock mais l'achat n'est pas marqué reçu (ancien achat décoché,
+    // ou réceptions partielles qui couvrent la quantité) → on confirme sans recréer de stock
+    const ancienDejaCree = achat.produit_genere_id && achat.quantite_recue == null;
+    if (ancienDejaCree || achatReste(achat) <= 0) {
         await sb.from('achats').update({ recu: true }).eq('id', id);
         await loadAchats();
-        toastSuccess('Réception confirmée', 'Le produit (ID ' + achat.produit_genere_id + ') est déjà en stock.');
+        toastSuccess('Réception confirmée', achat.produit_genere_id ? 'Le produit (ID ' + achat.produit_genere_id + ') est déjà en stock.' : 'Toutes les unités étaient déjà en stock.');
         return;
     }
 
-    // Déjà reçu ET produit créé → bloquer
-    if (v === true && achat?.produit_genere_id && achat?.recu) {
-        toastWarning('Déjà réceptionné', 'Un produit a déjà été créé pour cet achat (ID ' + achat.produit_genere_id + ').');
-        return;
+    // Une seule unité attendue : réception directe. Sinon on demande combien sont arrivées.
+    const reste = achatReste(achat);
+    const qteArrivee = reste === 1 ? 1 : await srReception(achat);
+    if (!qteArrivee) return;
+
+    receptionEnCours = true;
+    try { await receptionnerAchat(achat, qteArrivee); }
+    finally { receptionEnCours = false; }
+}
+
+// Fait entrer `qteArrivee` unités d'un achat en stock (entrepôt) et met l'achat à jour.
+async function receptionnerAchat(achat, qteArrivee) {
+    const id = achat.id;
+    const q = achat.quantite || 1;
+    const dejaAvant = achatQteRecue(achat);
+    const dejaApres = dejaAvant + qteArrivee;
+    const complet = dejaApres >= q;
+    const avant = { recu: achat.recu || false, quantite_recue: achat.quantite_recue ?? null };
+
+    // 1. L'achat d'abord : si cette écriture échoue, on n'a pas touché au stock
+    let { error: errAchat } = await sb.from('achats').update({ recu: complet, quantite_recue: dejaApres }).eq('id', id);
+    let colonneAbsente = false;
+    if (errAchat && /quantite_recue/i.test(errAchat.message || '')) {
+        // La colonne n'existe pas encore en base (migration-reception-partielle.sql non exécutée)
+        colonneAbsente = true;
+        if (!complet) {
+            return toastError('Migration à exécuter', 'La réception partielle a besoin de la colonne « quantite_recue ». Exécutez migration-reception-partielle.sql dans Supabase (SQL Editor), puis réessayez.');
+        }
+        ({ error: errAchat } = await sb.from('achats').update({ recu: true }).eq('id', id));
     }
-    if (v === true && achat?.recu === true) return;
+    if (errAchat) return toastError('Réception impossible', errAchat.message);
+    const annulerAchat = () => sb.from('achats').update(colonneAbsente ? { recu: avant.recu } : avant).eq('id', id);
 
-    await sb.from('achats').update({ recu: v }).eq('id', id);
+    // 2. Le stock : la fiche déjà liée à cet achat (réceptions précédentes), sinon une fiche
+    //    neuve du même EAN, sinon une nouvelle fiche
+    const pa = achat.prix_ttc || achat.prix_ht || 0;
+    const lie = achat.produit_genere_id ? products.find(p => p.id === achat.produit_genere_id && !p.invendable) : null;
+    const existant = lie || grossisteProduitExistant(achat.ean);
+    let produitId = null, pmp = pa;
 
-    // Réception d'un produit déjà en stock (même EAN, neuf) : on incrémente la ligne
-    // existante avec prix d'achat moyen pondéré, comme l'import facture — pas de doublon.
-    const existant = (v === true && achat) ? grossisteProduitExistant(achat.ean) : null;
     if (existant) {
-        const qte = achat.quantite || 1;
-        const pa = achat.prix_ttc || achat.prix_ht || 0;
         const stockBase = existant.quantite || 0;
-        const nouveauStock = stockBase + qte;
-        const pmp = nouveauStock > 0 ? +(((stockBase * (existant.prix_achat || 0)) + pa * qte) / nouveauStock).toFixed(2) : pa;
+        const nouveauStock = stockBase + qteArrivee;
+        pmp = nouveauStock > 0 ? +(((stockBase * (existant.prix_achat || 0)) + pa * qteArrivee) / nouveauStock).toFixed(2) : pa;
         const { error } = await sb.from('produits').update({
             prix_achat: pmp, quantite: nouveauStock, vendu: false,
-            qte_entrepot: (existant.qte_entrepot || 0) + qte,
+            qte_entrepot: (existant.qte_entrepot || 0) + qteArrivee,
         }).eq('id', existant.id);
-        if (error) {
-            await sb.from('achats').update({ recu: false }).eq('id', id);
-            toastError('Réception impossible', error.message);
-        } else {
-            await sb.from('achats').update({ produit_genere_id: existant.id }).eq('id', id);
-            await logMouvement(existant.id, 'reception', qte, 'achat', 'entrepot', 'Réception achat', achat.fournisseur_nom || '');
-            toastSuccess('Réception confirmée', `${qte} u. ajoutée(s) au stock existant (entrepôt) — prix d'achat moyen : ${pmp.toFixed(2)}€`);
-        }
-        await loadProducts();
-        updateDashboard();
-        await loadAchats();
-        return;
-    }
-
-    if (v === true && achat) {
+        if (error) { await annulerAchat(); await loadAchats(); return toastError('Réception impossible', error.message); }
+        produitId = existant.id;
+    } else {
         const pr = {
             user_id: getEffectiveUserId(),
             ean: achat.ean,
@@ -762,11 +855,11 @@ async function toggleRecu(id, v) {
             etat_stock: 'neuf',
             statut: 'recu',
             emplacement: '',
-            prix_achat: achat.prix_ttc || achat.prix_ht || 0,
+            prix_achat: pa,
             prix_revente: 0,
             qte_fba: 0, qte_fbm: 0,
-            qte_entrepot: achat.quantite || 1,
-            quantite: achat.quantite || 1,
+            qte_entrepot: qteArrivee,
+            quantite: qteArrivee,
             amazon_fba: false, amazon_fbm: false,
             vinted: false, leboncoin: false,
             invendable: false, vendu: false,
@@ -775,17 +868,27 @@ async function toggleRecu(id, v) {
             date_ajout: new Date().toISOString(),
         };
         const { data: inserted, error } = await sb.from('produits').insert([pr]).select();
-        if (error) {
-            console.warn('Erreur création produit depuis achat:', error.message);
-        } else if (inserted && inserted[0]) {
-            // Lier l'achat au produit créé via la vraie relation SQL
-            await sb.from('achats').update({ produit_genere_id: inserted[0].id }).eq('id', id);
-            await logMouvement(inserted[0].id, 'reception', achat.quantite || 1, 'achat', 'entrepot', 'Réception achat', achat.fournisseur_nom || '');
+        if (error || !inserted || !inserted[0]) {
+            await annulerAchat(); await loadAchats();
+            return toastError('Réception impossible', error ? error.message : 'Le produit n\'a pas pu être créé.');
         }
-        await loadProducts();
-        updateDashboard();
+        produitId = inserted[0].id;
     }
 
+    // 3. Lien achat → fiche, journal
+    if (achat.produit_genere_id !== produitId) {
+        await sb.from('achats').update({ produit_genere_id: produitId }).eq('id', id);
+    }
+    const detail = complet && dejaAvant === 0 ? 'Réception achat' : `Réception ${complet ? 'finale' : 'partielle'} ${dejaApres}/${q}`;
+    await logMouvement(produitId, 'reception', qteArrivee, 'achat', 'entrepot', detail, achat.fournisseur_nom || '');
+
+    if (complet) {
+        toastSuccess('Réception complète', `${qteArrivee} u. ajoutée(s) au stock (entrepôt)` + (dejaAvant > 0 ? ` — ${q}/${q} reçues` : '') + (existant ? ` — prix d'achat moyen : ${pmp.toFixed(2)}€` : ''));
+    } else {
+        toastSuccess('Réception partielle', `${qteArrivee} u. ajoutée(s) au stock — ${dejaApres} sur ${q} reçues, reste ${q - dejaApres}.`);
+    }
+    await loadProducts();
+    updateDashboard();
     await loadAchats();
 }
 
@@ -2956,7 +3059,7 @@ function updateDashboard() {
         // Achats en attente
         const enAttente = achats.filter(a => !a.recu);
         if (enAttente.length > 0) {
-            const montantAttente = enAttente.reduce((s,a) => s + ((a.prix_ttc||0)*(a.quantite||1)), 0);
+            const montantAttente = enAttente.reduce((s,a) => s + ((a.prix_ttc||0)*achatReste(a)), 0);   // seulement ce qui reste à recevoir
             alerts += `<div class="dash-alert warning" onclick="switchTab('achats')">
                 <span class="dash-alert-icon">📦</span>
                 <div class="dash-alert-text"><strong>${enAttente.length} achat${enAttente.length>1?'s':''} en attente de réception</strong>Montant : ${montantAttente.toFixed(2)}€ TTC</div>
@@ -4188,7 +4291,7 @@ function formatAchatExport(a) {
         'EAN': a.ean||'', 'Nom': a.nom||'', 'Fournisseur': a.fournisseur_nom||'',
         'Quantité': a.quantite||1, 'Prix HT': (a.prix_ht||0).toFixed(2),
         'Prix TTC': (a.prix_ttc||0).toFixed(2),
-        'Reçu': a.recu ? 'Oui' : 'Non', 'Notes': a.notes||''
+        'Reçu': a.recu ? 'Oui' : (achatEstPartiel(a) ? `Partiel ${achatQteRecue(a)}/${a.quantite||1}` : 'Non'), 'Notes': a.notes||''
     };
 }
 
