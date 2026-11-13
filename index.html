@@ -967,6 +967,14 @@
             .header-new-btn { padding: 6px 10px; font-size: 12px; }
             .dash-kpi-row, .dash-secondary-row { grid-template-columns: repeat(2, 1fr); }
         }
+        /* Retours */
+        .retours-aide { background: var(--info-bg); border: 1px solid rgba(52,152,219,.3); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 15px; font-size: 13.5px; color: var(--text-1); }
+        .retours-import { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 15px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-subtle); font-size: 13.5px; }
+        .retours-top-ligne { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13px; }
+        .retours-top-ligne:first-child { border-top: none; }
+        .retours-top-nom { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-1); }
+        .retours-top-nb { flex: 0 0 auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .retours-top-taux { flex: 0 0 auto; min-width: 54px; text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; }
     </style>
 </head>
 <body>
@@ -1087,7 +1095,7 @@
                     <div class="dash-secondary-row">
                         <div class="stat-card kpi-sub"><div class="stat-number" id="dash-nb-ventes">0</div><div class="stat-label">Ventes</div></div>
                         <div class="stat-card kpi-sub"><div class="stat-number" id="dash-total-vendus">0</div><div class="stat-label">Unités vendues</div></div>
-                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-total-produits">0</div><div class="stat-label">Unités en stock</div></div>
+                        <div class="stat-card kpi-sub" style="cursor:pointer;" onclick="switchTab('retours')" title="Voir les retours"><div class="stat-number" id="dash-retours">0</div><div class="stat-label" id="dash-retours-label">Retours</div></div>
                         <div class="stat-card kpi-sub"><div class="stat-number" id="dash-valeur-entrepot">0€</div><div class="stat-label">Valeur en entrepôt</div></div>
                     </div>
                     <div class="stats" style="grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;">
@@ -1100,7 +1108,7 @@
                         <div class="chart-card"><h3>Achats et ventes — 6 derniers mois</h3><canvas id="chartEvolution" height="200"></canvas></div>
                         <div class="chart-card"><h3>Répartition stock</h3><canvas id="chartRepartition" height="200"></canvas></div>
                         <div class="chart-card"><h3>Top 5 catégories</h3><canvas id="chartCategories" height="200"></canvas></div>
-                        <div class="chart-card"><h3>CA par canal (période choisie)</h3><canvas id="chartCanaux" height="200"></canvas></div>
+                        <div class="chart-card"><h3>CA par canal et retours (période choisie)</h3><canvas id="chartCanaux" height="200"></canvas></div>
                     </div>
                 </div>
 
@@ -1415,6 +1423,10 @@
                         <div id="frais-preview" style="display:none;">
                             <div id="frais-stats" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px;"></div>
                             <div id="frais-preview-table" style="max-height:400px; overflow-y:auto;"></div>
+                            <div id="retours-import-bloc" class="retours-import" style="display:none;">
+                                <div id="retours-import-texte"></div>
+                                <button type="button" class="scan-button" id="retours-save-btn" onclick="confirmRetoursImport()">Enregistrer les remboursements</button>
+                            </div>
                             <div style="display:flex; gap:10px; margin-top:15px;">
                                 <button class="scan-button" id="frais-apply-btn" onclick="confirmFraisImport()">✅ Appliquer les frais réels à <span id="frais-count">0</span> vente(s)</button>
                                 <button class="scan-button reset" onclick="cancelFraisImport()">❌ Annuler</button>
@@ -1648,6 +1660,31 @@
                         </div>
                     </div>
                     <div id="ventes-container"></div>
+                </div>
+
+                <!-- ══════ RETOURS ══════ -->
+                <div id="retours" class="tab-content">
+                    <div class="section-header">
+                        <div>
+                            <h2>Retours et remboursements</h2>
+                            <div class="resume-ligne" id="retours-resume"></div>
+                        </div>
+                        <button class="scan-button export" onclick="exportRetours()">Exporter</button>
+                    </div>
+                    <div id="retours-aide" class="retours-aide" style="display:none;"></div>
+                    <div class="search-filters" style="margin-bottom:15px;">
+                        <div class="search-row">
+                            <input type="text" class="search-input" id="retours-search" placeholder="Rechercher un produit, une commande, un SKU…" oninput="retoursPage = 1; displayRetours()">
+                            <select class="search-input" id="retours-filter-pays" onchange="retoursPage = 1; displayRetours()" style="max-width:190px;"><option value="">Tous les pays</option></select>
+                            <input type="date" class="search-input" id="retours-filter-from" onchange="retoursPage = 1; displayRetours()" style="max-width:160px;" title="Date depuis" aria-label="Date depuis">
+                            <input type="date" class="search-input" id="retours-filter-to" onchange="retoursPage = 1; displayRetours()" style="max-width:160px;" title="Date jusqu'à" aria-label="Date jusqu'à">
+                        </div>
+                    </div>
+                    <div class="charts-grid" style="margin-bottom:18px;">
+                        <div class="chart-card"><h3>Produits les plus retournés</h3><div id="retours-top"></div></div>
+                        <div class="chart-card"><h3>Retours par mois</h3><canvas id="chartRetoursMois" height="200"></canvas></div>
+                    </div>
+                    <div id="retours-container"></div>
                 </div>
 
                 <!-- ══════ ALERTES STOCK ══════ -->
@@ -2236,9 +2273,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261113-9"></script>
-    <script src="app-cloud.js?v=20261113-9"></script>
-    <script src="auth.js?v=20261113-9"></script>
+    <script src="config.js?v=20261113-10"></script>
+    <script src="app-cloud.js?v=20261113-10"></script>
+    <script src="auth.js?v=20261113-10"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {

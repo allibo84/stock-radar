@@ -51,7 +51,8 @@ function srConfirm(message, title = 'Confirmer', danger = false) {
 }
 
 // sb est créé dans config.js
-let fournisseurs = [], achats = [], products = [], mouvements = [], ventes = [];
+let fournisseurs = [], achats = [], products = [], mouvements = [], ventes = [], retours = [];
+let retoursTableAbsente = false, retoursPage = 1;
 let currentPhotos = [], currentVenteProductId = null;
 let activeStockView = 'all';
 let stockCurrentPage = 1;
@@ -73,6 +74,7 @@ async function loadAllData() {
             loadFactures().catch(e => console.warn('Factures:', e)),
             loadFournitures().catch(e => console.warn('Fournitures:', e)),
             loadVentes().catch(e => console.warn('Ventes:', e)),
+            loadRetours().catch(e => console.warn('Retours:', e)),
         ]);
     } catch (e) { console.error('Erreur chargement:', e); }
     document.getElementById('loading').style.display = 'none';
@@ -172,6 +174,155 @@ async function loadVentes() {
     displayVentes();
 }
 
+// ═══════ RETOURS (remboursements clients lus dans le rapport de transactions) ═══════
+async function loadRetours() {
+    const uid = getUserFilter();
+    const lignes = [];
+    retoursTableAbsente = false;
+    for (let debut = 0; ; debut += 1000) {
+        let q = sb.from('retours').select('*').order('date_retour', { ascending: false }).order('id', { ascending: true }).range(debut, debut + 999);
+        if (uid) q = q.eq('user_id', uid);
+        const { data, error } = await q;
+        if (error) { retoursTableAbsente = /retours/i.test(error.message || '') || error.code === '42P01' || error.code === 'PGRST205'; console.warn('Erreur retours:', error.message); break; }
+        lignes.push(...(data || []));
+        if (!data || data.length < 1000) break;
+    }
+    retours = lignes;
+    if (document.getElementById('retours')?.classList.contains('active')) displayRetours();
+    updateDashboard();
+}
+
+// Date d'une ligne du rapport de transactions, quelle que soit la langue du pays :
+// « 5 juil. 2026 10:15:22 UTC », « 05.07.2026 10:15:22 UTC », « 5 Jul 2026 … », « 2026-07-05T… ».
+function parseDateTransaction(brut) {
+    const t = String(brut || '').trim();
+    if (!t) return null;
+    const p2 = (n) => String(n).padStart(2, '0');
+    let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    m = t.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+    if (m) return `${m[3]}-${p2(m[2])}-${p2(m[1])}`;
+    m = t.match(/^(\d{1,2})\.?\s+([^\s\d]+)\s+(\d{4})/);
+    if (!m) return null;
+    const mot = m[2].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\./g, '');
+    const MOIS = [['jan', 1], ['gen', 1], ['ene', 1], ['fev', 2], ['feb', 2], ['mar', 3], ['mrt', 3], ['maa', 3], ['avr', 4], ['apr', 4], ['abr', 4], ['mai', 5], ['may', 5], ['mag', 5], ['mei', 5],
+        ['juin', 6], ['jun', 6], ['giu', 6], ['juil', 7], ['jul', 7], ['lug', 7], ['aou', 8], ['aug', 8], ['ago', 8], ['sep', 9], ['set', 9], ['oct', 10], ['okt', 10], ['ott', 10], ['nov', 11], ['dec', 12], ['dez', 12], ['dic', 12]];
+    const trouve = MOIS.find(([prefixe]) => mot.startsWith(prefixe));
+    return trouve ? `${m[3]}-${p2(trouve[1])}-${p2(m[1])}` : null;
+}
+
+function paysRetour(marketplace) {
+    const m = String(marketplace || '').toLowerCase();
+    const PAYS = [['.fr', 'France'], ['.de', 'Allemagne'], ['.it', 'Italie'], ['.es', 'Espagne'], ['.nl', 'Pays-Bas'], ['.com.be', 'Belgique'], ['.ie', 'Irlande'], ['.co.uk', 'Royaume-Uni'], ['.pl', 'Pologne'], ['.se', 'Suède']];
+    const t = PAYS.find(([suffixe]) => m.endsWith(suffixe));
+    return t ? t[1] : (marketplace || 'Non précisé');
+}
+
+function retoursFiltres() {
+    const q = (document.getElementById('retours-search')?.value || '').trim().toLowerCase();
+    const pays = document.getElementById('retours-filter-pays')?.value || '';
+    const du = document.getElementById('retours-filter-from')?.value || '';
+    const au = document.getElementById('retours-filter-to')?.value || '';
+    return retours.filter(r => {
+        if (q && !((r.produit_nom || '').toLowerCase().includes(q) || (r.amazon_order_id || '').toLowerCase().includes(q) || (r.sku || '').toLowerCase().includes(q))) return false;
+        if (pays && paysRetour(r.marketplace) !== pays) return false;
+        if (du && (!r.date_retour || r.date_retour < du)) return false;
+        if (au && (!r.date_retour || r.date_retour > au)) return false;
+        return true;
+    });
+}
+
+function displayRetours() {
+    const c = document.getElementById('retours-container');
+    if (!c) return;
+    const aide = document.getElementById('retours-aide');
+    if (aide) {
+        aide.style.display = (retoursTableAbsente || !retours.length) ? 'block' : 'none';
+        aide.textContent = retoursTableAbsente
+            ? 'La table des retours n\'existe pas encore dans Supabase. Exécutez migration-retours.sql dans le SQL Editor, puis rechargez la page.'
+            : 'Aucun retour enregistré. Les retours viennent du rapport de transactions Amazon : déposez-le dans Ventes > Import Amazon > « Précision des frais », puis cliquez « Enregistrer les remboursements ».';
+    }
+    // Liste des pays du filtre (reconstruite sans perdre la sélection)
+    const sel = document.getElementById('retours-filter-pays');
+    if (sel) {
+        const actuel = sel.value;
+        const pays = [...new Set(retours.map(r => paysRetour(r.marketplace)))].sort();
+        sel.innerHTML = '<option value="">Tous les pays</option>' + pays.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+        sel.value = pays.includes(actuel) ? actuel : '';
+    }
+
+    const list = retoursFiltres();
+    const unites = list.reduce((s, r) => s + (r.quantite || 0), 0);
+    const rembourse = list.reduce((s, r) => s + (r.montant_produit || 0), 0);
+    const net = list.reduce((s, r) => s + (r.total || 0), 0);
+    const resume = document.getElementById('retours-resume');
+    if (resume) {
+        const unitesVendues = ventes.filter(v => v.amazon_order_id).reduce((s, v) => s + (v.quantite || 0), 0);
+        const taux = unitesVendues > 0 && list.length === retours.length ? ` · taux de retour Amazon : ${(retours.reduce((s, r) => s + (r.quantite || 0), 0) / unitesVendues * 100).toFixed(1)} %` : '';
+        resume.textContent = `${list.length}${list.length !== retours.length ? ' / ' + retours.length : ''} remboursement${list.length > 1 ? 's' : ''} · ${unites} unité${unites > 1 ? 's' : ''} · ${fmtEur(rembourse)} de produits remboursés · effet net sur le compte : ${fmtEur(net)}${taux}`;
+    }
+
+    // Produits les plus retournés (sur la sélection), avec leur taux de retour quand les ventes sont connues
+    const parProduit = {};
+    list.forEach(r => {
+        const cle = r.produit_id ? 'p' + r.produit_id : 'n' + (r.produit_nom || r.sku || '?');
+        const o = parProduit[cle] = parProduit[cle] || { nom: r.produit_nom || r.sku || 'Produit non identifié', produit_id: r.produit_id, qte: 0, montant: 0 };
+        o.qte += r.quantite || 0; o.montant += r.montant_produit || 0;
+    });
+    const venduParProduit = {};
+    ventes.forEach(v => { if (v.amazon_order_id && v.produit_id) venduParProduit[v.produit_id] = (venduParProduit[v.produit_id] || 0) + (v.quantite || 0); });
+    const top = Object.values(parProduit).sort((a, b) => b.qte - a.qte).slice(0, 8);
+    const zoneTop = document.getElementById('retours-top');
+    if (zoneTop) zoneTop.innerHTML = top.length ? top.map(o => {
+        const vendu = o.produit_id ? (venduParProduit[o.produit_id] || 0) : 0;
+        return `<div class="retours-top-ligne"><span class="retours-top-nom" title="${escapeHtml(o.nom)}">${escapeHtml(o.nom)}</span><span class="retours-top-nb">${o.qte} u.</span><span class="retours-top-taux" title="Unités retournées / unités vendues sur Amazon">${vendu > 0 ? (o.qte / vendu * 100).toFixed(0) + ' %' : '–'}</span></div>`;
+    }).join('') : '<p style="color:var(--text-2);font-size:13px;">Rien à afficher.</p>';
+
+    // Retours par mois (12 derniers mois présents dans la sélection)
+    if (typeof Chart !== 'undefined') {
+        const parMois = {};
+        list.forEach(r => { const mo = String(r.date_retour || '').slice(0, 7); if (mo) parMois[mo] = (parMois[mo] || 0) + (r.quantite || 0); });
+        const cles = Object.keys(parMois).sort().slice(-12);
+        if (charts.retoursMois) charts.retoursMois.destroy();
+        const cv = document.getElementById('chartRetoursMois');
+        if (cv) charts.retoursMois = new Chart(cv, { type: 'bar', data: { labels: cles.map(k => new Date(+k.slice(0, 4), +k.slice(5) - 1, 1).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })), datasets: [{ label: 'Unités retournées', data: cles.map(k => parMois[k]), backgroundColor: 'rgba(192,57,43,0.75)' }] }, options: { responsive: true, plugins: { legend: { display: false } } } });
+    }
+
+    if (!list.length) { c.innerHTML = retours.length ? '<div class="empty-state"><h3>Aucun retour ne correspond à ces filtres</h3></div>' : ''; return; }
+    const PAR_PAGE = 50, totalPages = Math.max(1, Math.ceil(list.length / PAR_PAGE));
+    if (retoursPage > totalPages) retoursPage = totalPages;
+    const debut = (retoursPage - 1) * PAR_PAGE;
+    let h = '<div class="products-table"><table class="achats-table"><thead><tr><th>Date</th><th>Produit</th><th>Pays</th><th class="num">Qté</th><th class="num">Produit remboursé</th><th class="num">Effet net</th></tr></thead><tbody>';
+    list.slice(debut, debut + PAR_PAGE).forEach(r => {
+        h += `<tr style="cursor:default;">
+            <td style="white-space:nowrap;">${r.date_retour ? new Date(r.date_retour).toLocaleDateString('fr-FR') : '-'}</td>
+            <td><div class="achat-nom">${escapeHtml(r.produit_nom || 'Produit non identifié')}</div><div class="achat-codes"><span><span class="code-lib">Commande</span>${escapeHtml(r.amazon_order_id || '-')}</span><span><span class="code-lib">SKU</span>${escapeHtml(r.sku || '-')}</span>${r.produit_id ? '' : '<span class="pill pill-warn">non rattaché au stock</span>'}</div></td>
+            <td>${escapeHtml(paysRetour(r.marketplace))}</td>
+            <td class="num"><strong>${r.quantite || 0}</strong></td>
+            <td class="num">${fmtEur(r.montant_produit || 0)}</td>
+            <td class="num" style="font-weight:600;color:${(r.total || 0) < 0 ? 'var(--danger)' : 'var(--text-1)'};">${fmtEur(r.total || 0)}</td>
+        </tr>`;
+    });
+    h += '</tbody></table></div>';
+    if (totalPages > 1) {
+        h += `<div class="pagination-bar"><div class="pagination-info">${debut + 1}–${Math.min(debut + PAR_PAGE, list.length)} sur ${list.length} retours</div><div class="pagination-controls">
+            <button class="page-btn" onclick="retoursPage--; displayRetours()" ${retoursPage === 1 ? 'disabled' : ''} aria-label="Page précédente">‹</button>
+            <span class="page-btn" style="cursor:default;border:none;">${retoursPage} / ${totalPages}</span>
+            <button class="page-btn" onclick="retoursPage++; displayRetours()" ${retoursPage === totalPages ? 'disabled' : ''} aria-label="Page suivante">›</button></div></div>`;
+    }
+    c.innerHTML = h;
+}
+
+function exportRetours() {
+    const list = retoursFiltres();
+    if (!list.length) return toastInfo('Rien à exporter', 'Aucun retour dans la sélection.');
+    const q = (x) => '"' + String(x ?? '').replace(/"/g, '""') + '"';
+    const num = (n) => String((n || 0).toFixed(2)).replace('.', ',');
+    let csv = '﻿Date;Produit;Commande;SKU;Pays;Quantité;Produit remboursé;Effet net\n';
+    list.forEach(r => { csv += [q(r.date_retour || ''), q(r.produit_nom), q(r.amazon_order_id), q(r.sku), q(paysRetour(r.marketplace)), r.quantite || 0, num(r.montant_produit), num(r.total)].join(';') + '\n'; });
+    downloadCSV(csv, 'retours-amazon-' + dateLocaleISO(new Date()) + '.csv');
+}
+
 function setupRealtimeSync() {
     if (realtimeChannel) {
         sb.removeChannel(realtimeChannel);
@@ -183,6 +334,7 @@ function setupRealtimeSync() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fournisseurs' }, () => loadFournisseurs())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'mouvements' }, () => loadMouvements())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'ventes' }, () => loadVentes())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'retours' }, () => loadRetours())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'factures' }, () => loadFactures())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fournitures' }, () => loadFournitures())
         .subscribe();
@@ -192,7 +344,7 @@ function setupRealtimeSync() {
 const GROUPES_MENU = {
     'achats': [['achats', 'Achats'], ['import-grossiste', 'Import grossiste'], ['fournisseurs', 'Fournisseurs'], ['factures', 'Factures'], ['fournitures', 'Fournitures & frais']],
     'stock': [['stock', 'Mon stock'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['alertes', 'Alertes stock'], ['inventaire', 'Inventaire']],
-    'ventes': [['ventes', 'Mes ventes'], ['import-amazon', 'Import Amazon']],
+    'ventes': [['ventes', 'Mes ventes'], ['retours', 'Retours'], ['import-amazon', 'Import Amazon']],
     'outils-export': [['outils-export', 'Export & sauvegarde'], ['aide', 'Aide & raccourcis']],
 };
 
@@ -219,6 +371,7 @@ function switchTab(tabName) {
     if (tabName === 'stock') displayStock();
     if (tabName === 'dashboard') updateDashboard();
     if (tabName === 'ventes') displayVentes();
+    if (tabName === 'retours') displayRetours();
     if (tabName === 'outils-export') loadSauvegardes();
 }
 
@@ -2804,6 +2957,7 @@ function cancelAmazonImport(garderFichier) {
 
 // ═══════ PRÉCISION DES FRAIS (rapport de transactions Amazon) ═══════
 let fraisImportData = null;
+let retoursImportData = null, retoursImportEnCours = false;
 let fraisImportEnCours = false;
 
 // CSV avec champs entre guillemets (les descriptions contiennent des virgules)
@@ -2883,6 +3037,11 @@ function previewFraisImport(input) {
             const cFraisFba = col(['expédition par amazon', 'expedition par amazon', 'expédié par amazon', 'expedie par amazon', 'fba fees', 'fba']);
             const cFraisAutres = col(['autres frais', 'other transaction']);
             const cTotal = col(['total']);
+            const cDate = col(['date/heure', 'date/time']);
+            const cDesc = col(['description']);
+            const cMarket = col(['marketplace']);
+            const cVentesProd = col(['ventes de produits', 'product sales']);
+            const lignesRetours = [];
             if (cOrder === -1 || cType === -1 || cFraisVente === -1) {
                 return toastError('Colonnes non trouvées', 'Le fichier ne ressemble pas au rapport de transactions Amazon.');
             }
@@ -2898,6 +3057,15 @@ function previewFraisImport(input) {
                 if (type.includes('remboursement') || type.includes('refund')) {
                     remboursements++;
                     montantRemb += parseMontantFR(cTotal > -1 ? r[cTotal] : 0);
+                    if (oid) lignesRetours.push({
+                        oid, sku: cSku > -1 ? (r[cSku] || '').trim() : '',
+                        date: parseDateTransaction(cDate > -1 ? r[cDate] : ''),
+                        description: cDesc > -1 ? (r[cDesc] || '').trim() : '',
+                        marketplace: cMarket > -1 ? (r[cMarket] || '').trim() : '',
+                        qte: Math.abs(cQty > -1 ? (parseInt(r[cQty]) || 1) : 1),
+                        produit: Math.abs(parseMontantFR(cVentesProd > -1 ? r[cVentesProd] : 0)),
+                        total: parseMontantFR(cTotal > -1 ? r[cTotal] : 0),
+                    });
                     continue;
                 }
                 if (!(type.includes('commande') || type.includes('order')) || !oid) continue;
@@ -2949,13 +3117,34 @@ function previewFraisImport(input) {
 
             fraisImportData = transacTriees.map(t => ({ ...t, frais: parseFloat(t.frais.toFixed(2)), vente: resolu.get(t) || null }));
 
+            // Remboursements : rattachés à la vente (donc au produit) par commande + SKU, puis dédoublonnés
+            const dejaEnBase = new Set(retours.map(x => x.cle));
+            const clesVues = new Set();
+            retoursImportData = [];
+            lignesRetours.forEach(x => {
+                const cle = [x.oid, x.sku, x.date || '', x.total.toFixed(2)].join('|');
+                if (clesVues.has(cle)) return;
+                clesVues.add(cle);
+                const cands = parOrder[x.oid] || [];
+                const v = cands.find(c => norm(c.produit_ean) === norm(x.sku)) || cands.find(c => norm(String(c.amazon_order_id).split('|')[1]) === norm(x.sku)) || cands[0] || null;
+                retoursImportData.push({
+                    cle, nouveau: !dejaEnBase.has(cle),
+                    amazon_order_id: x.oid, sku: x.sku,
+                    produit_id: v ? v.produit_id : null, vente_id: v ? v.id : null,
+                    produit_nom: (v && v.produit_nom) || x.description || '',
+                    marketplace: x.marketplace, date_retour: x.date, quantite: x.qte,
+                    montant_produit: parseFloat(x.produit.toFixed(2)), total: parseFloat(x.total.toFixed(2)),
+                });
+            });
+            majBlocRetoursImport();
+
             const avec = fraisImportData.filter(l => l.vente);
             const stats = [
                 ['✅ Correspondances trouvées', avec.length, '#27ae60'],
                 ['❓ Sans correspondance', fraisImportData.length - avec.length, '#e67e22'],
                 ['💶 Frais réels à appliquer', avec.reduce((s, l) => s + l.frais, 0).toFixed(2) + '€', '#3498db'],
             ];
-            if (remboursements > 0) stats.push(['↩️ Remboursements (info, non traités)', remboursements + ' (' + montantRemb.toFixed(2) + '€)', '#95a5a6']);
+            if (remboursements > 0) stats.push(['↩️ Remboursements dans ce rapport', remboursements + ' (' + montantRemb.toFixed(2) + '€)', '#95a5a6']);
             if (cFraisFba === -1) stats.push(['⚠️ Colonne frais FBA introuvable', 'frais sous-évalués', '#e74c3c']);
             document.getElementById('frais-stats').innerHTML = stats
                 .map(b => `<span style="background:${b[2]};color:white;padding:6px 12px;border-radius:10px;font-size:13px;font-weight:600;">${b[0]} : ${b[1]}</span>`)
@@ -2986,6 +3175,51 @@ function previewFraisImport(input) {
         } catch (err) { cancelFraisImport(true); toastError('Erreur lecture', err.message); }
     };
     reader.readAsText(file, 'UTF-8');
+}
+
+function majBlocRetoursImport() {
+    const bloc = document.getElementById('retours-import-bloc'), texte = document.getElementById('retours-import-texte'), btn = document.getElementById('retours-save-btn');
+    if (!bloc) return;
+    const tous = retoursImportData || [], nouveaux = tous.filter(x => x.nouveau);
+    bloc.style.display = tous.length ? 'flex' : 'none';
+    if (!tous.length) return;
+    const rattaches = nouveaux.filter(x => x.produit_id).length;
+    texte.textContent = retoursTableAbsente
+        ? `${tous.length} remboursement(s) dans ce rapport. Pour les enregistrer, exécutez d'abord migration-retours.sql dans Supabase puis rechargez la page.`
+        : nouveaux.length
+            ? `${nouveaux.length} nouveau(x) remboursement(s) à enregistrer dans la page Retours (${tous.length - nouveaux.length} déjà enregistré(s)) — ${rattaches} rattaché(s) à un produit du stock. Le stock n'est pas modifié.`
+            : `Les ${tous.length} remboursements de ce rapport sont déjà enregistrés.`;
+    btn.style.display = (nouveaux.length && !retoursTableAbsente) ? '' : 'none';
+    btn.textContent = `Enregistrer ${nouveaux.length} remboursement${nouveaux.length > 1 ? 's' : ''}`;
+}
+
+async function confirmRetoursImport() {
+    if (retoursImportEnCours) return;
+    const nouveaux = (retoursImportData || []).filter(x => x.nouveau);
+    if (!nouveaux.length) return toastInfo('Rien à enregistrer', 'Tous les remboursements de ce rapport sont déjà dans la page Retours.');
+    retoursImportEnCours = true;
+    const btn = document.getElementById('retours-save-btn');
+    if (btn) btn.disabled = true;
+    try {
+        const uid = getEffectiveUserId();
+        let ok = 0, erreur = null;
+        for (let i = 0; i < nouveaux.length; i += 200) {
+            if (btn) btn.textContent = `Enregistrement… ${Math.min(i + 200, nouveaux.length)} / ${nouveaux.length}`;
+            const lot = nouveaux.slice(i, i + 200).map(({ nouveau, ...x }) => ({ ...x, user_id: uid }));
+            const { error } = await sb.from('retours').upsert(lot, { onConflict: 'user_id,cle', ignoreDuplicates: true });
+            if (error) { erreur = error.message; break; }
+            ok += lot.length;
+        }
+        if (erreur) toastError('Enregistrement incomplet', `${ok} enregistré(s), puis : ${erreur}`);
+        else toastSuccess('Retours enregistrés', `${ok} remboursement(s) ajouté(s) à la page Retours.`);
+        await loadRetours();
+        const cles = new Set(retours.map(x => x.cle));
+        (retoursImportData || []).forEach(x => { x.nouveau = !cles.has(x.cle); });
+        majBlocRetoursImport();
+    } finally {
+        retoursImportEnCours = false;
+        if (btn) btn.disabled = false;
+    }
 }
 
 async function confirmFraisImport() {
@@ -3024,6 +3258,8 @@ async function confirmFraisImport() {
 
 function cancelFraisImport(garderFichier) {
     fraisImportData = null;
+    retoursImportData = null;
+    majBlocRetoursImport();
     document.getElementById('frais-preview').style.display = 'none';
     document.getElementById('frais-file-name').textContent = '';
     if (!garderFichier) document.getElementById('frais-file-input').value = '';
@@ -3096,6 +3332,13 @@ function ventesPeriode() {
     const iso = dateLocaleISO(debut);
     return ventes.filter(v => String(v.date_vente || '').slice(0, 10) >= iso);
 }
+function retoursPeriode() {
+    if (dashPeriode === 'tout') return retours;
+    const now = new Date();
+    const debut = dashPeriode === 'annee' ? new Date(now.getFullYear(), 0, 1) : new Date(now.getTime() - Number(dashPeriode) * 86400000);
+    const iso = dateLocaleISO(debut);
+    return retours.filter(r => String(r.date_retour || '') >= iso);
+}
 function fmtEur(n) { return (n || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
 
 function updateDashboard() {
@@ -3105,6 +3348,9 @@ function updateDashboard() {
     document.querySelectorAll('#dash-periode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.periode === dashPeriode ? 'true' : 'false'));
 
     el('dash-total-produits', enStock.reduce((s,p)=>s+(p.quantite||0),0));
+    const rp = retoursPeriode();
+    el('dash-retours', rp.length ? `${rp.reduce((s,r)=>s+(r.quantite||0),0)} u.` : '0');
+    el('dash-retours-label', rp.length ? `Retours · ${fmtEur(rp.reduce((s,r)=>s+(r.montant_produit||0),0))} remboursés` : 'Retours');
     el('dash-nb-ventes', vp.length);
     el('dash-total-vendus', vp.reduce((s,v)=>s+(v.quantite||0),0));
     const valStockAchat = enStock.reduce((s,p) => s + ((p.prix_achat||0)*(p.quantite||0)), 0);
@@ -3222,9 +3468,15 @@ function createCharts() {
     // CA par canal (depuis la vraie table ventes)
     const canaux = {};
     ventesPeriode().forEach(v => { const c = v.canal || 'Autre'; canaux[c] = (canaux[c]||0) + (v.prix_total||0); });
+    // Les retours forment une part à eux : le montant des produits remboursés sur la période
+    const montantRetours = retoursPeriode().reduce((s,r) => s + (r.montant_produit||0), 0);
+    const etiquettes = Object.keys(canaux), valeurs = Object.values(canaux).map(x => Math.round(x * 100) / 100);
+    const couleurs = ['#ff9900','#3f51b5','#00b4b6','#f56b2a','#95a5a6'].slice(0, etiquettes.length);
+    while (couleurs.length < etiquettes.length) couleurs.push('#95a5a6');
+    if (montantRetours > 0) { etiquettes.push('Retours (remboursés)'); valeurs.push(Math.round(montantRetours * 100) / 100); couleurs.push('#c0392b'); }
     if (charts.canaux) charts.canaux.destroy();
     const c4 = document.getElementById('chartCanaux');
-    if (c4) charts.canaux = new Chart(c4, { type:'doughnut', data:{labels:Object.keys(canaux),datasets:[{data:Object.values(canaux),backgroundColor:['#ff9900','#3f51b5','#00b4b6','#f56b2a','#95a5a6']}]}, options:{responsive:true} });
+    if (c4) charts.canaux = new Chart(c4, { type:'doughnut', data:{labels:etiquettes,datasets:[{data:valeurs,backgroundColor:couleurs}]}, options:{responsive:true} });
 }
 
 // ═══════ UTILS ═══════
