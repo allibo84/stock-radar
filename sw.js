@@ -1,8 +1,9 @@
-const CACHE_NAME = 'stock-radar-v24';
+const CACHE_NAME = 'stock-radar-v25';
 const urlsToCache = [
     './',
     './index.html',
     './app-cloud.js',
+    './app-analyse.js',
     './auth.js',
     './config.js',
     './manifest.json',

@@ -1047,6 +1047,47 @@
             #inventaire .scan-button { min-height: 48px; flex: 1 1 auto; }
             .inv-actions { position: sticky; bottom: 74px; background: var(--bg-main, var(--bg-elevated)); padding: 8px 0; z-index: 5; }
         }
+        /* ═══ Lot SellerToolKit : tendances, résultat, réassort, détail vente ═══ */
+        .dash-kpi-row { grid-template-columns: repeat(5,1fr); }
+        .stat-card .tendance { margin-top: 6px; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .tendance.bon { color: var(--success); }
+        .tendance.mauvais { color: var(--danger); }
+        .resultat { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg, 12px); padding: 16px 18px; margin-bottom: 22px; max-width: 640px; }
+        .resultat h3 { font-size: 15px; margin: 0 0 8px; color: var(--text-1); }
+        .resultat-ligne { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text-1); }
+        .resultat-ligne:first-of-type { border-top: none; }
+        .resultat-ligne small, .detail-ligne small { display: block; color: var(--text-2); font-size: 12px; font-weight: 400; }
+        .resultat-ligne span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+        .resultat-ligne .neg { color: var(--danger); } .resultat-ligne .pos { color: var(--success); }
+        .resultat-ligne.total { border-top: 2px solid var(--border-strong); font-size: 15px; font-weight: 700; }
+        .ico-amz { background: #232f3e; color: #ff9900; }
+        .ico-keepa { background: #f3f6f9; color: #1f5fa6; border: 1px solid #b9cde4; }
+        .ico-btn.ico-petit { width: 30px; height: 30px; }
+        .ico-btn.ico-petit svg { width: 15px; height: 15px; }
+        .pays-pill { font-size: 11.5px; padding: 2px 7px; }
+        .charges-grille { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; }
+        .charges-bloc { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg, 12px); padding: 14px 16px; }
+        .charges-bloc h3 { font-size: 14.5px; margin: 0 0 8px; color: var(--text-1); }
+        .charges-table { width: 100%; font-size: 13px; }
+        .charges-table td, .charges-table th { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+        .charges-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .charges-total td { font-weight: 700; border-top: 2px solid var(--border-strong); }
+        .sr-tiroir { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 9998; display: flex; justify-content: flex-end; }
+        .sr-tiroir-panneau { background: var(--bg-elevated); width: 100%; max-width: 460px; height: 100%; box-sizing: border-box; overflow-y: auto; padding: 24px 22px; display: flex; flex-direction: column; border-left: 1px solid var(--border); }
+        .tiroir-sur { font-size: 12.5px; color: var(--text-2); }
+        .tiroir-titre { font-size: 16px; font-weight: 700; color: var(--text-1); line-height: 1.35; margin-top: 2px; }
+        .detail-calcul { border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 12px; }
+        .detail-ligne { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text-1); }
+        .detail-ligne:first-child { border-top: none; }
+        .detail-ligne span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+        .detail-ligne.fort { font-size: 15px; font-weight: 700; border-top: 2px solid var(--border-strong); }
+        #ventes-container tbody tr { cursor: pointer; }
+        @media (max-width: 1100px) { .dash-kpi-row { grid-template-columns: repeat(3,1fr); } }
+        @media (max-width: 768px) {
+            .dash-kpi-row { grid-template-columns: repeat(2,1fr); }
+            .charges-grille { grid-template-columns: 1fr; }
+            .sr-tiroir-panneau { max-width: 100%; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+        }
         /* Retours */
         .retours-aide { background: var(--info-bg); border: 1px solid rgba(52,152,219,.3); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 15px; font-size: 13.5px; color: var(--text-1); }
         .retours-import { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 15px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-subtle); font-size: 13.5px; }
@@ -1170,6 +1211,7 @@
                         <div class="stat-card kpi-main" data-accent="green"><div class="stat-number" id="dash-ca-realise">0€</div><div class="stat-label">Chiffre d'affaires</div></div>
                         <div class="stat-card kpi-main" data-accent="green"><div class="stat-number" id="dash-benefice">0€</div><div class="stat-label">Bénéfice net</div></div>
                         <div class="stat-card kpi-main"><div class="stat-number" id="dash-marge-moyenne">0%</div><div class="stat-label" title="(CA − achats − frais) / CA, sur les ventes dont le prix d'achat est connu">Marge nette</div></div>
+                        <div class="stat-card kpi-main"><div class="stat-number" id="dash-roi">–</div><div class="stat-label" title="(CA − achats − frais) / coût d'achat, sur les ventes dont le prix d'achat est connu">ROI</div></div>
                         <div class="stat-card kpi-main"><div class="stat-number" id="dash-valeur-stock">0€</div><div class="stat-label">Valeur du stock</div></div>
                     </div>
                     <div class="dash-secondary-row">
@@ -1184,6 +1226,7 @@
                         <div class="stat-card" data-accent="purple"><div class="stat-number" id="dash-qte-entrepot">0</div><div class="stat-label">Entrepôt</div></div>
                         <div class="stat-card" data-accent="red"><div class="stat-number" id="dash-qte-rebut">0</div><div class="stat-label">Rebut</div></div>
                     </div>
+                    <div id="dash-resultat" class="resultat"></div>
                     <div class="charts-grid">
                         <div class="chart-card"><h3>Achats et ventes — 6 derniers mois</h3><canvas id="chartEvolution" height="200"></canvas></div>
                         <div class="chart-card"><h3>Répartition stock</h3><canvas id="chartRepartition" height="200"></canvas></div>
@@ -1303,10 +1346,11 @@
                 <!-- ══════ FOURNITURES ══════ -->
                 <div id="fournitures" class="tab-content">
                     <div class="section-header">
-                        <h2>📎 Fournitures & Frais</h2>
-                        <button class="scan-button" onclick="toggleFournitureForm()">➕ Ajouter</button>
+                        <h2>Fournitures et frais</h2>
+                        <button class="scan-button" onclick="toggleFournitureForm()">Ajouter</button>
                     </div>
-                    <p style="color:var(--text-secondary);margin-bottom:15px;">Cartons, scotch, étiquettes, consommables, frais d'expédition... Tout ce qui n'est pas du stock produit.</p>
+                    <p style="color:var(--text-secondary);margin-bottom:15px;">Cartons, scotch, étiquettes, consommables, abonnements (SellerAmp, Taxually…) : tout ce qui n'est pas du stock produit. Les frais Amazon hors ventes sont repris automatiquement du rapport de transactions.</p>
+                    <div id="charges-amazon" style="margin-bottom:20px;"></div>
                     <div id="fourniture-form-section" style="display:none; background:var(--card-bg); padding:25px; border-radius:15px; margin-bottom:20px; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
                         <form id="fourniture-form">
                             <div class="form-row">
@@ -1473,6 +1517,10 @@
                             <div id="retours-import-bloc" class="retours-import" style="display:none;">
                                 <div id="retours-import-texte"></div>
                                 <button type="button" class="scan-button" id="retours-save-btn" onclick="confirmRetoursImport()">Enregistrer les remboursements</button>
+                            </div>
+                            <div id="ops-import-bloc" class="retours-import" style="display:none;">
+                                <div id="ops-import-texte"></div>
+                                <button type="button" class="scan-button" id="ops-save-btn" onclick="confirmOpsImport()">Enregistrer les opérations</button>
                             </div>
                             <div style="display:flex; gap:10px; margin-top:15px;">
                                 <button class="scan-button" id="frais-apply-btn" onclick="confirmFraisImport()">✅ Appliquer les frais réels à <span id="frais-count">0</span> vente(s)</button>
@@ -1677,6 +1725,67 @@
                         </div>
                     </div>
                     <div id="ventes-container"></div>
+                </div>
+
+                <!-- ══════ RÉASSORT ══════ -->
+                <div id="reassort" class="tab-content">
+                    <div class="section-header">
+                        <div><h2>Réassort</h2><div class="resume-ligne" id="reassort-resume"></div></div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                            <label for="reassort-couverture" style="font-size:13px;color:var(--text-2);">Stock voulu</label>
+                            <select id="reassort-couverture" class="search-input" style="width:auto;min-width:0;" onchange="setReassortCouverture(this.value)">
+                                <option value="15">15 jours</option><option value="30">30 jours</option><option value="45">45 jours</option><option value="60">60 jours</option><option value="90">90 jours</option>
+                            </select>
+                            <button class="scan-button export" onclick="exportReassort()">Exporter</button>
+                        </div>
+                    </div>
+                    <div id="reassort-pastilles" class="pastilles" role="group" aria-label="Filtrer le réassort"></div>
+                    <div class="search-filters"><div class="search-row">
+                        <input type="text" class="search-input" id="reassort-search" placeholder="Rechercher un produit, EAN, ASIN…" oninput="displayReassort()">
+                        <select class="search-input" id="reassort-tri" onchange="displayReassort()" style="max-width:240px;">
+                            <option value="urgence">Le plus urgent d'abord</option><option value="v30">Plus vendus sur 30 jours</option><option value="suggestion">Plus grosse quantité à commander</option><option value="stock">Plus de stock</option><option value="derniere">Vente la plus récente</option>
+                        </select>
+                    </div></div>
+                    <div id="reassort-container"></div>
+                </div>
+
+                <!-- ══════ ENVOIS FBA ══════ -->
+                <div id="envois-fba" class="tab-content">
+                    <div class="section-header">
+                        <div><h2>Envois FBA</h2><div class="resume-ligne" id="envois-resume"></div></div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <button class="scan-button export" onclick="window.open('https://sellercentral.amazon.fr/gp/ssof/shipping-queue.html','_blank','noopener')">Ouvrir dans Seller Central</button>
+                            <input type="file" id="envois-file-input" accept=".json" style="display:none;" onchange="importerEnvoisFba(this)">
+                        </div>
+                    </div>
+                    <div class="retours-aide" id="envois-aide-migration" style="display:none;">Pour enregistrer les envois, exécutez <strong>migration-amazon-v2.sql</strong> dans Supabase (SQL Editor), puis rechargez la page.</div>
+                    <div class="retours-aide">Quantités envoyées et reçues de vos 250 derniers envois, lues par l'extension Stock Radar (bouton « Récupérer les envois FBA »). Amazon rembourse souvent d'office les unités perdues à la réception : voyez Ventes › Remboursements FBA. Pour un écart toujours pas remboursé après la clôture, ouvrez une réclamation depuis l'envoi dans Seller Central, puis cochez « Vérifié ».</div>
+                    <div id="envois-pastilles" class="pastilles" role="group" aria-label="Filtrer les envois"></div>
+                    <div id="envois-container"></div>
+                </div>
+
+                <!-- ══════ MEILLEURS PRODUITS ══════ -->
+                <div id="classement" class="tab-content">
+                    <div class="section-header">
+                        <div><h2>Meilleurs produits</h2><div class="resume-ligne" id="classement-resume"></div></div>
+                    </div>
+                    <div id="classement-periode" class="pastilles" role="group" aria-label="Période"></div>
+                    <div id="classement-critere" class="pastilles" role="group" aria-label="Classer par"></div>
+                    <div class="search-filters"><div class="search-row">
+                        <input type="text" class="search-input" id="classement-search" placeholder="Retrouver un produit dans le classement…" oninput="displayClassement()">
+                    </div></div>
+                    <div id="classement-container"></div>
+                </div>
+
+                <!-- ══════ REMBOURSEMENTS FBA ══════ -->
+                <div id="remboursements-fba" class="tab-content">
+                    <div class="section-header">
+                        <div><h2>Remboursements FBA</h2><div class="resume-ligne" id="rfba-resume"></div></div>
+                    </div>
+                    <div class="retours-aide" id="rfba-aide" style="display:none;">Pour enregistrer les remboursements FBA, exécutez <strong>migration-amazon-v2.sql</strong> dans Supabase (SQL Editor), puis rechargez la page.</div>
+                    <div id="rfba-periode" class="pastilles" role="group" aria-label="Période"></div>
+                    <div id="rfba-motifs" class="pastilles" role="group" aria-label="Motif"></div>
+                    <div id="rfba-container"></div>
                 </div>
 
                 <!-- ══════ RETOURS ══════ -->
@@ -2217,9 +2326,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261114-4"></script>
-    <script src="app-cloud.js?v=20261114-4"></script>
-    <script src="auth.js?v=20261114-4"></script>
+    <script src="config.js?v=20261114-5"></script>
+    <script src="app-cloud.js?v=20261114-5"></script>
+    <script src="app-analyse.js?v=20261114-5"></script>
+    <script src="auth.js?v=20261114-5"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {

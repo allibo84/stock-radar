@@ -76,6 +76,7 @@ async function loadAllData() {
             loadFournitures().catch(e => console.warn('Fournitures:', e)),
             loadVentes().catch(e => console.warn('Ventes:', e)),
             loadRetours().catch(e => console.warn('Retours:', e)),
+            loadAnalyse().catch(e => console.warn('Analyse:', e)),
         ]);
     } catch (e) { console.error('Erreur chargement:', e); }
     document.getElementById('loading').style.display = 'none';
@@ -340,6 +341,8 @@ function setupRealtimeSync() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'mouvements' }, () => loadMouvements())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'ventes' }, () => loadVentes())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'retours' }, () => loadRetours())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'amazon_operations' }, () => loadAmazonOps())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'envois_fba' }, () => loadEnvoisFba())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'factures' }, () => loadFactures())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fournitures' }, () => loadFournitures())
         .subscribe();
@@ -348,8 +351,8 @@ function setupRealtimeSync() {
 // ═══════ NAVIGATION ═══════
 const GROUPES_MENU = {
     'achats': [['achats', 'Achats'], ['import-grossiste', 'Import grossiste'], ['fournisseurs', 'Fournisseurs'], ['fournitures', 'Fournitures & frais']],
-    'stock': [['stock', 'Mon stock'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['inventaire', 'Inventaire']],
-    'ventes': [['ventes', 'Mes ventes'], ['retours', 'Retours'], ['import-amazon', 'Import Amazon']],
+    'stock': [['stock', 'Mon stock'], ['reassort', 'Réassort'], ['envois-fba', 'Envois FBA'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['inventaire', 'Inventaire']],
+    'ventes': [['ventes', 'Mes ventes'], ['classement', 'Meilleurs produits'], ['retours', 'Retours'], ['remboursements-fba', 'Remboursements FBA'], ['import-amazon', 'Import Amazon']],
     'outils-export': [['outils-export', 'Export & sauvegarde'], ['aide', 'Aide & raccourcis']],
 };
 
@@ -380,6 +383,11 @@ function switchTab(tabName) {
     if (tabName === 'dashboard') updateDashboard();
     if (tabName === 'ventes') displayVentes();
     if (tabName === 'retours') displayRetours();
+    if (tabName === 'reassort') displayReassort();
+    if (tabName === 'classement') displayClassement();
+    if (tabName === 'remboursements-fba') displayRemboursementsFba();
+    if (tabName === 'envois-fba') displayEnvoisFba();
+    if (tabName === 'fournitures') displayChargesAmazon();
     if (tabName === 'outils-export') loadSauvegardes();
 }
 
@@ -1827,12 +1835,13 @@ function displayStock() {
         if (showFbaFbm) h += `<td class="num" data-l="FBA">${p.qte_fba||0}</td><td class="num" data-l="FBM">${p.qte_fbm||0}</td>`;
         h += `<td class="num" data-l="Entrepôt">${p.qte_entrepot||0}</td>
             <td class="num" data-l="Total"><strong>${p.quantite||0}</strong></td>
-            <td class="num" data-l="Achat">${(p.prix_achat||0).toFixed(2)}€</td>
+            <td class="num" data-l="Achat">${(p.prix_achat||0) > 0 ? (p.prix_achat).toFixed(2) + '€' : badgeSansCout()}</td>
             <td class="num" data-l="Revente">${(p.prix_revente||0).toFixed(2)}€</td>
             <td class="num" data-l="Marge">${margeDisplay}</td>
             <td class="c-actions" onclick="event.stopPropagation()"><div class="achat-actions">
                 <button type="button" class="ico-btn ico-vendre" onclick="openVenteModal(${p.id})" title="Enregistrer une vente" aria-label="Enregistrer une vente">${svg('<path d="M12 3v18M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.5 0-4.5 1.2-4.5 3.2 0 4.6 9.5 2 9.5 6.6 0 2-2 3.2-5 3.2-2.300 0-4.200-.900-5-2.300"/>')}</button>
                 <button type="button" class="ico-btn ico-voir" onclick="openProductModal(${p.id})" title="Ouvrir la fiche" aria-label="Ouvrir la fiche produit">${svg('<path d="M2 12s3.600-7 10-7 10 7 10 7-3.600 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>')}</button>
+                ${typeof liensProduit === 'function' ? liensProduit(p.asin) : ''}
                 <button type="button" class="ico-btn ico-del" onclick="deleteProduct(${p.id})" title="Supprimer" aria-label="Supprimer le produit">${svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>')}</button>
             </div></td></tr>`;
     });
@@ -1894,7 +1903,8 @@ function openProductModal(id) {
 
     body.innerHTML = `
         <h2 style="margin-bottom:5px;">${escapeHtml(p.nom)}</h2>
-        <p style="color:var(--text-secondary);margin-bottom:20px;">EAN : ${codeCopiable(p.ean, 'EAN')}${p.asin ? ' &nbsp; ASIN : ' + codeCopiable(p.asin, 'ASIN') : ''} · ${typeBadge}</p>
+        <p style="color:var(--text-secondary);margin-bottom:${p.asin ? 10 : 20}px;">EAN : ${codeCopiable(p.ean, 'EAN')}${p.asin ? ' &nbsp; ASIN : ' + codeCopiable(p.asin, 'ASIN') : ''} · ${typeBadge}${(p.prix_achat || 0) > 0 ? '' : ' ' + badgeSansCout()}</p>
+        ${p.asin ? `<div style="display:flex;gap:8px;margin-bottom:18px;"><button type="button" class="scan-button export" onclick="openAmazon('${escapeHtml(p.asin)}')">Page Amazon</button><button type="button" class="scan-button export" onclick="openKeepa('${escapeHtml(p.asin)}')">Keepa</button><button type="button" class="scan-button export" onclick="openSellerAmp('${escapeHtml(p.asin)}')">SellerAmp</button></div>` : ''}
         
         <!-- Zone lecture -->
         <div id="product-view-${p.id}">
@@ -2660,6 +2670,7 @@ function previewAmazonImport(input) {
             const cChannel = findCol(['fulfillment-channel', 'canal']);
             const cStatus = findCol(['item-status', 'order-status', 'statut']);
             const cCurrency = findCol(['currency', 'devise']);
+            const cMarketplace = cols.find(c => c.includes('sales-channel'));
 
             if (!cOrder || !cQty || (!cAsin && !cSku)) {
                 return toastError('Colonnes non reconnues', 'Le fichier doit contenir au minimum le n° de commande, la quantité et l\'ASIN (ou le SKU). Utilisez le rapport « Toutes les commandes » de Seller Central.');
@@ -2729,6 +2740,7 @@ function previewAmazonImport(input) {
                     cle, orderId: cOrder ? r[cOrder] : '',
                     date: dateLigne,
                     asin, sku, nom: cName ? r[cName] : '',
+                    marketplace: cMarketplace ? String(r[cMarketplace] || '').trim().toLowerCase() : '',
                     qte, prixUnit, canal, etat, produit,
                     candidatIds: candidats.map(x => x.id),
                     manque: alloc ? alloc.manque : 0,
@@ -2896,6 +2908,7 @@ async function confirmAmazonImport() {
             notes: 'Import Amazon' + (alloc.manque > 0 ? ` — ${alloc.manque} u. non déduite(s) du stock ${isFba ? 'FBA' : 'FBM'} (stock insuffisant)` : ''),
             amazon_order_id: l.cle,
         };
+        if (ventesMarketplaceOk && l.marketplace) vente.marketplace = l.marketplace;
         const { error } = await sb.from('ventes').insert([vente]);
         if (error) {
             // La vente n'existe pas : rendre le stock réservé aux lignes suivantes
@@ -3027,6 +3040,7 @@ function previewFraisImport(input) {
             const cDesc = col(['description']);
             const cMarket = col(['marketplace']);
             const cVentesProd = col(['ventes de produits', 'product sales']);
+            const cVersement = col(['numéro de versement', 'numero de versement', 'settlement id']);
             const lignesRetours = [];
             if (cOrder === -1 || cType === -1 || cFraisVente === -1) {
                 return toastError('Colonnes non trouvées', 'Le fichier ne ressemble pas au rapport de transactions Amazon.');
@@ -3059,7 +3073,7 @@ function previewFraisImport(input) {
                     + (cFraisFba > -1 ? Math.abs(parseMontantFR(r[cFraisFba])) : 0)
                     + (cFraisAutres > -1 ? Math.abs(parseMontantFR(r[cFraisAutres])) : 0);
                 const key = oid + '|' + (cSku > -1 ? (r[cSku] || '') : '');
-                if (!transactions[key]) transactions[key] = { oid, sku: cSku > -1 ? (r[cSku] || '') : '', qte: 0, frais: 0 };
+                if (!transactions[key]) transactions[key] = { oid, sku: cSku > -1 ? (r[cSku] || '') : '', qte: 0, frais: 0, marketplace: cMarket > -1 ? String(r[cMarket] || '').trim().toLowerCase() : '' };
                 transactions[key].qte += cQty > -1 ? (parseInt(r[cQty]) || 1) : 1;
                 transactions[key].frais += frais;
             }
@@ -3123,6 +3137,7 @@ function previewFraisImport(input) {
                 });
             });
             majBlocRetoursImport();
+            if (typeof preparerOperationsAmazon === 'function') preparerOperationsAmazon(all, hIdx, { type: cType, desc: cDesc, total: cTotal, date: cDate, sku: cSku, qty: cQty, market: cMarket, order: cOrder, versement: cVersement });
 
             const avec = fraisImportData.filter(l => l.vente);
             const stats = [
@@ -3228,7 +3243,9 @@ async function confirmFraisImport() {
             const v = l.vente;
             const benefice = parseFloat(((v.prix_total || 0) - (v.prix_achat_unitaire || 0) * (v.quantite || 1) - l.frais).toFixed(2));
             const notes = (v.notes || '').includes('frais réels') ? v.notes : ((v.notes || '') + ' · frais réels').trim();
-            const { error } = await sb.from('ventes').update({ frais: l.frais, benefice, notes }).eq('id', v.id);
+            const maj = { frais: l.frais, benefice, notes };
+            if (ventesMarketplaceOk && l.marketplace) maj.marketplace = l.marketplace;
+            const { error } = await sb.from('ventes').update(maj).eq('id', v.id);
             if (error) { erreurs++; console.warn('Frais réels:', error.message); continue; }
             ok++;
         }
@@ -3246,6 +3263,7 @@ function cancelFraisImport(garderFichier) {
     fraisImportData = null;
     retoursImportData = null;
     majBlocRetoursImport();
+    if (typeof majBlocOpsImport === 'function') { opsImportData = null; majBlocOpsImport(); }
     document.getElementById('frais-preview').style.display = 'none';
     document.getElementById('frais-file-name').textContent = '';
     if (!garderFichier) document.getElementById('frais-file-input').value = '';
@@ -3398,9 +3416,11 @@ function updateDashboard() {
                 `Valeur immobilisée : ${fmtEur(dormants.reduce((s,p) => s + (p.prix_achat||0)*(p.quantite||0), 0))}`, 'Voir le stock', "switchTab('stock')");
         }
 
+        if (typeof lignesAFaireAnalyse === 'function') lignesAFaireAnalyse(ligne);
         alertsDiv.innerHTML = lignes.length ? lignes.join('') : '<div class="afaire-vide">Rien à traiter pour le moment.</div>';
     }
 
+    if (typeof majTendancesEtResultat === 'function') majTendancesEtResultat();
     createCharts();
 }
 
@@ -3536,6 +3556,7 @@ function displayVentes() {
     if (q) list = list.filter(v => (v.produit_nom||'').toLowerCase().includes(q) || (v.produit_ean||'').includes(q) || (v.canal||'').toLowerCase().includes(q)
         || (asinParProduit.get(v.produit_id) || '').toLowerCase().includes(q) || String(v.amazon_order_id || '').toLowerCase().includes(q));
     if (canal) list = list.filter(v => v.canal === canal);
+    if (ventesFiltreCout) list = list.filter(v => !(v.prix_achat_unitaire > 0));
     if (dateFrom) list = list.filter(v => v.date_vente >= dateFrom);
     if (dateTo) list = list.filter(v => v.date_vente <= dateTo);
 
@@ -3558,6 +3579,8 @@ function displayVentes() {
             .map(([v, lib]) => [v, lib, v ? base.filter(x => x.canal === v).length : base.length])
             .filter(([v, , n]) => !v || n > 0 || v === canal)
             .map(([v, lib, n]) => `<button type="button" class="pastille" aria-pressed="${v === canal}" onclick="setVentesCanal('${v}')">${lib} · ${n}</button>`).join('');
+        const nbSansCout = base.filter(v => !(v.prix_achat_unitaire > 0)).length;
+        if (nbSansCout || ventesFiltreCout) pastilles.innerHTML += `<span class="pastilles-sep"></span><button type="button" class="pastille" aria-pressed="${ventesFiltreCout}" onclick="setVentesFiltreCout(${!ventesFiltreCout})">Sans prix d'achat · ${nbSansCout}</button>`;
     }
 
     if (!list.length) {
@@ -3566,7 +3589,7 @@ function displayVentes() {
     }
 
     let h = '<div class="products-table"><table class="achats-table ventes-table"><thead><tr><th>Date</th><th>Produit</th><th>Canal</th><th class="num">Qté</th><th class="num">Prix unit.</th><th class="num">Total</th><th class="num">Frais</th><th class="num">Bénéfice</th><th>Notes</th></tr></thead><tbody>';
-    const cleVentes = [q, canal, dateFrom, dateTo].join('|');
+    const cleVentes = [q, canal, dateFrom, dateTo, ventesFiltreCout].join('|');
     if (cleVentes !== ventesCleFiltres) { ventesCleFiltres = cleVentes; ventesPage = 1; }
     const VENTES_PAR_PAGE = 50, ventesPages = Math.max(1, Math.ceil(list.length / VENTES_PAR_PAGE));
     if (ventesPage > ventesPages) ventesPage = ventesPages;
@@ -3576,10 +3599,10 @@ function displayVentes() {
         const asinVente = asinParProduit.get(v.produit_id) || '';
         const benefColor = benef > 0 ? 'var(--success)' : benef < 0 ? 'var(--danger)' : 'var(--text-secondary)';
         const dv = v.date_vente ? new Date(v.date_vente + 'T12:00:00').toLocaleDateString('fr-FR') : '-';
-        h += `<tr style="cursor:default;">
+        h += `<tr onclick="openVenteDetail(${v.id})" title="Voir le détail du bénéfice">
             <td style="white-space:nowrap;">${dv}</td>
             <td class="c-prod"><div class="achat-nom">${escapeHtml(v.produit_nom || '-')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(v.produit_ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(v.produit_ean || '-')}</span></span><span class="code-copiable">${boutonCopier(asinVente, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(asinVente || '-')}</span></span></div></td>
-            <td><span class="pill ${String(v.canal || '').startsWith('Amazon') ? 'pill-info' : 'pill-neutre'}">${escapeHtml(v.canal || 'Autre')}</span></td>
+            <td><span class="pill ${String(v.canal || '').startsWith('Amazon') ? 'pill-info' : 'pill-neutre'}">${escapeHtml(v.canal || 'Autre')}</span> ${typeof badgePays === 'function' ? badgePays(v.marketplace) : ''}${!(v.prix_achat_unitaire > 0) ? '<div style="margin-top:4px;">' + badgeSansCout() + '</div>' : ''}</td>
             <td class="num" data-l="Qté"><strong>${v.quantite || 1}</strong></td>
             <td class="num" data-l="Prix unit.">${(v.prix_unitaire || 0).toFixed(2)}€</td>
             <td class="num" data-l="Total"><strong>${(v.prix_total || 0).toFixed(2)}€</strong></td>
@@ -3600,6 +3623,8 @@ function displayVentes() {
     c.innerHTML = h;
 }
 
+let ventesFiltreCout = false;
+function setVentesFiltreCout(v) { ventesFiltreCout = !!v; displayVentes(); }
 function setVentesCanal(v) {
     const sel = document.getElementById('ventes-filter-canal');
     if (sel) sel.value = v;
