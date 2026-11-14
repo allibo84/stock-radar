@@ -3321,19 +3321,26 @@ async function confirmFraisImport() {
     if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
 
     try {
-        let ok = 0, erreurs = 0, i = 0;
+        // On ne réécrit que les ventes qui changent, plusieurs à la fois (12 000 ventes : quelques minutes au lieu de 40)
+        const aEcrire = [];
         for (const l of lignes) {
-            i++;
-            if (btn) btn.innerHTML = `⏳ Application… ${i} / ${lignes.length}`;
             const v = l.vente;
             const benefice = (v.prix_achat_unitaire || 0) > 0 ? parseFloat(((v.prix_total || 0) - (v.prix_achat_unitaire || 0) * (v.quantite || 1) - l.frais).toFixed(2)) : 0;
             const notes = (v.notes || '').includes('frais réels') ? v.notes : ((v.notes || '') + ' · frais réels').trim();
             const maj = { frais: l.frais, benefice, notes };
             if (ventesMarketplaceOk && l.marketplace) maj.marketplace = l.marketplace;
-            const { error } = await sb.from('ventes').update(maj).eq('id', v.id);
-            if (error) { erreurs++; console.warn('Frais réels:', error.message); continue; }
-            ok++;
+            const identique = Math.abs((v.frais || 0) - l.frais) < 0.005 && Math.abs((v.benefice || 0) - benefice) < 0.005 && v.notes === notes && (!maj.marketplace || v.marketplace === maj.marketplace);
+            if (!identique) aEcrire.push([v.id, maj]);
         }
+        let ok = 0, erreurs = 0, fait = 0;
+        const PARALLELE = 8;
+        for (let k = 0; k < aEcrire.length; k += PARALLELE) {
+            const res = await Promise.all(aEcrire.slice(k, k + PARALLELE).map(([id, maj]) => sb.from('ventes').update(maj).eq('id', id)));
+            res.forEach(r => { if (r.error) { erreurs++; console.warn('Frais réels:', r.error.message); } else ok++; });
+            fait = Math.min(k + PARALLELE, aEcrire.length);
+            if (btn) btn.innerHTML = `⏳ Application… ${fait} / ${aEcrire.length}`;
+        }
+        if (aEcrire.length < lignes.length) toastInfo('Déjà à jour', `${lignes.length - aEcrire.length} vente(s) avaient déjà ces frais réels.`);
         toastSuccess('Frais appliqués', `${ok} vente(s) mise(s) à jour avec les frais réels` + (erreurs ? ` · ${erreurs} erreur(s)` : ''));
         cancelFraisImport();
         await loadVentes();
