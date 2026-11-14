@@ -176,6 +176,7 @@ async function loadVentes() {
     const data = await chargerTable('ventes', 'date_vente', false, 'ventes');
     ventes = data || [];
     displayVentes();
+    if (document.getElementById('tva')?.classList.contains('active') && typeof displayTva === 'function') displayTva();
 }
 
 // ═══════ RETOURS (remboursements clients lus dans le rapport de transactions) ═══════
@@ -194,6 +195,7 @@ async function loadRetours() {
     retours = lignes;
     if (typeof verifierDevenirRetours === 'function' && !retoursTableAbsente) { retoursDevenirOk = null; await verifierDevenirRetours(); }
     if (document.getElementById('retours')?.classList.contains('active')) displayRetours();
+    if (document.getElementById('tva')?.classList.contains('active') && typeof displayTva === 'function') displayTva();
     updateDashboard();
 }
 
