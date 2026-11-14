@@ -2697,6 +2697,14 @@ function previewAmazonImport(input) {
             const dejaImporte = await amzClesDejaImportees(uid);
 
             const prixEstUnitaire = document.getElementById('amz-prix-unitaire')?.checked || false;
+            // Rapport entièrement ancien (dernière commande il y a plus de 45 jours) : on propose de ne pas toucher au stock
+            const caseHist = document.getElementById('amz-historique');
+            if (caseHist && !caseHist.dataset.touche && cDate) {
+                const dates = rows.map(r => normalizeDateAmz(r[cDate])).filter(Boolean).sort();
+                const derniere = dates[dates.length - 1] || '';
+                caseHist.checked = !!derniere && derniere < dateLocaleISO(new Date(Date.now() - 45 * 86400000));
+            }
+            const historique = caseHist?.checked || false;
             const dateDu = document.getElementById('amz-date-du')?.value || '';
             const dateAu = document.getElementById('amz-date-au')?.value || '';
 
@@ -2747,8 +2755,9 @@ function previewAmazonImport(input) {
                 else if (!candidats.length) etat = 'introuvable';
 
                 // Seules les lignes réellement importées consomment le stock de l'aperçu
-                const alloc = (etat === 'ok') ? amzAllouer(candidats, canal, qte, resteApercu) : null;
-                const produit = alloc ? alloc.principal : (amzTrierCandidats(candidats, canal)[0] || null);
+                const candidatsDate = amzCandidatsALaDate(candidats, dateLigne);
+                const alloc = (etat === 'ok' && !historique) ? amzAllouer(candidatsDate, canal, qte, resteApercu) : null;
+                const produit = alloc ? alloc.principal : (amzTrierCandidats(candidatsDate, canal)[0] || null);
 
                 const totalLigne = prixEstUnitaire ? (prixBrut * (qte || 1) + portBrut) : (prixBrut + portBrut);
                 const prixUnit = qte > 0 ? totalLigne / qte : totalLigne;
@@ -2793,6 +2802,11 @@ function amzTrierCandidats(candidats, canal) {
 // Répartit `qte` sur les fiches candidates. `reste` (id → stock canal restant) est
 // partagé entre les lignes d'un même import. Renvoie les parts à déduire, la quantité
 // qui n'a pas pu l'être (`manque`), la fiche de rattachement et le prix d'achat moyen.
+function amzCandidatsALaDate(candidats, date) {
+    if (!date) return candidats;
+    const avant = candidats.filter(p => !p.date_ajout || String(p.date_ajout).slice(0, 10) <= date);
+    return avant.length ? avant : candidats;
+}
 function amzAllouer(candidats, canal, qte, reste) {
     const tries = amzTrierCandidats(candidats, canal);
     if (!tries.length) return null;
@@ -2876,6 +2890,11 @@ async function confirmAmazonImport() {
     if (!lignes.length) return toastError('Rien à importer', 'Aucune ligne valide (vérifiez que vos produits ont bien leur ASIN renseigné).');
 
     const fraisPct = parseFloat(document.getElementById('amz-frais-pct')?.value) || 0;
+    const historique = document.getElementById('amz-historique')?.checked || false;
+    if (historique) {
+        if (!await srConfirm(`Importer ${lignes.length} vente(s) Amazon passée(s) ?\n\nLe stock ne sera PAS modifié : ces ventes servent aux chiffres (CA, bénéfice, réassort, classement).\nLe prix d'achat vient de la fiche produit entrée en stock avant la vente.`, 'Importer des ventes passées')) return;
+        return importerVentesPassees(lignes, fraisPct);
+    }
     const nbManqueAvant = lignes.filter(l => l.manque > 0).length;
     const msg = `Importer ${lignes.length} vente(s) Amazon ?\n\n- Le stock FBA/FBM sera décrémenté (fiche la plus ancienne d'abord)\n` + (nbManqueAvant ? `- ⚠️ ${nbManqueAvant} vente(s) dépassent le stock du canal : elles seront enregistrées, mais le stock manquant ne pourra pas être déduit\n` : '') + `- Les ventes seront ajoutées à l'historique\n- Frais estimés : ${fraisPct}% du prix de vente\n\nL'import prend environ 1 seconde par vente — laissez la page ouverte jusqu'au message de fin.`;
     if (!await srConfirm(msg, 'Importer les ventes Amazon')) return;
@@ -2900,7 +2919,7 @@ async function confirmAmazonImport() {
         i++;
         if (btn) btn.innerHTML = `⏳ Import en cours… ${i} / ${lignes.length}`;
         const candidats = (l.candidatIds || []).map(id => parId.get(id)).filter(Boolean);
-        const alloc = amzAllouer(candidats, l.canal, l.qte, reste);
+        const alloc = amzAllouer(amzCandidatsALaDate(candidats, l.date), l.canal, l.qte, reste);
         if (!alloc) { erreurs++; console.warn('Import vente: produit disparu', l.cle); continue; }
         const p = alloc.principal;
         const isFba = l.canal === 'Amazon FBA';
@@ -2957,6 +2976,51 @@ async function confirmAmazonImport() {
     await Promise.all([loadProducts(), loadVentes(), loadMouvements()]);
     updateDashboard();
     if (ok > 0) switchTab('ventes');
+    } finally {
+        amazonImportEnCours = false;
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.innerHTML = '✅ Importer <span id="amz-count">0</span> vente(s)'; }
+    }
+}
+
+// Ventes passées : enregistrées pour les chiffres, sans toucher au stock ni au journal des mouvements
+async function importerVentesPassees(lignes, fraisPct) {
+    amazonImportEnCours = true;
+    const btn = document.getElementById('amz-import-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+    try {
+        const dejaEnBase = await amzClesDejaImportees(getEffectiveUserId());
+        lignes = lignes.filter(l => !dejaEnBase.has(l.cle));
+        if (!lignes.length) { toastInfo('Déjà importé', 'Toutes ces commandes sont déjà dans l\'historique.'); return; }
+        const parId = new Map(products.map(x => [x.id, x]));
+        const uid = getEffectiveUserId();
+        const aInserer = [];
+        for (const l of lignes) {
+            const candidats = amzCandidatsALaDate((l.candidatIds || []).map(id => parId.get(id)).filter(Boolean), l.date);
+            const p = amzTrierCandidats(candidats, l.canal)[0];
+            if (!p) continue;
+            const prixUnit = parseFloat(l.prixUnit.toFixed(2)), prixTotal = parseFloat((prixUnit * l.qte).toFixed(2));
+            const frais = parseFloat((prixTotal * fraisPct / 100).toFixed(2)), pa = p.prix_achat || 0;
+            const v = {
+                user_id: uid, produit_id: p.id, produit_ean: p.ean || '', produit_nom: p.nom || l.nom || '',
+                canal: l.canal, quantite: l.qte, prix_unitaire: prixUnit, prix_total: prixTotal,
+                prix_achat_unitaire: pa, frais, benefice: parseFloat(((prixUnit - pa) * l.qte - frais).toFixed(2)),
+                date_vente: l.date, notes: 'Import Amazon (vente passée, stock non modifié)', amazon_order_id: l.cle,
+            };
+            if (ventesMarketplaceOk && l.marketplace) v.marketplace = l.marketplace;
+            aInserer.push(v);
+        }
+        let ok = 0, erreur = null;
+        for (let i = 0; i < aInserer.length; i += 200) {
+            if (btn) btn.innerHTML = `⏳ Import en cours… ${Math.min(i + 200, aInserer.length)} / ${aInserer.length}`;
+            const { error } = await sb.from('ventes').insert(aInserer.slice(i, i + 200));
+            if (error) { erreur = error.message; break; }
+            ok += Math.min(200, aInserer.length - i);
+        }
+        if (erreur) toastError('Import incomplet', `${ok} vente(s) importée(s), puis : ${erreur}`);
+        else toastSuccess('Ventes passées importées', `${ok} vente(s) ajoutée(s) — stock inchangé. Relancez les frais réels sur cette période pour des bénéfices exacts.`);
+        cancelAmazonImport();
+        await loadVentes();
+        updateDashboard();
     } finally {
         amazonImportEnCours = false;
         if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.innerHTML = '✅ Importer <span id="amz-count">0</span> vente(s)'; }
@@ -3339,23 +3403,26 @@ async function exportStockExcel() {
 // ═══════ DASHBOARD ═══════
 // Période des chiffres de vente de l'accueil ('30', '90', 'annee', 'tout')
 let dashPeriode = 'tout';
-try { const v = localStorage.getItem('dashPeriode'); if (['30', '90', 'annee', 'tout'].includes(v)) dashPeriode = v; } catch (e) {}
+try { const v = localStorage.getItem('dashPeriode'); if (['mois', '30', '90', 'annee', 'tout'].includes(v)) dashPeriode = v; } catch (e) {}
 function setDashPeriode(v) {
     dashPeriode = v;
     try { localStorage.setItem('dashPeriode', v); } catch (e) {}
     updateDashboard();
 }
+function debutDashPeriode() {
+    const now = new Date();
+    if (dashPeriode === 'mois') return new Date(now.getFullYear(), now.getMonth(), 1);
+    return dashPeriode === 'annee' ? new Date(now.getFullYear(), 0, 1) : new Date(now.getTime() - Number(dashPeriode) * 86400000);
+}
 function ventesPeriode() {
     if (dashPeriode === 'tout') return ventes;
-    const now = new Date();
-    const debut = dashPeriode === 'annee' ? new Date(now.getFullYear(), 0, 1) : new Date(now.getTime() - Number(dashPeriode) * 86400000);
+    const debut = debutDashPeriode();
     const iso = dateLocaleISO(debut);
     return ventes.filter(v => String(v.date_vente || '').slice(0, 10) >= iso);
 }
 function retoursPeriode() {
     if (dashPeriode === 'tout') return retours;
-    const now = new Date();
-    const debut = dashPeriode === 'annee' ? new Date(now.getFullYear(), 0, 1) : new Date(now.getTime() - Number(dashPeriode) * 86400000);
+    const debut = debutDashPeriode();
     const iso = dateLocaleISO(debut);
     return retours.filter(r => String(r.date_retour || '') >= iso);
 }

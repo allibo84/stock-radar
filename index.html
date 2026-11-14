@@ -1276,6 +1276,7 @@
                         <div class="accueil-actions">
                             <label for="dash-periode-select" class="sr-only">Période des chiffres</label>
                             <select id="dash-periode-select" class="accueil-periode" onchange="setDashPeriode(this.value)">
+                                <option value="mois">Ce mois-ci</option>
                                 <option value="30">30 derniers jours</option>
                                 <option value="90">90 derniers jours</option>
                                 <option value="annee">Cette année</option>
@@ -1551,6 +1552,9 @@
                             </label>
                             <label style="display:flex; align-items:center; gap:8px; font-size:14px;">
                                 <input type="checkbox" id="amz-prix-unitaire"> Le prix du fichier est un prix unitaire (sinon : total de la ligne)
+                            </label>
+                            <label style="display:flex; align-items:center; gap:8px; font-size:14px;" title="Pour rattraper des mois anciens : les ventes comptent dans les chiffres, mais le stock actuel n'est pas touché">
+                                <input type="checkbox" id="amz-historique" onchange="this.dataset.touche='1'"> Ventes passées : ne pas modifier le stock
                             </label>
                         </div>
                         <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:center; margin-bottom:15px;">
@@ -2459,11 +2463,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261114-9"></script>
-    <script src="app-cloud.js?v=20261114-9"></script>
-    <script src="app-analyse.js?v=20261114-9"></script>
-    <script src="app-entrepot.js?v=20261114-9"></script>
-    <script src="auth.js?v=20261114-9"></script>
+    <script src="config.js?v=20261114-10"></script>
+    <script src="app-cloud.js?v=20261114-10"></script>
+    <script src="app-analyse.js?v=20261114-10"></script>
+    <script src="app-entrepot.js?v=20261114-10"></script>
+    <script src="auth.js?v=20261114-10"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {

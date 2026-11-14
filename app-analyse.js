@@ -266,6 +266,7 @@ function classementGoPage(p) { classementPage = p; displayClassement(); }
 function debutPeriode(code) {
     if (code === 'tout') return '';
     if (code === 'annee') return new Date().getFullYear() + '-01-01';
+    if (code === 'mois') return isoJour(new Date()).slice(0, 8) + '01';
     return ilYA(Number(code));
 }
 function displayClassement() {
@@ -302,7 +303,7 @@ function displayClassement() {
     if (cle !== classementCle) { classementCle = cle; classementPage = 1; }
 
     const set = (id, html) => { const e = document.getElementById(id); if (e) e.innerHTML = html; };
-    set('classement-periode', pastillesHtml([['30', '30 jours'], ['90', '90 jours'], ['annee', 'Cette année'], ['tout', 'Depuis le début']], classementPeriode, 'setClassementPeriode'));
+    set('classement-periode', pastillesHtml([['mois', 'Ce mois-ci'], ['30', '30 jours'], ['90', '90 jours'], ['annee', 'Cette année'], ['tout', 'Depuis le début']], classementPeriode, 'setClassementPeriode'));
     set('classement-critere', pastillesHtml([['benefice', 'Bénéfice'], ['roi', 'ROI'], ['marge', 'Marge'], ['unites', 'Unités'], ['ca', "Chiffre d'affaires"]], classementCritere, 'setClassementCritere')
         + '<span class="pastilles-sep">Ordre :</span>' + pastillesHtml([['meilleurs', 'Meilleurs'], ['pires', 'Pires']], classementOrdre, 'setClassementOrdre'));
     const totB = [...g.values()].reduce((s, x) => s + x.benefice, 0);
@@ -451,7 +452,7 @@ function displayRemboursementsFba() {
     const motifs = {};
     tous.forEach(o => { const m = motifRemboursement(o.description); motifs[m] = motifs[m] || { n: 0, total: 0 }; motifs[m].n++; motifs[m].total += Number(o.total) || 0; });
     const set = (id, html) => { const e = document.getElementById(id); if (e) e.innerHTML = html; };
-    set('rfba-periode', pastillesHtml([['30', '30 jours'], ['90', '90 jours'], ['annee', 'Cette année'], ['tout', 'Depuis le début']], rfbaPeriode, 'setRfbaPeriode'));
+    set('rfba-periode', pastillesHtml([['mois', 'Ce mois-ci'], ['30', '30 jours'], ['90', '90 jours'], ['annee', 'Cette année'], ['tout', 'Depuis le début']], rfbaPeriode, 'setRfbaPeriode'));
     set('rfba-motifs', pastillesHtml([['', 'Tous', tous.length], ...Object.entries(motifs).sort((a, b) => b[1].total - a[1].total).map(([m, x]) => [m, m, x.n])], rfbaMotif, 'setRfbaMotif'));
     const total = tous.reduce((s, o) => s + (Number(o.total) || 0), 0);
     set('rfba-resume', `${fmtEur(total)} versés par Amazon pour ${tous.reduce((s, o) => s + (o.quantite || 0), 0)} unité(s) · ` + Object.entries(motifs).sort((a, b) => b[1].total - a[1].total).map(([m, x]) => `${m} ${fmtEur(x.total)}`).join(' · '));
@@ -663,6 +664,12 @@ function openVenteDetail(id) {
 function bornesPeriode(code) {
     const aujourdhui = new Date();
     if (code === 'tout') return null;
+    if (code === 'mois') {
+        // Du 1er du mois à aujourd'hui, comparé au même nombre de jours du mois précédent
+        const a = aujourdhui.getFullYear(), m = aujourdhui.getMonth(), j = aujourdhui.getDate();
+        const finPrec = new Date(a, m - 1, Math.min(j, new Date(a, m, 0).getDate()));
+        return { debut: isoJour(new Date(a, m, 1)), fin: isoJour(aujourdhui), debutPrec: isoJour(new Date(a, m - 1, 1)), finPrec: isoJour(finPrec) };
+    }
     if (code === 'annee') {
         const a = aujourdhui.getFullYear();
         const mmjj = isoJour(aujourdhui).slice(5);
@@ -700,7 +707,7 @@ function afficherTendance(idValeur, actuel, precedent, mode, inverse) {
     t.className = 'tendance ' + (bon ? 'bon' : 'mauvais');
     t.textContent = texte;
     const compare = document.createElement('small');
-    compare.textContent = dashPeriode === 'annee' ? 'vs même période l\'an dernier' : `vs les ${dashPeriode} jours précédents`;
+    compare.textContent = dashPeriode === 'annee' ? 'vs même période l\'an dernier' : dashPeriode === 'mois' ? 'vs même période le mois dernier' : `vs les ${dashPeriode} jours précédents`;
     t.appendChild(compare);
     (carte.querySelector('.kpi-sous') || carte.lastElementChild).before(t);
 }
@@ -781,7 +788,7 @@ function majBlocsAccueil() {
         });
         const lignes = Object.entries(g).sort((a, b) => b[1].ca - a[1].ca);
         const max = lignes.length ? lignes[0][1].ca : 1;
-        const libPeriode = { '30': '30 derniers jours', '90': '90 derniers jours', annee: 'cette année', tout: 'depuis le début' }[dashPeriode];
+        const libPeriode = { mois: 'ce mois-ci', '30': '30 derniers jours', '90': '90 derniers jours', annee: 'cette année', tout: 'depuis le début' }[dashPeriode];
         zc.innerHTML = `<div class="accueil-bloc-titre"><h3>Canaux de vente</h3><span class="kpi-sous">${libPeriode}</span></div>`
             + (lignes.length ? lignes.map(([k, x]) => `<div class="liste-ligne"><span class="lib">${escapeHtml(k)}<div class="canal-barre" style="width:${Math.max(2, x.ca / max * 100)}%;"></div></span><span class="chiffre second">${x.n.toLocaleString('fr-FR')} ventes</span><span class="chiffre" style="min-width:100px;"><strong>${fmtEur(x.ca)}</strong><div class="kpi-sous" style="color:${x.benef >= 0 ? 'var(--success)' : 'var(--danger)'};">${x.benef >= 0 ? '+' : ''}${fmtEur(x.benef)}</div></span></div>`).join('')
                 : '<p class="kpi-sous">Aucune vente sur la période.</p>');
