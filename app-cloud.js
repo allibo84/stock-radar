@@ -3350,6 +3350,8 @@ function updateDashboard() {
     const vp = ventesPeriode();
     const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
     document.querySelectorAll('#dash-periode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.periode === dashPeriode ? 'true' : 'false'));
+    const selPeriode = document.getElementById('dash-periode-select');
+    if (selPeriode) selPeriode.value = dashPeriode;
 
     el('dash-total-produits', enStock.reduce((s,p)=>s+(p.quantite||0),0));
     const rp = retoursPeriode();
@@ -3363,13 +3365,13 @@ function updateDashboard() {
     el('dash-valeur-entrepot', valEntrepot.toFixed(2) + '€');
 
     // CA et bénéfice depuis la vraie table ventes, sur la période choisie
-    el('dash-ca-realise', vp.reduce((s,v) => s + (v.prix_total || 0), 0).toFixed(2) + '€');
-    el('dash-benefice', vp.reduce((s,v) => s + (v.benefice || 0), 0).toFixed(2) + '€');
+    el('dash-ca-realise', fmtEur(vp.reduce((s,v) => s + (v.prix_total || 0), 0)));
+    el('dash-benefice', fmtEur(vp.reduce((s,v) => s + (v.benefice || 0), 0)));
     // Marge nette pondérée : (CA − achats − frais) / CA, sur les ventes dont le prix d'achat est connu.
     const ventesChiffrees = vp.filter(v => v.prix_achat_unitaire > 0 && v.prix_total > 0);
     const caChiffre = ventesChiffrees.reduce((s,v) => s + (v.prix_total || 0), 0);
     const netChiffre = ventesChiffrees.reduce((s,v) => s + (v.prix_total || 0) - (v.prix_achat_unitaire || 0) * (v.quantite || 1) - (v.frais || 0), 0);
-    el('dash-marge-moyenne', (caChiffre > 0 ? (netChiffre / caChiffre * 100) : 0).toFixed(1) + '%');
+    el('dash-marge-moyenne', (caChiffre > 0 ? (netChiffre / caChiffre * 100) : 0).toFixed(1).replace('.', ',') + ' %');
 
     // Sub-stats
     el('dash-qte-fba', enStock.reduce((s,p)=>s+(p.qte_fba||0),0));
@@ -3384,7 +3386,7 @@ function updateDashboard() {
     if (alertsDiv) {
         const lignes = [];
         const ligne = (nb, ton, titre, detail, bouton, action, principal) => lignes.push(
-            `<div class="afaire-ligne"><span class="afaire-nb ${ton}">${nb}</span><div class="afaire-texte"><strong>${titre}</strong><span>${detail}</span></div><button type="button" class="afaire-btn${principal ? ' principal' : ''}" onclick="${action}">${bouton}</button></div>`);
+            `<div class="atraiter-item ${ton}" title="${String(detail).replace(/"/g, '&quot;')}"><strong>${nb}</strong><span class="atraiter-txt">${titre.charAt(0).toLowerCase() + titre.slice(1)}</span><button type="button" class="afaire-btn${principal ? ' principal' : ''}" onclick="${action}">${bouton}</button></div>`);
 
         if (enAttente.length > 0) {
             const montantAttente = enAttente.reduce((s,a) => s + ((a.prix_ttc||0)*achatReste(a)), 0);   // seulement ce qui reste à recevoir
@@ -3417,7 +3419,7 @@ function updateDashboard() {
         }
 
         if (typeof lignesAFaireAnalyse === 'function') lignesAFaireAnalyse(ligne);
-        alertsDiv.innerHTML = lignes.length ? lignes.join('') : '<div class="afaire-vide">Rien à traiter pour le moment.</div>';
+        alertsDiv.innerHTML = lignes.length ? lignes.join('') : '<span class="kpi-sous">Rien à traiter pour le moment.</span>';
     }
 
     if (typeof majTendancesEtResultat === 'function') majTendancesEtResultat();
@@ -3426,58 +3428,34 @@ function updateDashboard() {
 
 function createCharts() {
     if (typeof Chart === 'undefined') return;
-
-    // Evolution mensuelle
-    // Les 6 derniers mois calendaires, du plus ancien au plus récent : unités achetées
-    // (table achats) et unités vendues (table ventes). L'ancien graphique lisait le stock
-    // RESTANT des fiches produit et affichait les 6 mois les plus anciens.
+    // Les 12 derniers mois calendaires : chiffre d'affaires et bénéfice des ventes enregistrées
     const moisCles = [], maintenant = new Date();
-    for (let k = 5; k >= 0; k--) {
+    for (let k = 11; k >= 0; k--) {
         const d = new Date(maintenant.getFullYear(), maintenant.getMonth() - k, 1);
         moisCles.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
     }
-    const cumulMois = (liste, champDate) => {
-        const t = Object.fromEntries(moisCles.map(m => [m, 0]));
-        liste.forEach(x => { const m = String(x[champDate] || '').slice(0, 7); if (m in t) t[m] += (x.quantite || 1); });
-        return moisCles.map(m => t[m]);
-    };
-    const mLabels = moisCles.map(m => new Date(+m.slice(0, 4), +m.slice(5) - 1, 1).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }));
+    const ca = Object.fromEntries(moisCles.map(m => [m, 0])), benef = Object.fromEntries(moisCles.map(m => [m, 0]));
+    ventes.forEach(v => { const m = String(v.date_vente || '').slice(0, 7); if (m in ca) { ca[m] += v.prix_total || 0; benef[m] += v.benefice || 0; } });
+    const labels = moisCles.map(m => new Date(+m.slice(0, 4), +m.slice(5) - 1, 1).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }));
     if (charts.evolution) charts.evolution.destroy();
     const c1 = document.getElementById('chartEvolution');
-    if (c1) charts.evolution = new Chart(c1, { type:'bar', data:{labels:mLabels, datasets:[
-        {label:'Unités achetées',data:cumulMois(achats,'date_achat'),backgroundColor:'rgba(45,90,39,0.75)'},
-        {label:'Unités vendues',data:cumulMois(ventes,'date_vente'),backgroundColor:'rgba(255,153,0,0.8)'}
-    ]}, options:{responsive:true,plugins:{legend:{display:true,position:'bottom'}}} });
-
-    // Répartition stock
-    const enStock = products.filter(p => !p.vendu);
-    const fba = enStock.reduce((s,p)=>s+(p.qte_fba||0),0);
-    const fbm = enStock.reduce((s,p)=>s+(p.qte_fbm||0),0);
-    const ent = enStock.reduce((s,p)=>s+(p.qte_entrepot||0),0);
-    if (charts.repartition) charts.repartition.destroy();
-    const c2 = document.getElementById('chartRepartition');
-    if (c2) charts.repartition = new Chart(c2, { type:'doughnut', data:{labels:['FBA','FBM','Entrepôt'],datasets:[{data:[fba,fbm,ent],backgroundColor:['#ff9900','#3f51b5','#9c27b0']}]}, options:{responsive:true} });
-
-    // Top catégories
-    const cats = {};
-    enStock.forEach(p => { if (p.categorie) cats[p.categorie] = (cats[p.categorie]||0) + (p.quantite||0); });
-    const sortedCats = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    if (charts.categories) charts.categories.destroy();
-    const c3 = document.getElementById('chartCategories');
-    if (c3) charts.categories = new Chart(c3, { type:'bar', data:{labels:sortedCats.map(c=>c[0]),datasets:[{label:'Unités',data:sortedCats.map(c=>c[1]),backgroundColor:'rgba(45,90,39,0.65)'}]}, options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}}} });
-
-    // CA par canal (depuis la vraie table ventes)
-    const canaux = {};
-    ventesPeriode().forEach(v => { const c = v.canal || 'Autre'; canaux[c] = (canaux[c]||0) + (v.prix_total||0); });
-    // Les retours forment une part à eux : le montant des produits remboursés sur la période
-    const montantRetours = retoursPeriode().reduce((s,r) => s + (r.montant_produit||0), 0);
-    const etiquettes = Object.keys(canaux), valeurs = Object.values(canaux).map(x => Math.round(x * 100) / 100);
-    const couleurs = ['#ff9900','#3f51b5','#00b4b6','#f56b2a','#95a5a6'].slice(0, etiquettes.length);
-    while (couleurs.length < etiquettes.length) couleurs.push('#95a5a6');
-    if (montantRetours > 0) { etiquettes.push('Retours (remboursés)'); valeurs.push(Math.round(montantRetours * 100) / 100); couleurs.push('#c0392b'); }
-    if (charts.canaux) charts.canaux.destroy();
-    const c4 = document.getElementById('chartCanaux');
-    if (c4) charts.canaux = new Chart(c4, { type:'doughnut', data:{labels:etiquettes,datasets:[{data:valeurs,backgroundColor:couleurs}]}, options:{responsive:true} });
+    if (!c1) return;
+    const sombre = document.body.classList.contains('dark-theme');
+    const grille = sombre ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)', texte = sombre ? '#aab4c3' : '#5b6675';
+    charts.evolution = new Chart(c1, {
+        type: 'line',
+        data: { labels, datasets: [
+            { label: "Chiffre d'affaires", data: moisCles.map(m => Math.round(ca[m])), borderColor: '#2d5a27', backgroundColor: 'rgba(45,90,39,.12)', fill: true, tension: .3, pointRadius: 3 },
+            { label: 'Bénéfice', data: moisCles.map(m => Math.round(benef[m])), borderColor: '#ff9900', backgroundColor: 'rgba(255,153,0,.10)', fill: true, tension: .3, pointRadius: 3 },
+        ] },
+        options: {
+            responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'bottom', labels: { color: texte, boxWidth: 12 } },
+                tooltip: { callbacks: { label: (c) => c.dataset.label + ' : ' + c.parsed.y.toLocaleString('fr-FR') + ' €' } } },
+            scales: { x: { grid: { display: false }, ticks: { color: texte } },
+                y: { grid: { color: grille }, ticks: { color: texte, callback: (v) => v.toLocaleString('fr-FR') + ' €' } } },
+        },
+    });
 }
 
 // ═══════ UTILS ═══════

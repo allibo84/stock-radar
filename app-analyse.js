@@ -699,8 +699,10 @@ function afficherTendance(idValeur, actuel, precedent, mode, inverse) {
     const t = document.createElement('div');
     t.className = 'tendance ' + (bon ? 'bon' : 'mauvais');
     t.textContent = texte;
-    t.title = 'Par rapport à la période précédente de même durée';
-    carte.appendChild(t);
+    const compare = document.createElement('small');
+    compare.textContent = dashPeriode === 'annee' ? 'vs même période l\'an dernier' : `vs les ${dashPeriode} jours précédents`;
+    t.appendChild(compare);
+    (carte.querySelector('.kpi-sous') || carte.lastElementChild).before(t);
 }
 // Appelé à la fin de updateDashboard()
 function majTendancesEtResultat() {
@@ -711,7 +713,9 @@ function majTendancesEtResultat() {
     el('dash-roi', pct(actu.roi));
     const T = (id, k, mode, inv) => afficherTendance(id, actu[k], prec ? prec[k] : null, mode, inv);
     T('dash-ca-realise', 'ca'); T('dash-benefice', 'benefice'); T('dash-marge-moyenne', 'marge', 'points'); T('dash-roi', 'roi', 'points');
-    T('dash-nb-ventes', 'nb'); T('dash-total-vendus', 'unites'); T('dash-retours', 'retours', null, true);
+    el('dash-ca-sous', `${actu.nb.toLocaleString('fr-FR')} ventes · ${actu.unites.toLocaleString('fr-FR')} unités`);
+    el('dash-benef-sous', `${actu.retours} unité(s) remboursée(s) aux clients`);
+    majBlocsAccueil();
 
     // Résultat après retours et charges
     const zone = document.getElementById('dash-resultat');
@@ -744,4 +748,42 @@ function lignesAFaireAnalyse(ligne) {
         const ecarts = envoisFba.filter(e => e.statut === 'CLOSED' && !e.traite && ecartEnvoi(e) > 0);
         if (ecarts.length) ligne(ecarts.length, 'danger', `Envoi${ecarts.length > 1 ? 's' : ''} FBA avec des unités non reçues`, `${ecarts.reduce((s, e) => s + ecartEnvoi(e), 0)} unité(s) envoyée(s) qu'Amazon n'a pas réceptionnée(s)`, 'Vérifier', "switchTab('envois-fba');setEnvoisFiltre('ecart')");
     } catch (e) { console.warn('À faire (analyse):', e); }
+}
+
+// Blocs « Stock actuel » et « Canaux de vente » de l'accueil
+function majBlocsAccueil() {
+    const zs = document.getElementById('dash-stock');
+    if (zs) {
+        const enStock = products.filter(p => !p.vendu && !p.invendable);
+        const ent = enStock.reduce((s, p) => s + (p.qte_entrepot || 0), 0), fba = enStock.reduce((s, p) => s + (p.qte_fba || 0), 0), fbm = enStock.reduce((s, p) => s + (p.qte_fbm || 0), 0);
+        const total = ent + fba + fbm;
+        const valeur = enStock.reduce((s, p) => s + (p.prix_achat || 0) * (p.quantite || 0), 0);
+        const rebut = products.filter(p => !p.vendu && ((p.etat_stock || '') === 'rebut' || p.invendable)).reduce((s, p) => s + (p.quantite || 0), 0);
+        const parts = [['Entrepôt', ent, '#2d5a27', enStock.reduce((s, p) => s + (p.prix_achat || 0) * (p.qte_entrepot || 0), 0)], ['Amazon FBA', fba, '#ff9900'], ['Amazon FBM', fbm, '#3f51b5']];
+        const pc = (n) => total ? Math.round(n / total * 100) : 0;
+        zs.innerHTML = `<div class="accueil-bloc-titre"><h3>Stock actuel</h3></div>
+            <div class="stock-total"><strong>${total.toLocaleString('fr-FR')} unités</strong><span class="kpi-sous"><b style="color:var(--text-1);font-size:15px;">${fmtEur(valeur)}</b> au prix d'achat</span></div>
+            <div class="stock-barre" role="img" aria-label="Répartition du stock">${parts.filter(x => x[1] > 0).map(x => `<span style="width:${x[1] / total * 100}%;background:${x[2]};" title="${x[0]} : ${x[1]} unités">${pc(x[1]) >= 8 ? pc(x[1]) + ' %' : ''}</span>`).join('')}</div>
+            ${parts.map(x => `<div class="liste-ligne"><span class="pastille-couleur" style="background:${x[2]};"></span><span class="lib">${x[0]}${x[3] !== undefined ? ` <span class="kpi-sous">· ${fmtEur(x[3])}</span>` : ''}</span><span class="chiffre"><strong>${x[1].toLocaleString('fr-FR')}</strong> unités</span></div>`).join('')}
+            ${rebut ? `<div class="liste-ligne"><span class="pastille-couleur" style="background:#c0392b;"></span><span class="lib">Rebut <span class="kpi-sous">(non compté ci-dessus)</span></span><span class="chiffre">${rebut} unités</span></div>` : ''}
+            <div style="margin-top:10px;"><button type="button" class="afaire-btn" onclick="switchTab('stock')">Voir le stock</button> <button type="button" class="afaire-btn" onclick="switchTab('reassort')">Réassort</button></div>`;
+    }
+    const zc = document.getElementById('dash-canaux');
+    if (zc) {
+        const b = bornesPeriode(dashPeriode);
+        const vs = ventes.filter(v => { const d = String(v.date_vente || '').slice(0, 10); return !b || (d >= b.debut && d <= b.fin); });
+        const nomsPays = { FR: 'France', DE: 'Allemagne', IT: 'Italie', ES: 'Espagne', NL: 'Pays-Bas', BE: 'Belgique', IE: 'Irlande', UK: 'Royaume-Uni', PL: 'Pologne', SE: 'Suède' };
+        const g = {};
+        vs.forEach(v => {
+            let k = v.canal || 'Autre';
+            if (String(v.canal || '').startsWith('Amazon')) { const p = paysDeMarketplace(v.marketplace); k = 'Amazon ' + (p ? (nomsPays[p] || p) : '· pays inconnu'); }
+            g[k] = g[k] || { n: 0, ca: 0, benef: 0 }; g[k].n += 1; g[k].ca += v.prix_total || 0; g[k].benef += v.benefice || 0;
+        });
+        const lignes = Object.entries(g).sort((a, b) => b[1].ca - a[1].ca);
+        const max = lignes.length ? lignes[0][1].ca : 1;
+        const libPeriode = { '30': '30 derniers jours', '90': '90 derniers jours', annee: 'cette année', tout: 'depuis le début' }[dashPeriode];
+        zc.innerHTML = `<div class="accueil-bloc-titre"><h3>Canaux de vente</h3><span class="kpi-sous">${libPeriode}</span></div>`
+            + (lignes.length ? lignes.map(([k, x]) => `<div class="liste-ligne"><span class="lib">${escapeHtml(k)}<div class="canal-barre" style="width:${Math.max(2, x.ca / max * 100)}%;"></div></span><span class="chiffre second">${x.n.toLocaleString('fr-FR')} ventes</span><span class="chiffre" style="min-width:100px;"><strong>${fmtEur(x.ca)}</strong><div class="kpi-sous" style="color:${x.benef >= 0 ? 'var(--success)' : 'var(--danger)'};">${x.benef >= 0 ? '+' : ''}${fmtEur(x.benef)}</div></span></div>`).join('')
+                : '<p class="kpi-sous">Aucune vente sur la période.</p>');
+    }
 }

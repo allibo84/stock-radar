@@ -1088,6 +1088,59 @@
             .charges-grille { grid-template-columns: 1fr; }
             .sr-tiroir-panneau { max-width: 100%; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
         }
+        /* ═══ Accueil « vue d'ensemble » ═══ */
+        .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+        .accueil-entete { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .accueil-entete h2 { font-size: 22px; font-weight: 700; color: var(--text-1); margin: 0; }
+        .accueil-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .accueil-periode { min-height: 38px; padding: 0 12px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--bg-elevated); color: var(--text-1); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+        .atraiter { display: flex; align-items: center; gap: 14px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 10px 14px; margin-bottom: 16px; }
+        .atraiter-titre { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--text-1); flex: 0 0 auto; padding-right: 12px; border-right: 1px solid var(--border); }
+        .atraiter-titre svg { width: 20px; height: 20px; }
+        .atraiter-liste { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 auto; min-width: 0; }
+        .atraiter-item { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; border-radius: var(--radius); background: var(--bg-subtle); border: 1px solid var(--border); }
+        .atraiter-item.warn { background: #fef6ea; border-color: #f3d9ac; }
+        .atraiter-item.danger { background: #fdf0ee; border-color: #f2c4bd; }
+        .atraiter-item strong { font-size: 16px; color: var(--text-1); }
+        .atraiter-item .atraiter-txt { font-size: 13px; color: var(--text-1); line-height: 1.25; max-width: 210px; }
+        .atraiter-item .afaire-btn { min-height: 34px; padding: 0 12px; font-size: 13px; }
+        body.dark-theme .atraiter-item.warn { background: #3d2d10; border-color: #5c3d0a; }
+        body.dark-theme .atraiter-item.danger { background: #3a1916; border-color: #5a1f1a; }
+        .accueil-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+        .kpi-carte { display: flex; align-items: flex-start; gap: 14px; text-align: left; padding: 18px; }
+        .kpi-carte .stat-number { font-size: 27px; margin: 2px 0 4px; }
+        .kpi-carte .stat-label { text-transform: none; letter-spacing: 0; font-size: 13.5px; font-weight: 600; color: var(--text-1); }
+        .kpi-ico { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; }
+        .kpi-ico svg { width: 22px; height: 22px; }
+        .kpi-sous { font-size: 12.5px; color: var(--text-2); }
+        .kpi-carte .tendance { margin-top: 4px; font-size: 12.5px; }
+        .kpi-carte .tendance small { font-weight: 400; color: var(--text-2); margin-left: 4px; }
+        .accueil-grille { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; margin-bottom: 16px; }
+        .accueil-bloc { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; min-width: 0; }
+        .accueil-bloc h3 { font-size: 15.5px; margin: 0; color: var(--text-1); }
+        .accueil-bloc-titre { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+        .accueil-grille .resultat { max-width: none; margin-bottom: 0; }
+        .stock-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin: 10px 0 14px; }
+        .stock-total strong { font-size: 30px; color: var(--brand); font-variant-numeric: tabular-nums; }
+        .stock-barre { display: flex; height: 26px; border-radius: 6px; overflow: hidden; margin-bottom: 10px; background: var(--bg-subtle); }
+        .stock-barre span { display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; min-width: 0; overflow: hidden; white-space: nowrap; }
+        .liste-ligne { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text-1); }
+        .liste-ligne:first-of-type { border-top: none; }
+        .liste-ligne .pastille-couleur { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
+        .liste-ligne .lib { flex: 1 1 auto; min-width: 0; }
+        .liste-ligne .chiffre { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+        .liste-ligne .chiffre.second { color: var(--text-2); min-width: 90px; }
+        .canal-barre { height: 4px; border-radius: 2px; background: var(--brand); opacity: .55; margin-top: 4px; }
+        @media (max-width: 1100px) { .accueil-kpis { grid-template-columns: repeat(2, 1fr); } .accueil-grille { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) {
+            .atraiter { flex-direction: column; align-items: stretch; }
+            .atraiter-titre { border-right: none; padding-right: 0; }
+            .atraiter-item { justify-content: space-between; }
+            .atraiter-item .atraiter-txt { max-width: none; flex: 1 1 auto; }
+            .kpi-carte .stat-number { font-size: 22px; }
+            .kpi-ico { width: 36px; height: 36px; }
+        }
+        @media (max-width: 480px) { .accueil-kpis { grid-template-columns: 1fr; } }
         /* Retours */
         .retours-aide { background: var(--info-bg); border: 1px solid rgba(52,152,219,.3); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 15px; font-size: 13.5px; color: var(--text-1); }
         .retours-import { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 15px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-subtle); font-size: 13.5px; }
@@ -1189,49 +1242,40 @@
 
                 <!-- ══════ DASHBOARD ══════ -->
                 <div id="dashboard" class="tab-content active">
-                    <div class="section-header"><h2>À faire aujourd'hui</h2></div>
-                    <div id="dash-alerts" class="afaire" style="margin-bottom:18px;"></div>
-                    <div class="acces-rapides" aria-label="Accès rapides">
-                        <button type="button" class="acces-rapide" onclick="allerNouvelAchat()"><span>Nouvel achat</span></button>
-                        <button type="button" class="acces-rapide" onclick="switchTab('import-grossiste')"><span>Import grossiste</span></button>
-                        <button type="button" class="acces-rapide" onclick="switchTab('stock')"><span>Stock, transferts et ventes<small>Vinted, Leboncoin, FBA</small></span></button>
-                        <button type="button" class="acces-rapide" onclick="switchTab('ventes')"><span>Mes ventes</span></button>
-                        <button type="button" class="acces-rapide" onclick="switchTab('outils-export')"><span>Export &amp; sauvegarde</span></button>
-                    </div>
-                    <div class="section-header" style="margin-bottom:12px;">
-                        <h2>Chiffres</h2>
-                        <div class="periode" role="group" aria-label="Période des chiffres de vente" id="dash-periode">
-                            <button type="button" data-periode="30" onclick="setDashPeriode('30')">30 jours</button>
-                            <button type="button" data-periode="90" onclick="setDashPeriode('90')">90 jours</button>
-                            <button type="button" data-periode="annee" onclick="setDashPeriode('annee')">Cette année</button>
-                            <button type="button" data-periode="tout" onclick="setDashPeriode('tout')">Depuis le début</button>
+                    <div class="accueil-entete">
+                        <h2>Vue d'ensemble</h2>
+                        <div class="accueil-actions">
+                            <label for="dash-periode-select" class="sr-only">Période des chiffres</label>
+                            <select id="dash-periode-select" class="accueil-periode" onchange="setDashPeriode(this.value)">
+                                <option value="30">30 derniers jours</option>
+                                <option value="90">90 derniers jours</option>
+                                <option value="annee">Cette année</option>
+                                <option value="tout">Depuis le début</option>
+                            </select>
+                            <button type="button" class="scan-button export" onclick="allerNouvelAchat()">Nouvel achat</button>
+                            <button type="button" class="scan-button" onclick="switchTab('nouveau-produit')">Nouveau produit</button>
                         </div>
                     </div>
-                    <div class="dash-kpi-row">
-                        <div class="stat-card kpi-main" data-accent="green"><div class="stat-number" id="dash-ca-realise">0€</div><div class="stat-label">Chiffre d'affaires</div></div>
-                        <div class="stat-card kpi-main" data-accent="green"><div class="stat-number" id="dash-benefice">0€</div><div class="stat-label">Bénéfice net</div></div>
-                        <div class="stat-card kpi-main"><div class="stat-number" id="dash-marge-moyenne">0%</div><div class="stat-label" title="(CA − achats − frais) / CA, sur les ventes dont le prix d'achat est connu">Marge nette</div></div>
-                        <div class="stat-card kpi-main"><div class="stat-number" id="dash-roi">–</div><div class="stat-label" title="(CA − achats − frais) / coût d'achat, sur les ventes dont le prix d'achat est connu">ROI</div></div>
-                        <div class="stat-card kpi-main"><div class="stat-number" id="dash-valeur-stock">0€</div><div class="stat-label">Valeur du stock</div></div>
+                    <div class="atraiter">
+                        <div class="atraiter-titre"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0112 0c0 7 3 8 3 8H3s3-1 3-8M10 21h4"/></svg><span>À traiter</span></div>
+                        <div id="dash-alerts" class="atraiter-liste"></div>
                     </div>
-                    <div class="dash-secondary-row">
-                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-nb-ventes">0</div><div class="stat-label">Ventes</div></div>
-                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-total-vendus">0</div><div class="stat-label">Unités vendues</div></div>
-                        <div class="stat-card kpi-sub" style="cursor:pointer;" onclick="switchTab('retours')" title="Voir les retours"><div class="stat-number" id="dash-retours">0</div><div class="stat-label" id="dash-retours-label">Retours</div></div>
-                        <div class="stat-card kpi-sub"><div class="stat-number" id="dash-valeur-entrepot">0€</div><div class="stat-label">Valeur en entrepôt</div></div>
+                    <div class="accueil-kpis">
+                        <div class="stat-card kpi-carte"><span class="kpi-ico"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></span><div><div class="stat-label">Chiffre d'affaires</div><div class="stat-number" id="dash-ca-realise">0€</div><div class="kpi-sous" id="dash-ca-sous"></div></div></div>
+                        <div class="stat-card kpi-carte"><span class="kpi-ico"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7a6 6 0 100 10M4 10h9M4 14h9"/></svg></span><div><div class="stat-label">Bénéfice net</div><div class="stat-number" id="dash-benefice">0€</div><div class="kpi-sous" id="dash-benef-sous"></div></div></div>
+                        <div class="stat-card kpi-carte"><span class="kpi-ico"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg></span><div><div class="stat-label" title="(CA − achats − frais) / CA, sur les ventes dont le prix d'achat est connu">Marge nette</div><div class="stat-number" id="dash-marge-moyenne">0%</div><div class="kpi-sous">sur le chiffre d'affaires</div></div></div>
+                        <div class="stat-card kpi-carte"><span class="kpi-ico"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M17 7.5c-.8-1.3-2.6-2-5-2-2.8 0-5 1.3-5 3.5 0 5 10 2.2 10 7.2 0 2.2-2.2 3.3-5 3.3-2.5 0-4.4-.9-5.2-2.4"/></svg></span><div><div class="stat-label" title="(CA − achats − frais) / coût d'achat">ROI</div><div class="stat-number" id="dash-roi">–</div><div class="kpi-sous">bénéfice ÷ prix d'achat</div></div></div>
                     </div>
-                    <div class="stats" style="grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;">
-                        <div class="stat-card" data-accent="orange"><div class="stat-number" id="dash-qte-fba">0</div><div class="stat-label">FBA</div></div>
-                        <div class="stat-card" data-accent="blue"><div class="stat-number" id="dash-qte-fbm">0</div><div class="stat-label">FBM</div></div>
-                        <div class="stat-card" data-accent="purple"><div class="stat-number" id="dash-qte-entrepot">0</div><div class="stat-label">Entrepôt</div></div>
-                        <div class="stat-card" data-accent="red"><div class="stat-number" id="dash-qte-rebut">0</div><div class="stat-label">Rebut</div></div>
+                    <div class="accueil-grille">
+                        <div class="accueil-bloc">
+                            <div class="accueil-bloc-titre"><h3>Évolution sur 12 mois</h3><span class="kpi-sous">chiffre d'affaires et bénéfice par mois</span></div>
+                            <div style="position:relative;height:260px;"><canvas id="chartEvolution"></canvas></div>
+                        </div>
+                        <div class="accueil-bloc" id="dash-stock"></div>
                     </div>
-                    <div id="dash-resultat" class="resultat"></div>
-                    <div class="charts-grid">
-                        <div class="chart-card"><h3>Achats et ventes — 6 derniers mois</h3><canvas id="chartEvolution" height="200"></canvas></div>
-                        <div class="chart-card"><h3>Répartition stock</h3><canvas id="chartRepartition" height="200"></canvas></div>
-                        <div class="chart-card"><h3>Top 5 catégories</h3><canvas id="chartCategories" height="200"></canvas></div>
-                        <div class="chart-card"><h3>CA par canal et retours (période choisie)</h3><canvas id="chartCanaux" height="200"></canvas></div>
+                    <div class="accueil-grille">
+                        <div class="accueil-bloc" id="dash-canaux"></div>
+                        <div id="dash-resultat" class="accueil-bloc resultat"></div>
                     </div>
                 </div>
 
@@ -2326,10 +2370,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261114-7"></script>
-    <script src="app-cloud.js?v=20261114-7"></script>
-    <script src="app-analyse.js?v=20261114-7"></script>
-    <script src="auth.js?v=20261114-7"></script>
+    <script src="config.js?v=20261114-8"></script>
+    <script src="app-cloud.js?v=20261114-8"></script>
+    <script src="app-analyse.js?v=20261114-8"></script>
+    <script src="auth.js?v=20261114-8"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {
