@@ -2728,6 +2728,7 @@ function previewAmazonImport(input) {
             // Stock restant par fiche pendant l'aperçu : plusieurs lignes du rapport peuvent
             // consommer le même produit, chacune doit voir ce que la précédente a pris.
             const resteApercu = {};
+            if (cCurrency && typeof chargerTauxBce === 'function' && rows.some(r => { const d = String(r[cCurrency] || '').toUpperCase(); return d && d !== 'EUR'; })) await chargerTauxBce();
 
             amazonImportData = rows.map(r => {
                 const asin = (cAsin ? r[cAsin] : '').toUpperCase();
@@ -2760,7 +2761,7 @@ function previewAmazonImport(input) {
                 if (status.includes('cancel') || status.includes('annul')) etat = 'annulee';
                 else if (!dateLigne) etat = 'ignoree';        // date illisible : on n'invente plus la date du jour
                 else if (qte <= 0 || prixBrut <= 0) etat = 'ignoree';
-                else if (devise && devise !== 'EUR') etat = 'devise';
+                else if (devise && devise !== 'EUR' && !(typeof unitesParEuro === 'function' && unitesParEuro(devise, dateLigne))) etat = 'devise';
                 else if ((dateDu && dateLigne < dateDu) || (dateAu && dateLigne > dateAu)) etat = 'hors_periode';
                 else if (dejaImporte.has(cle)) etat = 'deja';
                 else if (!candidats.length) etat = 'introuvable';
@@ -2770,14 +2771,18 @@ function previewAmazonImport(input) {
                 const alloc = (etat === 'ok' && !historique) ? amzAllouer(candidatsDate, canal, qte, resteApercu) : null;
                 const produit = alloc ? alloc.principal : (amzTrierCandidats(candidatsDate, canal)[0] || null);
 
-                const totalLigne = prixEstUnitaire ? (prixBrut * (qte || 1) + portBrut) : (prixBrut + portBrut);
+                const totalDevise = prixEstUnitaire ? (prixBrut * (qte || 1) + portBrut) : (prixBrut + portBrut);
+                // Commande en livres, zlotys, couronnes, dirhams, riyals… : convertie en euros au taux BCE du jour de la commande
+                const enDevise = devise && devise !== 'EUR' && etat !== 'devise';
+                const totalLigne = enDevise ? versEur(totalDevise, devise, dateLigne) : totalDevise;
                 const prixUnit = qte > 0 ? totalLigne / qte : totalLigne;
+                const noteDevise = enDevise ? ` · ${totalDevise.toFixed(2)} ${devise} convertis au taux BCE du ${dateLigne}` : '';
                 return {
                     cle, orderId: cOrder ? r[cOrder] : '',
                     date: dateLigne,
                     asin, sku, nom: cName ? r[cName] : '',
                     marketplace: cMarketplace ? String(r[cMarketplace] || '').trim().toLowerCase() : '',
-                    qte, prixUnit, canal, etat, produit,
+                    qte, prixUnit, canal, etat, produit, noteDevise,
                     candidatIds: candidats.map(x => x.id),
                     manque: alloc ? alloc.manque : 0,
                     nbFiches: alloc ? alloc.parts.length : 0,
@@ -2954,7 +2959,7 @@ async function confirmAmazonImport() {
             frais: frais,
             benefice: parseFloat(((prixUnit - alloc.prixAchat) * l.qte - frais).toFixed(2)),
             date_vente: l.date,
-            notes: 'Import Amazon' + (alloc.manque > 0 ? ` — ${alloc.manque} u. non déduite(s) du stock ${isFba ? 'FBA' : 'FBM'} (stock insuffisant)` : ''),
+            notes: 'Import Amazon' + (alloc.manque > 0 ? ` — ${alloc.manque} u. non déduite(s) du stock ${isFba ? 'FBA' : 'FBM'} (stock insuffisant)` : '') + (l.noteDevise || ''),
             amazon_order_id: l.cle,
         };
         if (ventesMarketplaceOk && l.marketplace) vente.marketplace = l.marketplace;
@@ -3020,7 +3025,7 @@ async function importerVentesPassees(lignes, fraisPct) {
                 // Coût inconnu : bénéfice à 0 (jamais gonflé) jusqu'à la saisie du coût
                 benefice: pa > 0 ? parseFloat(((prixUnit - pa) * l.qte - frais).toFixed(2)) : 0,
                 date_vente: l.date, amazon_order_id: l.cle,
-                notes: p ? 'Import Amazon (vente passée, stock non modifié)' : `Import Amazon (vente passée, sans fiche produit) · ASIN:${l.asin || ''} · SKU:${l.sku || ''}`,
+                notes: (p ? 'Import Amazon (vente passée, stock non modifié)' : `Import Amazon (vente passée, sans fiche produit) · ASIN:${l.asin || ''} · SKU:${l.sku || ''}`) + (l.noteDevise || ''),
             };
             if (ventesMarketplaceOk && l.marketplace) v.marketplace = l.marketplace;
             aInserer.push(v);
@@ -3111,9 +3116,10 @@ function previewFraisImport(input) {
     document.getElementById('frais-file-name').textContent = file.name;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
         try {
             cancelFraisImport(true);
+            if (typeof chargerTauxBce === 'function') await chargerTauxBce();
             document.getElementById('frais-file-name').textContent = file.name;
             const all = parseCSVQuoted(e.target.result);
             // Les rapports FR commencent par ~9 lignes d'explications avant l'en-tête
@@ -3142,6 +3148,22 @@ function previewFraisImport(input) {
                 return toastError('Colonnes non trouvées', 'Le fichier ne ressemble pas au rapport de transactions Amazon.');
             }
 
+            // Devise du rapport : celle de la place de marché la plus fréquente (un rapport = un pays).
+            // Les montants hors euros sont convertis au taux BCE du jour de chaque ligne.
+            const freqMk = {};
+            if (cMarket > -1) for (let i = hIdx + 1; i < all.length; i++) { const m = String(all[i][cMarket] || '').trim().toLowerCase(); if (m) freqMk[m] = (freqMk[m] || 0) + 1; }
+            const mkRapport = Object.entries(freqMk).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+            const deviseLigne = (r) => (typeof deviseDeMarketplace === 'function' ? (deviseDeMarketplace(cMarket > -1 ? r[cMarket] : '') || deviseDeMarketplace(mkRapport)) : '') || 'EUR';
+            let lignesSansTaux = 0;
+            const eur = (montant, r) => {
+                const d = deviseLigne(r);
+                if (d === 'EUR' || !montant) return montant;
+                const v = versEur(montant, d, parseDateTransaction(cDate > -1 ? r[cDate] : ''));
+                if (v === null) { lignesSansTaux++; return montant; }
+                return v;
+            };
+            window.fraisDeviseRapport = typeof deviseDeMarketplace === "function" ? deviseDeMarketplace(mkRapport) : 'EUR';
+
             // Agréger les transactions par commande + SKU (une commande peut être expédiée en plusieurs fois)
             const transactions = {};
             let remboursements = 0, montantRemb = 0;
@@ -3152,22 +3174,22 @@ function previewFraisImport(input) {
                 const oid = (r[cOrder] || '').trim();
                 if (type.includes('remboursement') || type.includes('refund')) {
                     remboursements++;
-                    montantRemb += parseMontantFR(cTotal > -1 ? r[cTotal] : 0);
+                    montantRemb += eur(parseMontantFR(cTotal > -1 ? r[cTotal] : 0), r);
                     if (oid) lignesRetours.push({
                         oid, sku: cSku > -1 ? (r[cSku] || '').trim() : '',
                         date: parseDateTransaction(cDate > -1 ? r[cDate] : ''),
                         description: cDesc > -1 ? (r[cDesc] || '').trim() : '',
                         marketplace: cMarket > -1 ? (r[cMarket] || '').trim() : '',
                         qte: Math.abs(cQty > -1 ? (parseInt(r[cQty]) || 1) : 1),
-                        produit: Math.abs(parseMontantFR(cVentesProd > -1 ? r[cVentesProd] : 0)),
-                        total: parseMontantFR(cTotal > -1 ? r[cTotal] : 0),
+                        produit: Math.abs(eur(parseMontantFR(cVentesProd > -1 ? r[cVentesProd] : 0), r)),
+                        total: eur(parseMontantFR(cTotal > -1 ? r[cTotal] : 0), r),
                     });
                     continue;
                 }
                 if (!(type.includes('commande') || type.includes('order')) || !oid) continue;
-                const frais = Math.abs(parseMontantFR(r[cFraisVente]))
+                const frais = eur(Math.abs(parseMontantFR(r[cFraisVente]))
                     + (cFraisFba > -1 ? Math.abs(parseMontantFR(r[cFraisFba])) : 0)
-                    + (cFraisAutres > -1 ? Math.abs(parseMontantFR(r[cFraisAutres])) : 0);
+                    + (cFraisAutres > -1 ? Math.abs(parseMontantFR(r[cFraisAutres])) : 0), r);
                 const key = oid + '|' + (cSku > -1 ? (r[cSku] || '') : '');
                 if (!transactions[key]) transactions[key] = { oid, sku: cSku > -1 ? (r[cSku] || '') : '', qte: 0, frais: 0, marketplace: cMarket > -1 ? String(r[cMarket] || '').trim().toLowerCase() : '' };
                 transactions[key].qte += cQty > -1 ? (parseInt(r[cQty]) || 1) : 1;
@@ -3233,7 +3255,7 @@ function previewFraisImport(input) {
                 });
             });
             majBlocRetoursImport();
-            if (typeof preparerOperationsAmazon === 'function') preparerOperationsAmazon(all, hIdx, { type: cType, desc: cDesc, total: cTotal, date: cDate, sku: cSku, qty: cQty, market: cMarket, order: cOrder, versement: cVersement });
+            if (typeof preparerOperationsAmazon === 'function') preparerOperationsAmazon(all, hIdx, { type: cType, desc: cDesc, total: cTotal, date: cDate, sku: cSku, qty: cQty, market: cMarket, order: cOrder, versement: cVersement, eur });
 
             const avec = fraisImportData.filter(l => l.vente);
             const stats = [
@@ -3243,6 +3265,7 @@ function previewFraisImport(input) {
             ];
             if (remboursements > 0) stats.push(['↩️ Remboursements dans ce rapport', remboursements + ' (' + montantRemb.toFixed(2) + '€)', '#95a5a6']);
             if (cFraisFba === -1) stats.push(['⚠️ Colonne frais FBA introuvable', 'frais sous-évalués', '#e74c3c']);
+            if (window.fraisDeviseRapport && window.fraisDeviseRapport !== 'EUR') stats.push(['💱 Rapport en ' + window.fraisDeviseRapport, lignesSansTaux ? lignesSansTaux + ' ligne(s) sans taux BCE, non converties' : 'montants convertis en € au taux BCE du jour', lignesSansTaux ? '#e74c3c' : '#8e44ad']);
             document.getElementById('frais-stats').innerHTML = stats
                 .map(b => `<span style="background:${b[2]};color:white;padding:6px 12px;border-radius:10px;font-size:13px;font-weight:600;">${b[0]} : ${b[1]}</span>`)
                 .join('');

@@ -367,7 +367,7 @@ function preparerOperationsAmazon(all, hIdx, col) {
         const desc = cDesc > -1 ? String(r[cDesc] || '').trim() : '';
         const categorie = categoriserOperation(type, desc);
         if (categorie === 'transfert') continue;
-        const total = parseMontantFR(cTotal > -1 ? r[cTotal] : 0);
+        const total = col.eur ? col.eur(parseMontantFR(cTotal > -1 ? r[cTotal] : 0), r) : parseMontantFR(cTotal > -1 ? r[cTotal] : 0);
         if (!total) continue;
         const sku = cSku > -1 ? String(r[cSku] || '').trim() : '';
         const brutDate = cDate > -1 ? r[cDate] : '';
