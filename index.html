@@ -967,6 +967,86 @@
             .header-new-btn { padding: 6px 10px; font-size: 12px; }
             .dash-kpi-row, .dash-secondary-row { grid-template-columns: repeat(2, 1fr); }
         }
+        /* ═══ Bloc 3 : Stock/Ventes alignés sur Achats + mode téléphone ═══ */
+        .scan-button { min-height: 38px; padding: 0 16px; border: 1px solid var(--brand); border-radius: var(--radius); background: var(--brand); color: #fff; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+        .scan-button:hover { filter: brightness(1.08); }
+        .scan-button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+        .scan-button.export { background: var(--bg-elevated); color: var(--text-1); border-color: var(--border-strong); }
+        .scan-button.danger, .scan-button.stop { background: var(--bg-elevated); color: #a52a1d; border-color: #c0392b; }
+        .ico-vendre { background: #1e8449; color: #fff; }
+        .ico-voir { background: var(--bg-elevated); color: var(--text-1); border: 1px solid var(--border-strong); }
+        .pastilles-sep { align-self: center; color: var(--text-2); font-size: 13px; padding: 0 2px 0 8px; }
+        .pill-info { background: #e1ecf7; color: #173f66; }
+        .pill-neutre { background: var(--bg-hover, #eef1f4); color: var(--text-1); }
+        .pill-danger { background: #fbe0dc; color: #7d1f15; }
+        body.dark-theme .pill-info { background: #1d3550; color: #bcd8f5; }
+        body.dark-theme .pill-neutre { background: #2c3644; color: #dfe6ef; }
+        body.dark-theme .pill-danger { background: #5a1f1a; color: #ffc9c2; }
+        .inv-pm { display: none; }
+        .nav-mobile { display: none; }
+        @media (max-width: 768px) {
+            .fab-scan { display: none !important; }
+            /* Mise en page : la recherche passe au-dessus du contenu au lieu de l'écraser */
+            .app-body { flex-direction: column; }
+            .main-area { width: 100%; min-height: 0; }
+            .header { padding: 0 10px; gap: 8px; }
+            .header-left { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+            .header h1, .header-new-btn, .header .sync-indicator { display: none !important; }
+            .header-right { gap: 6px; }
+            .header-right .logout-btn { font-size: 12px; padding: 6px 10px; }
+            .sous-onglets { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .sous-onglet { flex: 0 0 auto; white-space: nowrap; padding: 12px 14px; }
+            .section-header .scan-button { min-height: 44px; }
+            #mobile-search { padding: 8px 12px 0 !important; }
+            #mobile-search input { background: var(--bg-elevated); color: var(--text-1); border: 1px solid var(--border-strong); min-height: 44px; font-size: 16px; }
+            #mobile-search input::placeholder { color: var(--text-2); }
+            /* Achats : sur téléphone on garde la recherche, pas les dates ni le tri */
+            #achats .search-filters .search-row + .search-row { display: none; }
+            #achats .search-filters { padding: 10px; }
+            .nav-mobile { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 150; background: var(--bg-elevated); border-top: 1px solid var(--border); padding: 4px 4px calc(4px + env(safe-area-inset-bottom)); box-shadow: 0 -2px 12px rgba(0,0,0,.08); }
+            .nav-mobile button { flex: 1 1 0; min-height: 54px; border: none; background: none; color: var(--text-2); font: inherit; font-size: 11px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 10px; cursor: pointer; }
+            .nav-mobile svg { width: 22px; height: 22px; }
+            .nav-mobile button[aria-current="page"] { color: var(--brand); }
+            .nav-mobile .nav-scan { color: #fff; background: var(--brand); margin: 0 4px; }
+            .main-area .container, .container { padding-bottom: 90px; }
+            /* Tableaux Achats / Stock / Ventes en fiches */
+            .achats-table thead { display: none; }
+            .achats-table, .achats-table tbody { display: block; }
+            .achats-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 14px 12px; border-bottom: 1px solid var(--border); }
+            .achats-table td { display: block; padding: 0 !important; border: none !important; text-align: left !important; font-size: 13.5px !important; }
+            .achats-table td[data-l]::before { content: attr(data-l) " "; color: var(--text-2); font-weight: 400; font-size: 12px; }
+            .achats-table td.c-prod { order: -1; flex: 1 0 100%; }
+            .achats-table td.c-prod .achat-nom { font-size: 15px; }
+            .achats-table td.c-statut, .achats-table td.c-actions { flex: 1 0 100%; }
+            .achats-table td.c-vide { display: none; }
+            .achats-table .btn-recep { width: 100%; min-height: 48px; font-size: 15px; margin-top: 8px; }
+            .achats-table .ico-btn { width: 44px; height: 44px; }
+            .achats-table .ico-btn svg { width: 20px; height: 20px; }
+            .achats-table .achat-actions { gap: 10px; }
+            .copy-code-btn { min-width: 30px; min-height: 30px; }
+            .pastilles { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+            .pastille { flex: 0 0 auto; min-height: 42px; }
+            .pastilles-sep { flex: 0 0 auto; }
+            /* Tiroir de réception plein écran, gros boutons */
+            #sr-reception-modal > div { max-width: 100% !important; padding-bottom: calc(26px + env(safe-area-inset-bottom)) !important; }
+            #sr-reception-modal input { font-size: 22px !important; min-height: 56px; text-align: center; }
+            #sr-reception-modal button { min-height: 52px; font-size: 15px !important; flex: 1 1 auto; }
+            /* Inventaire : une fiche par produit, comptage au pouce */
+            .inv-row { grid-template-columns: 1fr auto auto !important; gap: 6px 10px !important; padding: 12px !important; font-size: 13px !important; }
+            .inv-row.inv-entete { display: none; }
+            .inv-row > .inv-c-nom { grid-column: 1 / -1; order: -2; font-size: 14.5px; }
+            .inv-row > .inv-c-ean { grid-column: 1 / -1; order: -1; }
+            .inv-row > .inv-c-theo::before { content: "Théorique "; color: var(--text-2); font-weight: 400; }
+            .inv-row > .inv-c-theo { text-align: left !important; align-self: center; }
+            .inv-row > .inv-c-compte { display: flex; align-items: center; gap: 6px; }
+            .inv-row > .inv-c-ecart { min-width: 34px; }
+            .inv-row > .inv-c-statut { display: none; }
+            .inv-pm { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-elevated); color: var(--text-1); font-size: 22px; font-weight: 700; cursor: pointer; }
+            .inv-input { width: 64px !important; height: 46px; padding: 4px !important; font-size: 18px !important; text-align: center; }
+            #inv-scan-ean { font-size: 16px !important; min-height: 48px; flex: 1 0 100% !important; }
+            #inventaire .scan-button { min-height: 48px; flex: 1 1 auto; }
+            .inv-actions { position: sticky; bottom: 74px; background: var(--bg-main, var(--bg-elevated)); padding: 8px 0; z-index: 5; }
+        }
         /* Retours */
         .retours-aide { background: var(--info-bg); border: 1px solid rgba(52,152,219,.3); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 15px; font-size: 13.5px; color: var(--text-1); }
         .retours-import { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 15px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-subtle); font-size: 13.5px; }
@@ -1173,8 +1253,8 @@
                             <div class="resume-ligne"><span id="achats-total">0</span> <span id="achats-total-label">achats</span> · <span id="achats-qte">0</span> unités · <span id="achats-montant-ht">0€</span> HT · <span id="achats-montant">0€</span> TTC · <span id="achats-en-attente">0</span> en attente</div>
                         </div>
                         <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                            <button class="scan-button" onclick="toggleAchatForm()">➕ Nouvel achat</button>
-                            <button class="scan-button export" onclick="exportAchatsCSV()">📊 Export CSV</button>
+                            <button class="scan-button" onclick="toggleAchatForm()">Nouvel achat</button>
+                            <button class="scan-button export" onclick="exportAchatsCSV()">Exporter</button>
                         </div>
                     </div>
                     <div id="achat-form-section" style="display:none; background:var(--card-bg); padding:25px; border-radius:15px; margin-bottom:20px; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
@@ -1218,39 +1298,6 @@
                         </div>
                     </div>
                     <div id="achats-container"></div>
-                </div>
-
-                <!-- ══════ FACTURES ══════ -->
-                <div id="factures" class="tab-content">
-                    <div class="section-header">
-                        <h2>🧾 Factures</h2>
-                        <button class="scan-button" onclick="toggleFactureForm()">➕ Nouvelle facture</button>
-                    </div>
-                    <div id="facture-form-section" style="display:none; background:var(--card-bg); padding:25px; border-radius:15px; margin-bottom:20px; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
-                        <form id="facture-form">
-                            <div class="form-row">
-                                <div class="form-group"><label>N° Facture *</label><input type="text" id="fac-numero" required placeholder="FAC-2026-001"></div>
-                                <div class="form-group"><label>Fournisseur *</label><select id="fac-fournisseur" required><option value="">--</option></select></div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group"><label>Date facture</label><input type="date" id="fac-date"></div>
-                                <div class="form-group"><label>Date échéance</label><input type="date" id="fac-echeance"></div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group"><label>Montant HT (€)</label><input type="number" id="fac-montant-ht" step="0.01" oninput="document.getElementById('fac-montant-ttc').value=(parseFloat(this.value||0)*1.20).toFixed(2)"></div>
-                                <div class="form-group"><label>Montant TTC (€)</label><input type="number" id="fac-montant-ttc" step="0.01" oninput="document.getElementById('fac-montant-ht').value=(parseFloat(this.value||0)/1.20).toFixed(2)"></div>
-                            </div>
-                            <div class="form-group"><label>Notes</label><textarea id="fac-notes" placeholder="Détails, référence commande..."></textarea></div>
-                            <button type="submit" class="submit-button">💾 Enregistrer</button>
-                        </form>
-                    </div>
-                    <div class="stats" id="factures-stats">
-                        <div class="stat-card"><div class="stat-number" id="fac-total">0</div><div class="stat-label">Factures</div></div>
-                        <div class="stat-card"><div class="stat-number" id="fac-montant">0€</div><div class="stat-label">Montant total TTC</div></div>
-                        <div class="stat-card" style="border-left:4px solid #e74c3c;"><div class="stat-number" id="fac-impayees">0</div><div class="stat-label">Impayées</div></div>
-                        <div class="stat-card" style="border-left:4px solid #f39c12;"><div class="stat-number" id="fac-montant-du">0€</div><div class="stat-label">Montant dû</div></div>
-                    </div>
-                    <div id="factures-container"></div>
                 </div>
 
                 <!-- ══════ FOURNITURES ══════ -->
@@ -1438,28 +1485,17 @@
                 <!-- ══════ STOCK ══════ -->
                 <div id="stock" class="tab-content">
                     <div class="section-header">
-                        <h2>📦 Mon Stock</h2>
+                        <div>
+                            <h2>Mon stock</h2>
+                            <div class="resume-ligne"><span id="stock-total">0</span> produits · <span id="stock-qte-total">0</span> unités · <span id="stock-valeur-achat">0€</span> au prix d'achat · dont <span id="stock-valeur-entrepot">0€</span> en entrepôt</div>
+                        </div>
                         <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                            <button class="scan-button" onclick="openQuickScan()">📷 Scanner</button>
-                            <button class="scan-button" onclick="switchTab('nouveau-produit')">➕ Nouveau</button>
-                            <button class="scan-button export" onclick="exportStockExcel()">📊 Export</button>
+                            <button class="scan-button" onclick="openQuickScan()">Scanner</button>
+                            <button class="scan-button" onclick="switchTab('nouveau-produit')">Nouveau produit</button>
+                            <button class="scan-button export" onclick="exportStockExcel()">Exporter</button>
                         </div>
                     </div>
-                    <!-- Pills sous-catégories -->
-                    <div class="stock-pills">
-                        <button class="stock-pill active" data-stock="all" onclick="switchStockView('all')">📦 Tout</button>
-                        <button class="stock-pill" data-stock="neuf" onclick="switchStockView('neuf')">🆕 Neuf</button>
-                        <button class="stock-pill" data-stock="occasion" onclick="switchStockView('occasion')">♻️ Occasion</button>
-                        <button class="stock-pill" data-stock="rebut" onclick="switchStockView('rebut')">🗑️ Rebut</button>
-                    </div>
-                    <div class="stock-pills" style="margin-top:-10px;">
-                        <span style="color:var(--text-secondary);font-size:13px;padding:8px 0;">Emplacement :</span>
-                        <button class="stock-pill" data-stock="entrepot" onclick="switchStockView('entrepot')">🏭 En entrepôt</button>
-                        <button class="stock-pill stock-pill-fba-attente" data-stock="fba_attente" onclick="switchStockView('fba_attente')">⏳ FBA en attente</button>
-                        <button class="stock-pill" data-stock="fba" onclick="switchStockView('fba')">📦 FBA</button>
-                        <button class="stock-pill" data-stock="fbm" onclick="switchStockView('fbm')">🏠 FBM</button>
-                        <button class="stock-pill stock-pill-vinted" data-stock="vinted_stock" onclick="switchStockView('vinted_stock')">👗 Vinted</button>
-                    </div>
+                    <div id="stock-pastilles" class="pastilles" role="group" aria-label="Filtrer le stock"></div>
                     <!-- Filtres -->
                     <div class="search-filters">
                         <div class="search-row">
@@ -1523,32 +1559,11 @@
                                         <option value="">Tous</option>
                                     </select>
                                 </div>
-                                <div class="filter-group">
-                                    <label>Statut</label>
-                                    <select id="stock-filter-statut" onchange="stockApplyFilters()">
-                                        <option value="">Tous</option>
-                                        <option value="recu">📦 Reçu</option>
-                                        <option value="a_controler">🔍 À contrôler</option>
-                                        <option value="a_etiqueter">🏷️ À étiqueter</option>
-                                        <option value="a_expedier">📮 À expédier</option>
-                                        <option value="envoye">🚀 Envoyé</option>
-                                        <option value="termine">✅ Terminé</option>
-                                    </select>
-                                </div>
                             </div>
                             <div style="text-align:right;margin-top:5px;">
                                 <button class="btn-toggle-filters" onclick="resetFilters()">🔄 Réinitialiser</button>
                             </div>
                         </div>
-                    </div>
-                    <!-- Stats stock -->
-                    <div class="stats" id="stock-stats">
-                        <div class="stat-card"><div class="stat-number" id="stock-total">0</div><div class="stat-label">Produits</div></div>
-                        <div class="stat-card"><div class="stat-number" id="stock-qte-total">0</div><div class="stat-label">Unités</div></div>
-                        <div class="stat-card"><div class="stat-number" id="stock-valeur-achat">0€</div><div class="stat-label">Valeur achat (coût)</div></div>
-                        <div class="stat-card"><div class="stat-number" id="stock-valeur-revente">0€</div><div class="stat-label">Valeur revente</div></div>
-                        <div class="stat-card"><div class="stat-number" id="stock-valeur-entrepot">0€</div><div class="stat-label">Valeur entrepôt</div></div>
-                        <div class="stat-card"><div class="stat-number" id="stock-benefice-potentiel">0€</div><div class="stat-label">Bénéfice potentiel</div></div>
                     </div>
                     <div id="stock-container"></div>
                 </div>
@@ -1624,7 +1639,6 @@
                                 <label><input type="checkbox" id="leboncoin"> Leboncoin</label>
                             </div>
                         </div>
-                        <div class="form-group"><label>Photos</label><div class="photo-upload" onclick="document.getElementById('photo-input').click()"><p>📸 Ajouter photos</p><input type="file" id="photo-input" accept="image/*" multiple style="display:none;" onchange="handlePhotoUpload(event)"></div><div class="photo-preview" id="photo-preview"></div></div>
                         <div class="form-group"><label for="notes">Notes</label><textarea id="notes" placeholder="Remarques..."></textarea></div>
                         <button type="submit" class="submit-button">💾 Enregistrer</button>
                     </form>
@@ -1640,14 +1654,17 @@
                 <!-- ══════ VENTES ══════ -->
                 <div id="ventes" class="tab-content">
                     <div class="section-header">
-                        <h2>💰 Mes Ventes</h2>
-                        <button class="scan-button export" onclick="exportVentes()">📊 Exporter</button>
+                        <div>
+                            <h2>Ventes</h2>
+                            <div class="resume-ligne" id="ventes-resume"></div>
+                        </div>
+                        <button class="scan-button export" onclick="exportVentes()">Exporter</button>
                     </div>
-                    <div class="stats" id="ventes-stats" style="margin-bottom:20px;"></div>
+                    <div id="ventes-pastilles" class="pastilles" role="group" aria-label="Filtrer par canal de vente"></div>
                     <div class="search-filters" style="margin-bottom:15px;">
                         <div class="search-row">
-                            <input type="text" class="search-input" id="ventes-search" placeholder="🔍 Rechercher produit, EAN, ASIN, canal..." oninput="displayVentes()">
-                            <select class="search-input" id="ventes-filter-canal" onchange="displayVentes()" style="max-width:180px;">
+                            <input type="text" class="search-input" id="ventes-search" placeholder="Rechercher un produit, EAN, ASIN, n° de commande…" oninput="displayVentes()">
+                            <select class="search-input" id="ventes-filter-canal" onchange="displayVentes()" style="display:none;">
                                 <option value="">Tous les canaux</option>
                                 <option value="Amazon FBA">Amazon FBA</option>
                                 <option value="Amazon FBM">Amazon FBM</option>
@@ -1687,29 +1704,12 @@
                     <div id="retours-container"></div>
                 </div>
 
-                <!-- ══════ ALERTES STOCK ══════ -->
-                <div id="alertes" class="tab-content">
-                    <div class="section-header">
-                        <h2>🔔 Alertes Stock Bas</h2>
-                        <button class="scan-button" onclick="configurerSeuilsEnLot()">⚙️ Configurer seuils en lot</button>
-                    </div>
-                    <p style="color:var(--text-secondary);margin-bottom:20px;">Produits dont la quantité est en dessous ou égale au seuil minimum défini.</p>
-                    
-                    <div class="stats" id="alertes-stats">
-                        <div class="stat-card" style="border-left:4px solid #e74c3c;"><div class="stat-number" id="alertes-critiques">0</div><div class="stat-label">🔴 Critiques (= 0)</div></div>
-                        <div class="stat-card" style="border-left:4px solid #f39c12;"><div class="stat-number" id="alertes-basses">0</div><div class="stat-label">🟠 Stock bas</div></div>
-                        <div class="stat-card" style="border-left:4px solid #27ae60;"><div class="stat-number" id="alertes-ok">0</div><div class="stat-label">🟢 OK</div></div>
-                        <div class="stat-card"><div class="stat-number" id="alertes-sans-seuil">0</div><div class="stat-label">⚪ Sans seuil</div></div>
-                    </div>
-                    <div id="alertes-container"></div>
-                </div>
-
                 <!-- ══════ INVENTAIRE ══════ -->
                 <div id="inventaire" class="tab-content">
                     <div class="section-header">
-                        <h2>📊 Inventaire / Comptage</h2>
+                        <h2>Inventaire</h2>
                         <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                            <button class="scan-button" onclick="startInventaire()">🆕 Nouvel inventaire</button>
+                            <button class="scan-button" onclick="startInventaire()">Nouvel inventaire</button>
                             <button class="scan-button export" id="btn-export-inventaire" onclick="exportInventaire()" style="display:none;">📥 Exporter écarts</button>
                         </div>
                     </div>
@@ -1724,27 +1724,23 @@
                         </div>
 
                         <div style="background:var(--card-bg);padding:20px;border-radius:15px;margin-bottom:20px;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
-                            <h3 style="margin-bottom:15px;">📷 Scan rapide</h3>
+                            <h3 style="margin-bottom:15px;">Scan rapide</h3>
                             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
                                 <input type="text" id="inv-scan-ean" placeholder="Scanner ou saisir un EAN..." style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-color);" onkeydown="if(event.key==='Enter'){inventaireScanEAN();}">
-                                <button class="scan-button" onclick="inventaireScanEAN()">✅ Compter</button>
-                                <button class="scan-button" onclick="startInventaireScanner()">📷 Scanner</button>
+                                <button class="scan-button" onclick="inventaireScanEAN()">Compter</button>
+                                <button class="scan-button" onclick="startInventaireScanner()">Scanner</button>
                                 <button class="scan-button stop" id="inv-stop-scanner" style="display:none;" onclick="stopInventaireScanner()">⏹️ Stop</button>
                             </div>
                             <div id="inv-video-container" style="margin-top:10px;"><video id="inv-video" autoplay playsinline style="display:none;width:100%;max-width:400px;border-radius:10px;"></video></div>
                             <div id="inv-scan-feedback" style="margin-top:10px;font-weight:600;display:none;"></div>
                         </div>
 
-                        <div style="display:flex;gap:10px;margin-bottom:15px;">
-                            <button class="btn-toggle-filters" onclick="filterInventaire('all')">📦 Tous</button>
-                            <button class="btn-toggle-filters" onclick="filterInventaire('ecarts')">⚠️ Écarts seulement</button>
-                            <button class="btn-toggle-filters" onclick="filterInventaire('non-comptes')">❓ Non comptés</button>
-                        </div>
+                        <div id="inv-pastilles" class="pastilles" role="group" aria-label="Filtrer l'inventaire"></div>
                         <div id="inventaire-container"></div>
 
-                        <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
-                            <button class="scan-button" style="background:#27ae60;" onclick="validerInventaire()">✅ Valider & ajuster le stock</button>
-                            <button class="scan-button danger" onclick="annulerInventaire()">❌ Annuler</button>
+                        <div class="inv-actions" style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+                            <button class="scan-button" style="background:#27ae60;" onclick="validerInventaire()">Valider et ajuster le stock</button>
+                            <button class="scan-button danger" onclick="annulerInventaire()">Annuler</button>
                         </div>
                     </div>
 
@@ -1826,11 +1822,9 @@
                                 <div class="help-feature"><div class="help-feature-title">📊 Dashboard</div>Vue d'ensemble : valeur du stock, CA réalisé, bénéfice, répartition FBA/FBM/Entrepôt, graphiques.</div>
                                 <div class="help-feature"><div class="help-feature-title">🏪 Fournisseurs</div>Fiches complètes avec contacts, conditions, historique prix et achats.</div>
                                 <div class="help-feature"><div class="help-feature-title">🛒 Achats</div>Suivi des commandes, duplication, stats dynamiques par filtre, réception vers le stock.</div>
-                                <div class="help-feature"><div class="help-feature-title">🧾 Factures</div>Gestion des factures fournisseurs, suivi des échéances et paiements.</div>
                                 <div class="help-feature"><div class="help-feature-title">📎 Fournitures</div>Suivi des frais opérationnels : cartons, scotch, étiquettes, expédition, abonnements.</div>
                                 <div class="help-feature"><div class="help-feature-title">📦 Stock</div>Vue complète avec filtres avancés, tri par marge/ROI, alertes stock bas.</div>
                                 <div class="help-feature"><div class="help-feature-title">📋 Mouvements</div>Journal automatique de toutes les entrées, sorties, transferts.</div>
-                                <div class="help-feature"><div class="help-feature-title">🔔 Alertes</div>Détection automatique des produits en rupture ou en stock bas.</div>
                                 <div class="help-feature"><div class="help-feature-title">📊 Inventaire</div>Comptage physique avec scan, détection des écarts, ajustement automatique.</div>
                             </div>
                         </div>
@@ -1892,41 +1886,6 @@
                             </div>
                         </div>
 
-                        <!-- 4. Factures -->
-                        <div class="help-card">
-                            <div class="help-card-header" onclick="toggleHelp(this)">
-                                <span><span class="help-icon">🧾</span> Factures — Suivi des paiements</span>
-                                <span class="help-chevron">▼</span>
-                            </div>
-                            <div class="help-card-body">
-                                <p>Enregistrez vos factures fournisseur pour suivre ce que vous devez payer.</p>
-                                <p><strong>Créer une facture :</strong> Numéro de facture, fournisseur, date, échéance, montant HT/TTC. La date du jour est pré-remplie.</p>
-                                <p><strong>Statuts automatiques :</strong></p>
-                                <div class="help-grid">
-                                    <div class="help-feature"><div class="help-feature-title">✅ Payée</div>La facture a été réglée. Cliquez sur 💰 pour marquer comme payée.</div>
-                                    <div class="help-feature"><div class="help-feature-title">🔴 Impayée</div>La facture n'est pas encore réglée.</div>
-                                    <div class="help-feature"><div class="help-feature-title">⚠️ En retard</div>La date d'échéance est dépassée et la facture n'est toujours pas payée.</div>
-                                </div>
-                                <div class="help-tip"><strong>💡 Astuce :</strong> Les stats en haut vous montrent le montant total dû et le nombre de factures impayées. Consultez aussi la fiche fournisseur pour voir ses factures.</div>
-                            </div>
-                        </div>
-
-                        <!-- 4b. Fournitures -->
-                        <div class="help-card">
-                            <div class="help-card-header" onclick="toggleHelp(this)">
-                                <span><span class="help-icon">📎</span> Fournitures & Frais</span>
-                                <span class="help-chevron">▼</span>
-                            </div>
-                            <div class="help-card-body">
-                                <p>La section Fournitures permet de suivre tous vos frais opérationnels séparément de vos achats produits : cartons, scotch, étiquettes, frais d'expédition, abonnements, etc.</p>
-                                <p><strong>Créer une fourniture :</strong> Désignation, catégorie (Emballage, Expédition, Étiquettes, Bureau, Abonnement, Outillage, Autre), fournisseur, quantité, prix HT/TTC, et date.</p>
-                                <p><strong>Récurrence :</strong> Indiquez si la dépense est récurrente (mensuelle ou annuelle) — un badge 🔄 apparaîtra sur la ligne.</p>
-                                <p><strong>Modifier :</strong> Cliquez sur une ligne du tableau pour la modifier.</p>
-                                <p><strong>Statistiques :</strong> En haut : nombre total, montant total TTC, et montant dépensé ce mois-ci.</p>
-                                <div class="help-tip"><strong>💡 Astuce :</strong> Séparer les fournitures des achats produits vous permet de mieux calculer votre marge réelle et vos coûts opérationnels.</div>
-                            </div>
-                        </div>
-
                         <!-- 5. Stock -->
                         <div class="help-card">
                             <div class="help-card-header" onclick="toggleHelp(this)">
@@ -1948,9 +1907,7 @@
                                 <div class="help-grid">
                                     <div class="help-feature"><div class="help-feature-title">⚠️ 60j+</div>Badge rouge : stock en entrepôt depuis plus de 60 jours — risque élevé</div>
                                     <div class="help-feature"><div class="help-feature-title">🕐 30j+</div>Badge orange : stock depuis plus de 30 jours — à surveiller</div>
-                                    <div class="help-feature"><div class="help-feature-title">🔴 / 🟠</div>Alertes stock bas si un seuil minimum est défini</div>
                                 </div>
-                                <p style="margin-top:12px;"><strong>Statuts workflow</strong> (dans la fiche produit) : Reçu → À contrôler → À étiqueter → À expédier → Envoyé → Terminé. Changez le statut directement depuis la fiche.</p>
                                 <p><strong>Emplacement :</strong> Renseignez la localisation physique au format zone/étagère/bac (ex: <strong>A-03-2</strong>).</p>
                                 <div class="help-tip"><strong>💡 Astuce :</strong> Les stats en haut montrent la <strong>valeur achat</strong> (ce que vous avez investi), la <strong>valeur revente</strong> (ce que vous pouvez gagner), la <strong>valeur entrepôt</strong> et le <strong>bénéfice potentiel</strong>.</div>
                             </div>
@@ -1994,25 +1951,6 @@
                                 </div>
                                 <p style="margin-top:12px;">Après le scan, les champs sont <strong>pré-remplis automatiquement</strong> si le produit a déjà été acheté : nom, catégorie, prix d'achat, prix de revente.</p>
                                 <div class="help-tip"><strong>💡 Astuce :</strong> Le scanner fonctionne aussi dans la section <strong>📊 Inventaire</strong> pour le comptage physique.</div>
-                            </div>
-                        </div>
-
-                        <!-- 8. Alertes -->
-                        <div class="help-card">
-                            <div class="help-card-header" onclick="toggleHelp(this)">
-                                <span><span class="help-icon">🔔</span> Alertes stock bas</span>
-                                <span class="help-chevron">▼</span>
-                            </div>
-                            <div class="help-card-body">
-                                <p>Définissez un <strong>seuil minimum</strong> par produit. Quand le stock descend en dessous, une alerte apparaît.</p>
-                                <p><strong>Configurer un seuil :</strong> Ouvrez la fiche d'un produit → cliquez ✏️ Éditer → champ <strong>"🔔 Seuil alerte stock min"</strong>. Ou utilisez le bouton <strong>"⚙️ Configurer seuils en lot"</strong> pour appliquer un seuil à tous les produits d'un coup.</p>
-                                <p><strong>Niveaux d'alerte :</strong></p>
-                                <div class="help-grid">
-                                    <div class="help-feature"><div class="help-feature-title">🔴 Critique (rupture)</div>Stock = 0 — vous ne pouvez plus vendre</div>
-                                    <div class="help-feature"><div class="help-feature-title">🟠 Stock bas</div>Stock > 0 mais ≤ seuil — pensez à recommander</div>
-                                    <div class="help-feature"><div class="help-feature-title">🟢 OK</div>Stock au-dessus du seuil</div>
-                                    <div class="help-feature"><div class="help-feature-title">⚪ Sans seuil</div>Pas de seuil configuré — pas d'alerte</div>
-                                </div>
                             </div>
                         </div>
 
@@ -2091,8 +2029,6 @@
             </div>
         </div>
     </div>
-    <!-- Floating scan button (mobile) -->
-    <button class="fab-scan" id="fab-scan" onclick="openQuickScan()">📷</button>
 
     <!-- Quick Scan Overlay -->
     <div class="quick-scan-overlay" id="quick-scan-overlay">
@@ -2265,6 +2201,14 @@
         </div><!-- /main-area -->
         </div><!-- /app-body -->
         </div><!-- /app-layout -->
+    <!-- Barre du bas (téléphone) -->
+    <nav class="nav-mobile" id="nav-mobile" aria-label="Navigation téléphone">
+        <button type="button" data-nav="dashboard" onclick="switchTab('dashboard')"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg><span>Accueil</span></button>
+        <button type="button" data-nav="achats" onclick="allerAchatsEnAttente()"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/></svg><span>Réception</span></button>
+        <button type="button" data-nav="scan" class="nav-scan" onclick="openQuickScan()"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 011-1h2M17 4h2a1 1 0 011 1v2M20 17v2a1 1 0 01-1 1h-2M7 20H5a1 1 0 01-1-1v-2M8 8v8M12 8v8M16 8v8"/></svg><span>Scanner</span></button>
+        <button type="button" data-nav="stock" onclick="switchTab('stock')"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/></svg><span>Stock</span></button>
+        <button type="button" data-nav="inventaire" onclick="switchTab('inventaire')"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/></svg><span>Inventaire</span></button>
+    </nav>
     </div><!-- /app-container -->
 
     <!-- SCRIPTS -->
@@ -2273,9 +2217,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261114-3"></script>
-    <script src="app-cloud.js?v=20261114-3"></script>
-    <script src="auth.js?v=20261114-3"></script>
+    <script src="config.js?v=20261114-4"></script>
+    <script src="app-cloud.js?v=20261114-4"></script>
+    <script src="auth.js?v=20261114-4"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {

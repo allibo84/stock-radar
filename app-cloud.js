@@ -137,6 +137,7 @@ async function loadAchats() {
     achats = data || [];
     populateAchatsFilters();
     displayAchats();
+    displayFournisseurs(); // le nombre d'achats par fournisseur dépend des achats
 }
 
 async function loadProducts() {
@@ -346,8 +347,8 @@ function setupRealtimeSync() {
 
 // ═══════ NAVIGATION ═══════
 const GROUPES_MENU = {
-    'achats': [['achats', 'Achats'], ['import-grossiste', 'Import grossiste'], ['fournisseurs', 'Fournisseurs'], ['factures', 'Factures'], ['fournitures', 'Fournitures & frais']],
-    'stock': [['stock', 'Mon stock'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['alertes', 'Alertes stock'], ['inventaire', 'Inventaire']],
+    'achats': [['achats', 'Achats'], ['import-grossiste', 'Import grossiste'], ['fournisseurs', 'Fournisseurs'], ['fournitures', 'Fournitures & frais']],
+    'stock': [['stock', 'Mon stock'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['inventaire', 'Inventaire']],
     'ventes': [['ventes', 'Mes ventes'], ['retours', 'Retours'], ['import-amazon', 'Import Amazon']],
     'outils-export': [['outils-export', 'Export & sauvegarde'], ['aide', 'Aide & raccourcis']],
 };
@@ -370,6 +371,9 @@ function switchTab(tabName) {
         barre.innerHTML = groupe ? `<div class="sous-onglets" role="tablist">${GROUPES_MENU[groupe].map(([id, libelle]) =>
             `<button type="button" role="tab" aria-selected="${id === tabName}" class="sous-onglet${id === tabName ? ' active' : ''}" onclick="switchTab('${id}')">${libelle}</button>`).join('')}</div>` : '';
     }
+    document.querySelectorAll('#nav-mobile button').forEach(b => {
+        if (b.dataset.nav === tabName) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('overlay').style.display = 'none';
     if (tabName === 'stock') displayStock();
@@ -826,13 +830,13 @@ function displayAchats() {
             + (a.asin ? `<button type="button" class="ico-btn ico-sc" onclick="openSellerCentral('${escapeHtml(a.asin)}')" title="Ajouter l'offre sur Amazon Seller Central" aria-label="Ajouter l'offre sur Amazon Seller Central"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>` : '')
             + `<button type="button" class="ico-btn ico-del" onclick="deleteAchat(${a.id})" title="Supprimer" aria-label="Supprimer l'achat"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>`;
         h += `<tr onclick="editAchat(${a.id})">
-            <td style="white-space:nowrap;">${d}</td>
-            <td><div class="achat-nom">${escapeHtml(a.nom)}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(a.ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(a.ean || '-')}</span></span><span class="code-copiable">${boutonCopier(a.asin, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(a.asin || '-')}</span></span></div></td>
+            <td style="white-space:nowrap;" data-l="Acheté le">${d}</td>
+            <td class="c-prod"><div class="achat-nom">${escapeHtml(a.nom)}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(a.ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(a.ean || '-')}</span></span><span class="code-copiable">${boutonCopier(a.asin, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(a.asin || '-')}</span></span></div></td>
             <td>${escapeHtml(a.fournisseur_nom || '-')}</td>
-            <td class="num"><strong>${a.quantite || 1}</strong></td>
-            <td class="num">${(a.prix_ttc || 0).toFixed(2)}€<div class="sous-prix">${(a.prix_ht || 0).toFixed(2)}€ HT</div></td>
-            <td onclick="event.stopPropagation()">${statut}</td>
-            <td onclick="event.stopPropagation()"><div class="achat-actions">${actions}</div></td>
+            <td class="num" data-l="Qté"><strong>${a.quantite || 1}</strong></td>
+            <td class="num" data-l="Prix TTC">${(a.prix_ttc || 0).toFixed(2)}€<div class="sous-prix">${(a.prix_ht || 0).toFixed(2)}€ HT</div></td>
+            <td class="c-statut" onclick="event.stopPropagation()">${statut}</td>
+            <td class="c-actions" onclick="event.stopPropagation()"><div class="achat-actions">${actions}</div></td>
         </tr>`;
     });
     h += '</tbody></table></div>';
@@ -1119,7 +1123,7 @@ async function receptionnerAchat(achat, qteArrivee) {
         await sb.from('achats').update({ produit_genere_id: produitId }).eq('id', id);
     }
     const detail = complet && dejaAvant === 0 ? 'Réception achat' : `Réception ${complet ? 'finale' : 'partielle'} ${dejaApres}/${q}`;
-    await logMouvement(produitId, 'reception', qteArrivee, 'achat', 'entrepot', detail, achat.fournisseur_nom || '');
+    await logMouvement(produitId, 'reception', qteArrivee, 'achat', 'entrepot', detail, achat.fournisseur_nom || '', { ean: achat.ean, nom: achat.nom });
 
     if (complet) {
         toastSuccess('Réception complète', `${qteArrivee} u. ajoutée(s) au stock (entrepôt)` + (dejaAvant > 0 ? ` — ${q}/${q} reçues` : '') + (existant ? ` — prix d'achat moyen : ${pmp.toFixed(2)}€` : ''));
@@ -1574,7 +1578,6 @@ document.getElementById('product-form')?.addEventListener('submit', async functi
 function switchStockView(view) {
     activeStockView = view;
     stockCurrentPage = 1;
-    document.querySelectorAll('.stock-pill').forEach(p => p.classList.toggle('active', p.dataset.stock === view));
     displayStock();
 }
 
@@ -1593,6 +1596,31 @@ function stockChangePerPage() {
     displayStock();
 }
 
+const STOCK_VUES = [
+    ['all', 'Tout'], ['neuf', 'Neuf'], ['occasion', 'Occasion'], ['rebut', 'Rebut'], null,
+    ['entrepot', 'En entrepôt'], ['fba_attente', 'FBA en attente'], ['fba', 'FBA'], ['fbm', 'FBM'], ['vinted_stock', 'Vinted'],
+];
+function stockVueFiltre(vue) {
+    switch (vue) {
+        case 'neuf': return p => (p.etat_stock || 'neuf') === 'neuf' && !p.invendable;
+        case 'occasion': return p => (p.etat_stock || '') === 'occasion' && !p.invendable;
+        case 'entrepot': return p => (p.qte_entrepot || 0) > 0 && !p.invendable;
+        case 'fba_attente': return p => p.fba_attente === true || (p.statut || '') === 'fba_attente';
+        case 'fba': return p => (p.qte_fba || 0) > 0 && !p.invendable;
+        case 'fbm': return p => (p.qte_fbm || 0) > 0 && !p.invendable;
+        case 'vinted_stock': return p => p.vinted === true && !p.invendable;
+        case 'rebut': return p => (p.etat_stock || '') === 'rebut' || p.invendable;
+        default: return () => true;
+    }
+}
+function renderStockPastilles() {
+    const c = document.getElementById('stock-pastilles');
+    if (!c) return;
+    const enStock = products.filter(p => !p.vendu);
+    c.innerHTML = STOCK_VUES.map(v => v === null ? '<span class="pastilles-sep">Où :</span>'
+        : `<button type="button" class="pastille" aria-pressed="${v[0] === activeStockView}" onclick="switchStockView('${v[0]}')">${v[1]} · ${enStock.filter(stockVueFiltre(v[0])).length}</button>`).join('');
+}
+
 function getFilteredStock() {
     const search = (document.getElementById('stock-search')?.value || '').trim().toLowerCase();
     const sort = document.getElementById('stock-sort')?.value || 'date-desc';
@@ -1606,14 +1634,7 @@ function getFilteredStock() {
     let list = products.filter(p => !p.vendu);
 
     // Filtre sous-catégorie
-    if (activeStockView === 'neuf') list = list.filter(p => (p.etat_stock || 'neuf') === 'neuf' && !p.invendable);
-    else if (activeStockView === 'occasion') list = list.filter(p => (p.etat_stock || '') === 'occasion' && !p.invendable);
-    else if (activeStockView === 'entrepot') list = list.filter(p => (p.qte_entrepot || 0) > 0 && !p.invendable);
-    else if (activeStockView === 'fba_attente') list = list.filter(p => p.fba_attente === true || (p.statut || '') === 'fba_attente');
-    else if (activeStockView === 'fba') list = list.filter(p => (p.qte_fba || 0) > 0 && !p.invendable);
-    else if (activeStockView === 'fbm') list = list.filter(p => (p.qte_fbm || 0) > 0 && !p.invendable);
-    else if (activeStockView === 'vinted_stock') list = list.filter(p => p.vinted === true && !p.invendable);
-    else if (activeStockView === 'rebut') list = list.filter(p => (p.etat_stock || '') === 'rebut' || p.invendable);
+    list = list.filter(stockVueFiltre(activeStockView));
 
     // Recherche étendue (nom, EAN, catégorie, notes, fournisseur)
     if (search) {
@@ -1653,8 +1674,6 @@ function getFilteredStock() {
     }
 
     // Statut
-    const statutFilter = document.getElementById('stock-filter-statut')?.value || '';
-    if (statutFilter) list = list.filter(p => (p.statut || 'recu') === statutFilter);
 
     // Fonction utilitaire marge
     const getMarge = (p) => (p.prix_achat > 0 && p.prix_revente > 0) ? ((p.prix_revente - p.prix_achat) / p.prix_achat * 100) : -999;
@@ -1717,7 +1736,6 @@ function resetFilters() {
     document.getElementById('stock-filter-date-from').value = '';
     document.getElementById('stock-filter-date-to').value = '';
     document.getElementById('stock-filter-fournisseur').value = '';
-    document.getElementById('stock-filter-statut').value = '';
     document.getElementById('stock-search').value = '';
     const tri = document.getElementById('stock-sort');
     if (tri) tri.value = 'date-desc';
@@ -1749,21 +1767,18 @@ function displayStock() {
         fournSel.value = cur;
     }
 
+    renderStockPastilles();
     const list = getFilteredStock();
 
     // Stats
     const totalQte = list.reduce((s, p) => s + (p.quantite || 0), 0);
     const valeurAchat = list.reduce((s, p) => s + ((p.prix_achat || 0) * (p.quantite || 0)), 0);
-    const valeurRevente = list.reduce((s, p) => s + ((p.prix_revente || 0) * (p.quantite || 0)), 0);
     const valeurEntrepot = list.reduce((s, p) => s + ((p.prix_achat || 0) * (p.qte_entrepot || 0)), 0);
-    const beneficePotentiel = valeurRevente - valeurAchat;
     const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
     el('stock-total', list.length);
     el('stock-qte-total', totalQte);
-    el('stock-valeur-achat', valeurAchat.toFixed(2) + '€');
-    el('stock-valeur-revente', valeurRevente.toFixed(2) + '€');
-    el('stock-valeur-entrepot', valeurEntrepot.toFixed(2) + '€');
-    el('stock-benefice-potentiel', beneficePotentiel.toFixed(2) + '€');
+    el('stock-valeur-achat', fmtEur(valeurAchat));
+    el('stock-valeur-entrepot', fmtEur(valeurEntrepot));
 
     if (!list.length) { c.innerHTML = '<div class="empty-state"><h3>Aucun produit</h3><p>Ajoutez des produits depuis le menu</p></div>'; return; }
 
@@ -1776,30 +1791,27 @@ function displayStock() {
 
     const showFbaFbm = ['neuf','all','fba','fbm','fba_attente'].includes(activeStockView);
     let h = `<div id="stock-selection-bar" style="margin-bottom:10px;display:none;gap:10px;flex-wrap:wrap;align-items:center;">
-        <button class="scan-button" style="padding:6px 14px;font-size:13px;background:#3498db;" onclick="openBulkTransfert()">🔄 Transférer la sélection</button>
+        <button class="scan-button" style="padding:6px 14px;font-size:13px;background:#3498db;" onclick="openBulkTransfert()">Transférer la sélection</button>
         <span id="stock-selected-count" style="font-size:13px;color:var(--text-secondary);"></span>
     </div>`;
-    h += '<div class="products-table"><table><thead><tr><th style="width:30px;"><input type="checkbox" id="stock-select-all" onchange="toggleAllStock(this.checked)" title="Tout sélectionner"></th><th>Date</th><th>Produit</th><th>Cat.</th><th>Type</th>';
-    if (showFbaFbm) h += '<th>FBA</th><th>FBM</th>';
-    h += '<th>Entrep.</th><th>Total</th><th>Achat</th><th>Revente</th><th>Marge</th><th>Actions</th></tr></thead><tbody>';
+    h += '<div class="products-table"><table class="achats-table"><thead><tr><th style="width:30px;"><input type="checkbox" id="stock-select-all" onchange="toggleAllStock(this.checked)" title="Tout sélectionner"></th><th>Ajouté</th><th>Produit</th><th>Type</th>';
+    if (showFbaFbm) h += '<th class="num">FBA</th><th class="num">FBM</th>';
+    h += '<th class="num">Entrepôt</th><th class="num">Total</th><th class="num">Achat</th><th class="num">Revente</th><th class="num">Marge</th><th>Actions</th></tr></thead><tbody>';
+    const svg = (d) => `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 
     pageList.forEach(p => {
         const date = p.date_ajout ? new Date(p.date_ajout).toLocaleDateString('fr-FR') : '-';
         const age = p.date_ajout ? Math.floor((Date.now() - new Date(p.date_ajout)) / 86400000) : 0;
         const marge = (p.prix_achat > 0 && p.prix_revente > 0) ? ((p.prix_revente - p.prix_achat) / p.prix_achat * 100) : null;
 
-        const typeBadge = p.invendable ? '<span class="badge badge-rebut">Rebut</span>'
-            : (p.etat_stock === 'occasion') ? '<span class="badge badge-occasion">Occasion</span>'
-            : (p.etat_stock === 'rebut') ? '<span class="badge badge-rebut">Rebut</span>'
-            : '<span class="badge badge-neuf">Neuf</span>';
+        const typeBadge = (p.invendable || p.etat_stock === 'rebut') ? '<span class="pill pill-danger">Rebut</span>'
+            : (p.etat_stock === 'occasion') ? '<span class="pill pill-info">Occasion</span>'
+            : '<span class="pill pill-neutre">Neuf</span>';
 
+        // Ancienneté : signalée au-delà de 30 jours en stock
         let riskBadge = '';
-        if (age > 60) riskBadge = ' <span class="badge-risk">⚠️ ' + age + 'j</span>';
-        else if (age > 30) riskBadge = ' <span class="badge-slow">🕐 ' + age + 'j</span>';
-
-        if ((p.seuil_stock || 0) > 0 && (p.quantite || 0) <= (p.seuil_stock || 0)) {
-            riskBadge += (p.quantite || 0) === 0 ? ' <span class="alert-critique">🔴</span>' : ' <span class="alert-bas">🟠</span>';
-        }
+        if (age > 60) riskBadge = `<div><span class="pill pill-danger" title="En stock depuis ${age} jours">${age} j</span></div>`;
+        else if (age > 30) riskBadge = `<div><span class="pill pill-warn" title="En stock depuis ${age} jours">${age} j</span></div>`;
 
         let margeDisplay = '-';
         if (marge !== null) {
@@ -1807,22 +1819,21 @@ function displayStock() {
             margeDisplay = `<span style="color:${margeColor};font-weight:700;">${marge.toFixed(0)}%</span>`;
         }
 
-        h += `<tr style="cursor:pointer" onclick="openProductModal(${p.id})">
-            <td onclick="event.stopPropagation()"><input type="checkbox" class="stock-check" data-id="${p.id}" onchange="updateStockSelection()"></td>
-            <td>${date}${riskBadge}</td>
-            <td><div class="achat-nom">${escapeHtml(p.nom||'')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(p.ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(p.ean || '-')}</span></span><span class="code-copiable">${boutonCopier(p.asin, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(p.asin || '-')}</span></span></div></td>
-            <td>${escapeHtml(p.categorie||'-')}</td>
+        h += `<tr onclick="openProductModal(${p.id})">
+            <td class="c-vide" onclick="event.stopPropagation()"><input type="checkbox" class="stock-check" data-id="${p.id}" onchange="updateStockSelection()"></td>
+            <td style="white-space:nowrap;" data-l="Ajouté">${date}${riskBadge}</td>
+            <td class="c-prod"><div class="achat-nom">${escapeHtml(p.nom||'')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(p.ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(p.ean || '-')}</span></span><span class="code-copiable">${boutonCopier(p.asin, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(p.asin || '-')}</span></span></div>${p.categorie ? `<div class="sous-prix">${escapeHtml(p.categorie)}</div>` : ''}</td>
             <td>${typeBadge}</td>`;
-        if (showFbaFbm) h += `<td>${p.qte_fba||0}</td><td>${p.qte_fbm||0}</td>`;
-        h += `<td>${p.qte_entrepot||0}</td>
-            <td><strong>${p.quantite||0}</strong></td>
-            <td>${(p.prix_achat||0).toFixed(2)}€</td>
-            <td>${(p.prix_revente||0).toFixed(2)}€</td>
-            <td>${margeDisplay}</td>
-            <td onclick="event.stopPropagation()"><div class="action-buttons">
-                <button class="btn-small btn-sold" onclick="openVenteModal(${p.id})">💰</button>
-                <button class="btn-small btn-edit" onclick="openProductModal(${p.id})">👁️</button>
-                <button class="btn-small btn-delete" onclick="deleteProduct(${p.id})">🗑️</button>
+        if (showFbaFbm) h += `<td class="num" data-l="FBA">${p.qte_fba||0}</td><td class="num" data-l="FBM">${p.qte_fbm||0}</td>`;
+        h += `<td class="num" data-l="Entrepôt">${p.qte_entrepot||0}</td>
+            <td class="num" data-l="Total"><strong>${p.quantite||0}</strong></td>
+            <td class="num" data-l="Achat">${(p.prix_achat||0).toFixed(2)}€</td>
+            <td class="num" data-l="Revente">${(p.prix_revente||0).toFixed(2)}€</td>
+            <td class="num" data-l="Marge">${margeDisplay}</td>
+            <td class="c-actions" onclick="event.stopPropagation()"><div class="achat-actions">
+                <button type="button" class="ico-btn ico-vendre" onclick="openVenteModal(${p.id})" title="Enregistrer une vente" aria-label="Enregistrer une vente">${svg('<path d="M12 3v18M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.5 0-4.5 1.2-4.5 3.2 0 4.6 9.5 2 9.5 6.6 0 2-2 3.2-5 3.2-2.300 0-4.200-.900-5-2.300"/>')}</button>
+                <button type="button" class="ico-btn ico-voir" onclick="openProductModal(${p.id})" title="Ouvrir la fiche" aria-label="Ouvrir la fiche produit">${svg('<path d="M2 12s3.600-7 10-7 10 7 10 7-3.600 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>')}</button>
+                <button type="button" class="ico-btn ico-del" onclick="deleteProduct(${p.id})" title="Supprimer" aria-label="Supprimer le produit">${svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>')}</button>
             </div></td></tr>`;
     });
     h += '</tbody></table></div>';
@@ -1881,33 +1892,12 @@ function openProductModal(id) {
         marge = `<span class="marge-indicator ${m>=30?'marge-high':m>=10?'marge-medium':'marge-low'}">${m.toFixed(1)}%</span>`;
     }
 
-    let photos = '';
-    if (p.photos && p.photos.length) {
-        photos = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:15px 0;">' +
-            p.photos.map(ph => `<img src="${ph}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;">`).join('') + '</div>';
-    }
-
     body.innerHTML = `
         <h2 style="margin-bottom:5px;">${escapeHtml(p.nom)}</h2>
         <p style="color:var(--text-secondary);margin-bottom:20px;">EAN : ${codeCopiable(p.ean, 'EAN')}${p.asin ? ' &nbsp; ASIN : ' + codeCopiable(p.asin, 'ASIN') : ''} · ${typeBadge}</p>
         
         <!-- Zone lecture -->
         <div id="product-view-${p.id}">
-            <!-- Statut & Emplacement -->
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:15px;align-items:center;">
-                <div style="flex:1;">
-                    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Statut</div>
-                    <select onchange="changeStatut(${p.id}, this.value)" style="padding:8px 12px;border-radius:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-color);font-size:13px;font-weight:600;">
-                        ${STATUTS.map(s => `<option value="${s.value}" ${(p.statut||'recu')===s.value?'selected':''}>${s.label}</option>`).join('')}
-                    </select>
-                </div>
-                <div style="flex:1;">
-                    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Emplacement (zone/étagère/bac)</div>
-                    <input type="text" value="${escapeHtml(p.emplacement||'')}" placeholder="Ex: A-03-2" 
-                        onchange="changeEmplacement(${p.id}, this.value)" 
-                        style="padding:8px 12px;border-radius:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-color);font-size:13px;width:100%;">
-                </div>
-            </div>
             <div class="detail-grid">
                 <div class="detail-item"><div class="detail-label">Catégorie</div><div class="detail-value">${escapeHtml(p.categorie||'-')}</div></div>
                 <div class="detail-item"><div class="detail-label">État</div><div class="detail-value">${escapeHtml(p.etat||'-')}</div></div>
@@ -1924,9 +1914,7 @@ function openProductModal(id) {
             </div>
             <div style="text-align:center;font-size:18px;font-weight:700;margin:10px 0 20px;">Total : ${total} unités</div>
             <div class="detail-item" style="margin-bottom:15px;"><div class="detail-label">Canaux de vente</div><div class="detail-value">${canaux.length ? canaux.join(', ') : 'Aucun'}</div></div>
-            ${p.emplacement ? `<div class="detail-item" style="margin-bottom:15px;"><div class="detail-label">📍 Emplacement</div><div class="detail-value" style="font-weight:700;">${escapeHtml(p.emplacement)}</div></div>` : ''}
             ${p.notes ? `<div class="detail-item" style="margin-bottom:15px;"><div class="detail-label">Notes</div><div class="detail-value">${escapeHtml(p.notes)}</div></div>` : ''}
-            ${photos}
         </div>
 
         <!-- Zone édition (cachée par défaut) -->
@@ -1994,14 +1982,6 @@ function openProductModal(id) {
                 <div class="detail-label">Notes</div>
                 <textarea id="edit-notes-${p.id}" class="form-input" rows="2" style="padding:8px;">${escapeHtml(p.notes||'')}</textarea>
             </div>
-            <div class="detail-item">
-                <div class="detail-label">📍 Emplacement (zone/étagère/bac)</div>
-                <input type="text" id="edit-emplacement-${p.id}" class="form-input" style="padding:8px;" value="${escapeHtml(p.emplacement||'')}" placeholder="Ex: A-03-2">
-            </div>
-            <div class="detail-item">
-                <div class="detail-label">🔔 Seuil alerte stock min</div>
-                <input type="number" id="edit-seuil-${p.id}" class="form-input" style="padding:8px;" value="${p.seuil_stock||0}" min="0" placeholder="0">
-            </div>
         </div>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;">
@@ -2046,8 +2026,6 @@ async function saveEditProduct(id) {
         leboncoin: document.getElementById('edit-leboncoin-' + id)?.checked || false,
         invendable: (document.getElementById('edit-etat-stock-' + id)?.value || '') === 'rebut',
         notes: document.getElementById('edit-notes-' + id)?.value?.trim() || '',
-        emplacement: document.getElementById('edit-emplacement-' + id)?.value?.trim() || '',
-        seuil_stock: parseInt(document.getElementById('edit-seuil-' + id)?.value) || 0,
     };
 
     console.log('Saving product', id, 'update:', update);
@@ -3399,11 +3377,6 @@ function updateDashboard() {
         }
 
         const today = dateLocaleISO(new Date());
-        const facturesRetard = (typeof factures !== 'undefined' ? factures : []).filter(f => !f.payee && f.date_echeance && f.date_echeance < today);
-        if (facturesRetard.length > 0) {
-            ligne(facturesRetard.length, 'danger', `Facture${facturesRetard.length>1?'s':''} en retard de paiement`,
-                `Montant dû : ${fmtEur(facturesRetard.reduce((s,f) => s + (f.montant_ttc||0), 0))}`, 'Voir les factures', "switchTab('factures')");
-        }
 
         const fbaAttente = enStock.filter(p => p.fba_attente);
         if (fbaAttente.length > 0) {
@@ -3529,8 +3502,9 @@ function updateDarkModeIcon() {
 }
 
 // ═══════ MOUVEMENTS DE STOCK ═══════
-async function logMouvement(produitId, type, quantite, de, vers, raison, notes) {
-    const p = products.find(x => x.id === produitId);
+async function logMouvement(produitId, type, quantite, de, vers, raison, notes, infos) {
+    // infos = { ean, nom } quand le produit vient d'être créé et n'est pas encore dans la liste locale
+    const p = products.find(x => x.id === produitId) || infos;
     const mvt = {
         user_id: getEffectiveUserId(),
         produit_id: produitId,
@@ -3570,16 +3544,20 @@ function displayVentes() {
     const totalBenefice = list.reduce((s, v) => s + (v.benefice || 0), 0);
     const totalQte = list.reduce((s, v) => s + (v.quantite || 0), 0);
     const totalFrais = list.reduce((s, v) => s + (v.frais || 0), 0);
-    const statsEl = document.getElementById('ventes-stats');
-    if (statsEl) {
-        statsEl.innerHTML = `
-            <div class="stat-card"><div class="stat-number">${list.length}</div><div class="stat-label">Ventes</div></div>
-            <div class="stat-card"><div class="stat-number">${totalQte}</div><div class="stat-label">Unités vendues</div></div>
-            <div class="stat-card"><div class="stat-number" style="color:var(--brand);">${totalCA.toFixed(2)}€</div><div class="stat-label">CA total</div></div>
-            <div class="stat-card"><div class="stat-number" style="color:${totalBenefice>=0?"var(--success)":"var(--danger)"};">${totalBenefice>=0?'+':''}${totalBenefice.toFixed(2)}€</div><div class="stat-label">Bénéfice net</div></div>
-            <div class="stat-card"><div class="stat-number">${totalFrais.toFixed(2)}€</div><div class="stat-label">Frais totaux</div></div>
-            <div class="stat-card"><div class="stat-number">${list.length > 0 ? (totalCA / list.length).toFixed(2) : '0.00'}€</div><div class="stat-label">Panier moyen</div></div>
-        `;
+    const resume = document.getElementById('ventes-resume');
+    if (resume) resume.innerHTML = `${list.length} ventes · ${totalQte} unités · ${fmtEur(totalCA)} de CA · <strong style="color:${totalBenefice >= 0 ? 'var(--success)' : 'var(--danger)'};">${totalBenefice >= 0 ? '+' : ''}${fmtEur(totalBenefice)}</strong> de bénéfice · ${fmtEur(totalFrais)} de frais · panier moyen ${fmtEur(list.length ? totalCA / list.length : 0)}`;
+    const pastilles = document.getElementById('ventes-pastilles');
+    if (pastilles) {
+        // Compteurs calculés avec la recherche et les dates, hors filtre de canal
+        let base = [...ventes];
+        if (q) base = base.filter(v => (v.produit_nom||'').toLowerCase().includes(q) || (v.produit_ean||'').includes(q) || (v.canal||'').toLowerCase().includes(q)
+            || (asinParProduit.get(v.produit_id) || '').toLowerCase().includes(q) || String(v.amazon_order_id || '').toLowerCase().includes(q));
+        if (dateFrom) base = base.filter(v => v.date_vente >= dateFrom);
+        if (dateTo) base = base.filter(v => v.date_vente <= dateTo);
+        pastilles.innerHTML = [['', 'Tous'], ['Amazon FBA', 'Amazon FBA'], ['Amazon FBM', 'Amazon FBM'], ['Vinted', 'Vinted'], ['Leboncoin', 'Leboncoin'], ['Autre', 'Autre']]
+            .map(([v, lib]) => [v, lib, v ? base.filter(x => x.canal === v).length : base.length])
+            .filter(([v, , n]) => !v || n > 0 || v === canal)
+            .map(([v, lib, n]) => `<button type="button" class="pastille" aria-pressed="${v === canal}" onclick="setVentesCanal('${v}')">${lib} · ${n}</button>`).join('');
     }
 
     if (!list.length) {
@@ -3587,7 +3565,7 @@ function displayVentes() {
         return;
     }
 
-    let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>Produit</th><th>Canal</th><th>Qté</th><th>Prix unit.</th><th>Total</th><th>Frais</th><th>Bénéfice</th><th>Notes</th></tr></thead><tbody>';
+    let h = '<div class="products-table"><table class="achats-table ventes-table"><thead><tr><th>Date</th><th>Produit</th><th>Canal</th><th class="num">Qté</th><th class="num">Prix unit.</th><th class="num">Total</th><th class="num">Frais</th><th class="num">Bénéfice</th><th>Notes</th></tr></thead><tbody>';
     const cleVentes = [q, canal, dateFrom, dateTo].join('|');
     if (cleVentes !== ventesCleFiltres) { ventesCleFiltres = cleVentes; ventesPage = 1; }
     const VENTES_PAR_PAGE = 50, ventesPages = Math.max(1, Math.ceil(list.length / VENTES_PAR_PAGE));
@@ -3597,16 +3575,17 @@ function displayVentes() {
         const benef = v.benefice || 0;
         const asinVente = asinParProduit.get(v.produit_id) || '';
         const benefColor = benef > 0 ? 'var(--success)' : benef < 0 ? 'var(--danger)' : 'var(--text-secondary)';
-        h += `<tr>
-            <td style="font-size:12px;color:var(--text-secondary);">${v.date_vente || '-'}</td>
-            <td><div class="achat-nom">${escapeHtml(v.produit_nom || '-')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(v.produit_ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(v.produit_ean || '-')}</span></span><span class="code-copiable">${boutonCopier(asinVente, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(asinVente || '-')}</span></span></div></td>
-            <td><span class="badge badge-neuf" style="font-size:11px;">${escapeHtml(v.canal || 'Autre')}</span></td>
-            <td style="text-align:center;font-weight:700;">${v.quantite || 1}</td>
-            <td>${(v.prix_unitaire || 0).toFixed(2)}€</td>
-            <td style="font-weight:700;">${(v.prix_total || 0).toFixed(2)}€</td>
-            <td style="color:var(--text-secondary);">${(v.frais || 0).toFixed(2)}€</td>
-            <td style="font-weight:700;color:${benefColor};">${benef >= 0 ? '+' : ''}${benef.toFixed(2)}€</td>
-            <td style="font-size:12px;color:var(--text-secondary);">${escapeHtml(v.notes || '')}</td>
+        const dv = v.date_vente ? new Date(v.date_vente + 'T12:00:00').toLocaleDateString('fr-FR') : '-';
+        h += `<tr style="cursor:default;">
+            <td style="white-space:nowrap;">${dv}</td>
+            <td class="c-prod"><div class="achat-nom">${escapeHtml(v.produit_nom || '-')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(v.produit_ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(v.produit_ean || '-')}</span></span><span class="code-copiable">${boutonCopier(asinVente, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(asinVente || '-')}</span></span></div></td>
+            <td><span class="pill ${String(v.canal || '').startsWith('Amazon') ? 'pill-info' : 'pill-neutre'}">${escapeHtml(v.canal || 'Autre')}</span></td>
+            <td class="num" data-l="Qté"><strong>${v.quantite || 1}</strong></td>
+            <td class="num" data-l="Prix unit.">${(v.prix_unitaire || 0).toFixed(2)}€</td>
+            <td class="num" data-l="Total"><strong>${(v.prix_total || 0).toFixed(2)}€</strong></td>
+            <td class="num" data-l="Frais">${(v.frais || 0).toFixed(2)}€</td>
+            <td class="num" data-l="Bénéfice" style="font-weight:700;color:${benefColor};">${benef >= 0 ? '+' : ''}${benef.toFixed(2)}€</td>
+            <td class="${v.notes ? '' : 'c-vide'}" style="font-size:12px;color:var(--text-2);text-align:left;">${escapeHtml(v.notes || '')}</td>
         </tr>`;
     });
     h += '</tbody></table></div>';
@@ -3619,6 +3598,12 @@ function displayVentes() {
             <button class="page-btn" onclick="ventesPage = ${ventesPages}; displayVentes()" ${ventesPage === ventesPages ? 'disabled' : ''} aria-label="Dernière page">»</button></div></div>`;
     }
     c.innerHTML = h;
+}
+
+function setVentesCanal(v) {
+    const sel = document.getElementById('ventes-filter-canal');
+    if (sel) sel.value = v;
+    displayVentes();
 }
 
 async function exportVentes() {
@@ -3668,11 +3653,15 @@ function displayMouvements() {
         const date = m.created_at ? new Date(m.created_at).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '-';
         const icon = typeIcons[m.type] || '📋';
         const color = typeColors[m.type] || '#666';
+        // Anciennes lignes enregistrées sans nom ni EAN : on les retrouve par la fiche produit
+        const pm = (!m.produit_nom || !m.produit_ean) ? products.find(p => p.id === m.produit_id) : null;
+        const nomM = m.produit_nom || pm?.nom || (m.produit_id ? 'Produit supprimé' : '-');
+        const eanM = m.produit_ean || pm?.ean || '';
         h += `<tr>
             <td>${date}</td>
             <td><span style="color:${color};font-weight:700;">${icon} ${escapeHtml(m.type)}</span></td>
-            <td><strong>${escapeHtml(m.produit_nom||'-')}</strong></td>
-            <td>${codeCopiable(m.produit_ean, 'EAN')}</td>
+            <td><strong>${escapeHtml(nomM)}</strong></td>
+            <td>${codeCopiable(eanM, 'EAN')}</td>
             <td style="font-weight:700;">${m.quantite||0}</td>
             <td>${escapeHtml(m.de_emplacement||'-')}</td>
             <td>${escapeHtml(m.vers_emplacement||'-')}</td>
@@ -4264,6 +4253,9 @@ function displayInventaire() {
     el('inv-comptes', comptes);
     el('inv-ok', conformes);
     el('inv-ecarts', ecarts);
+    const pInv = document.getElementById('inv-pastilles');
+    if (pInv) pInv.innerHTML = [['all', 'Tous', inventaireData.length], ['non-comptes', 'Non comptés', inventaireData.length - comptes], ['ecarts', 'Écarts', ecarts]]
+        .map(([v, lib, n]) => `<button type="button" class="pastille" aria-pressed="${v === inventaireFilter}" onclick="filterInventaire('${v}')">${lib} · ${n}</button>`).join('');
     
     if (!list.length) {
         c.innerHTML = '<div class="empty-state"><h3>Aucun produit dans ce filtre</h3></div>';
@@ -4271,7 +4263,7 @@ function displayInventaire() {
     }
 
     let h = '<div style="background:var(--card-bg);border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.08);">';
-    h += '<div class="inv-row" style="font-weight:700;background:var(--filter-bg);font-size:13px;"><div>EAN</div><div>Produit</div><div>Théorique</div><div>Compté</div><div>Écart</div><div>Statut</div></div>';
+    h += '<div class="inv-row inv-entete" style="font-weight:700;background:var(--filter-bg);font-size:13px;"><div>EAN</div><div>Produit</div><div>Théorique</div><div>Compté</div><div>Écart</div><div>Statut</div></div>';
     
     list.forEach(item => {
         const ecartClass = item.compte === null ? '' : (item.ecart !== 0 ? 'ecart' : 'ok');
@@ -4280,12 +4272,12 @@ function displayInventaire() {
         const statusBadge = item.compte === null ? '<span style="color:var(--text-secondary);">❓</span>' : (item.ecart === 0 ? '<span class="alert-ok">✅</span>' : '<span class="alert-critique">⚠️</span>');
         
         h += `<div class="inv-row ${ecartClass}">
-            <div style="font-size:12px;color:var(--text-secondary);">${codeCopiable(item.ean, 'EAN')}</div>
-            <div><strong>${escapeHtml(item.nom)}</strong>${item.emplacement ? `<br><span style="font-size:11px;color:var(--text-secondary);">📍 ${escapeHtml(item.emplacement)}</span>` : ''}</div>
-            <div style="font-weight:700;text-align:center;">${item.theorique}</div>
-            <div><input type="number" class="inv-input ${inputClass}" value="${item.compte !== null ? item.compte : ''}" min="0" placeholder="-" onchange="updateInventaireCount(${item.id}, this.value)"></div>
-            <div style="text-align:center;">${ecartText}</div>
-            <div style="text-align:center;">${statusBadge}</div>
+            <div class="inv-c-ean" style="font-size:12px;color:var(--text-secondary);">${codeCopiable(item.ean, 'EAN')}</div>
+            <div class="inv-c-nom"><strong>${escapeHtml(item.nom)}</strong></div>
+            <div class="inv-c-theo" style="font-weight:700;text-align:center;">${item.theorique}</div>
+            <div class="inv-c-compte"><button type="button" class="inv-pm" onclick="invAjuster(${item.id}, -1)" aria-label="Retirer une unité">−</button><input type="number" inputmode="numeric" class="inv-input ${inputClass}" value="${item.compte !== null ? item.compte : ''}" min="0" placeholder="-" onchange="updateInventaireCount(${item.id}, this.value)" aria-label="Quantité comptée"><button type="button" class="inv-pm" onclick="invAjuster(${item.id}, 1)" aria-label="Ajouter une unité">+</button></div>
+            <div class="inv-c-ecart" style="text-align:center;">${ecartText}</div>
+            <div class="inv-c-statut" style="text-align:center;">${statusBadge}</div>
         </div>`;
     });
     
@@ -4309,6 +4301,13 @@ function updateInventaireCount(productId, value) {
         item.ecart = item.compte - item.theorique;
     }
     displayInventaire();
+}
+
+// Boutons + / − du mode téléphone : part du compté, ou de 0 si pas encore compté
+function invAjuster(productId, delta) {
+    const item = inventaireData.find(i => i.id === productId);
+    if (!item) return;
+    updateInventaireCount(productId, Math.max(0, (item.compte ?? 0) + delta));
 }
 
 function inventaireScanEAN() {
