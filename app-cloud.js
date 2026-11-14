@@ -1773,7 +1773,7 @@ function displayStock() {
         <button class="scan-button" style="padding:6px 14px;font-size:13px;background:#3498db;" onclick="openBulkTransfert()">🔄 Transférer la sélection</button>
         <span id="stock-selected-count" style="font-size:13px;color:var(--text-secondary);"></span>
     </div>`;
-    h += '<div class="products-table"><table><thead><tr><th style="width:30px;"><input type="checkbox" id="stock-select-all" onchange="toggleAllStock(this.checked)" title="Tout sélectionner"></th><th>Date</th><th>EAN</th><th>Produit</th><th>Cat.</th><th>Type</th>';
+    h += '<div class="products-table"><table><thead><tr><th style="width:30px;"><input type="checkbox" id="stock-select-all" onchange="toggleAllStock(this.checked)" title="Tout sélectionner"></th><th>Date</th><th>Produit</th><th>Cat.</th><th>Type</th>';
     if (showFbaFbm) h += '<th>FBA</th><th>FBM</th>';
     h += '<th>Entrep.</th><th>Total</th><th>Achat</th><th>Revente</th><th>Marge</th><th>Actions</th></tr></thead><tbody>';
 
@@ -1804,8 +1804,7 @@ function displayStock() {
         h += `<tr style="cursor:pointer" onclick="openProductModal(${p.id})">
             <td onclick="event.stopPropagation()"><input type="checkbox" class="stock-check" data-id="${p.id}" onchange="updateStockSelection()"></td>
             <td>${date}${riskBadge}</td>
-            <td>${escapeHtml(p.ean||'')}</td>
-            <td><strong>${escapeHtml(p.nom||'')}</strong></td>
+            <td><div class="achat-nom">${escapeHtml(p.nom||'')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(p.ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(p.ean || '-')}</span></span><span class="code-copiable">${boutonCopier(p.asin, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(p.asin || '-')}</span></span></div></td>
             <td>${escapeHtml(p.categorie||'-')}</td>
             <td>${typeBadge}</td>`;
         if (showFbaFbm) h += `<td>${p.qte_fba||0}</td><td>${p.qte_fbm||0}</td>`;
