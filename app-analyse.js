@@ -331,19 +331,20 @@ function displayClassement() {
 }
 
 // ═══════ 5. OPÉRATIONS AMAZON HORS VENTES (remboursements FBA, frais…) ═══════
-const RE_TRANSFERT = /^(transfert|transfer|übertrag|trasferimento|transferencia|transferir|overboeking|overdracht|przelew|överföring)/i;
+// Virements d'Amazon vers votre banque (et leurs corrections) : ce ne sont pas des frais
+const RE_TRANSFERT = /^(transf|übertrag|trasferiment|overboeking|overdracht|przelew|överföring)/i;
 function categoriserOperation(type, desc) {
     const t = String(type || ''), d = String(desc || '');
-    if (RE_TRANSFERT.test(t) || /sur le compte se terminant|to account ending|auf das konto|sul conto|a la cuenta/i.test(d)) return 'transfert';
+    if (RE_TRANSFERT.test(t) || /compte se terminant|account ending|auf das konto|auszahlung|sul conto|bonifico|a la cuenta|cuenta que termina|rekening eindigend/i.test(d)) return 'transfert';
     if (/rembours\w*\s+(de\s+)?stock|reimburse|erstattung.*(lager|versand durch amazon)|rimborso.*(inventario|magazzino|logistica)|reembolso.*(inventario|log[ií]stica)|vergoeding.*voorraad/i.test(d)) return 'remboursement_fba';
-    if (/transport entrant|inbound transport|inbound placement|eingangsversand|eingehende|trasporto in entrata|transporte de entrada|inkomend transport|placement/i.test(d)) return 'transport';
+    if (/transport entrant|inbound transport|inbound placement|eingangsversand|eingehende|frachtkosten|transport zum amazon|trasporto in entrata|trasporto verso|transporte de entrada|transporte a amazon|inkomend transport|placement/i.test(d)) return 'transport';
     if (/stockage|storage|lagergeb|lagerung|stoccaggio|almacenamiento|opslag/i.test(d)) return 'stockage';
     if (/inscription|subscription|abonnement|abbonamento|suscripci/i.test(d)) return 'abonnement';
     if (/[ée]tiquette|label|etikett|etichetta|etiqueta|postage/i.test(d) || /services d'exp|shipping services/i.test(t)) return 'expedition';
     if (/[ée]co-contribution|\bREP\b|\bEPR\b|entsorgung|raee/i.test(d)) return 'eco';
     return 'autre';
 }
-const LIB_CATEGORIE = { remboursement_fba: 'Remboursements FBA', transport: 'Transport entrant', stockage: 'Stockage FBA', abonnement: 'Abonnement Amazon', expedition: "Étiquettes d'expédition", eco: 'Éco-contribution (REP)', autre: 'Autres frais et corrections' };
+const LIB_CATEGORIE = { remboursement_fba: 'Remboursements FBA', transport: 'Transport entrant', stockage: 'Stockage FBA', abonnement: 'Abonnement Amazon', expedition: "Étiquettes d'expédition", eco: 'Éco-contribution (REP)', autre: 'Autres frais (retours de stock, corrections…)' };
 
 // Appelé par l'aperçu du rapport de transactions : garde les lignes qui ne sont ni une commande ni un remboursement client
 function preparerOperationsAmazon(all, hIdx, col) {
