@@ -363,7 +363,7 @@ function setupRealtimeSync() {
 const GROUPES_MENU = {
     'achats': [['achats', 'Achats'], ['import-grossiste', 'Import grossiste'], ['fournisseurs', 'Fournisseurs'], ['fournitures', 'Fournitures & frais']],
     'stock': [['stock', 'Mon stock'], ['entrepot', 'Entrepôt'], ['reassort', 'Réassort'], ['envois-fba', 'Envois FBA'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['inventaire', 'Inventaire']],
-    'ventes': [['ventes', 'Mes ventes'], ['classement', 'Meilleurs produits'], ['retours', 'Retours'], ['remboursements-fba', 'Remboursements FBA'], ['import-amazon', 'Import Amazon']],
+    'ventes': [['ventes', 'Mes ventes'], ['classement', 'Meilleurs produits'], ['retours', 'Retours'], ['remboursements-fba', 'Remboursements FBA'], ['tva', 'TVA'], ['import-amazon', 'Import Amazon']],
     'outils-export': [['outils-export', 'Export & sauvegarde'], ['aide', 'Aide & raccourcis']],
 };
 
@@ -394,6 +394,7 @@ function switchTab(tabName) {
     if (tabName === 'dashboard') updateDashboard();
     if (tabName === 'ventes') displayVentes();
     if (tabName === 'retours') displayRetours();
+    if (tabName === 'tva' && typeof displayTva === 'function') displayTva();
     if (tabName === 'reassort') displayReassort();
     if (tabName === 'entrepot') displayEntrepot();
     if (tabName !== 'entrepot' && typeof arreterCameraRangement === 'function') arreterCameraRangement();
