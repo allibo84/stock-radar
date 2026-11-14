@@ -77,6 +77,7 @@ async function loadAllData() {
             loadVentes().catch(e => console.warn('Ventes:', e)),
             loadRetours().catch(e => console.warn('Retours:', e)),
             loadAnalyse().catch(e => console.warn('Analyse:', e)),
+            loadEntrepot().catch(e => console.warn('Entrepôt:', e)),
         ]);
     } catch (e) { console.error('Erreur chargement:', e); }
     document.getElementById('loading').style.display = 'none';
@@ -343,6 +344,8 @@ function setupRealtimeSync() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'retours' }, () => loadRetours())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'amazon_operations' }, () => loadAmazonOps())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'envois_fba' }, () => loadEnvoisFba())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'emplacements' }, () => loadEntrepot())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'rangements' }, () => loadEntrepot())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'factures' }, () => loadFactures())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fournitures' }, () => loadFournitures())
         .subscribe();
@@ -351,7 +354,7 @@ function setupRealtimeSync() {
 // ═══════ NAVIGATION ═══════
 const GROUPES_MENU = {
     'achats': [['achats', 'Achats'], ['import-grossiste', 'Import grossiste'], ['fournisseurs', 'Fournisseurs'], ['fournitures', 'Fournitures & frais']],
-    'stock': [['stock', 'Mon stock'], ['reassort', 'Réassort'], ['envois-fba', 'Envois FBA'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['inventaire', 'Inventaire']],
+    'stock': [['stock', 'Mon stock'], ['entrepot', 'Entrepôt'], ['reassort', 'Réassort'], ['envois-fba', 'Envois FBA'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['inventaire', 'Inventaire']],
     'ventes': [['ventes', 'Mes ventes'], ['classement', 'Meilleurs produits'], ['retours', 'Retours'], ['remboursements-fba', 'Remboursements FBA'], ['import-amazon', 'Import Amazon']],
     'outils-export': [['outils-export', 'Export & sauvegarde'], ['aide', 'Aide & raccourcis']],
 };
@@ -384,6 +387,8 @@ function switchTab(tabName) {
     if (tabName === 'ventes') displayVentes();
     if (tabName === 'retours') displayRetours();
     if (tabName === 'reassort') displayReassort();
+    if (tabName === 'entrepot') displayEntrepot();
+    if (tabName !== 'entrepot' && typeof arreterCameraRangement === 'function') arreterCameraRangement();
     if (tabName === 'classement') displayClassement();
     if (tabName === 'remboursements-fba') displayRemboursementsFba();
     if (tabName === 'envois-fba') displayEnvoisFba();
@@ -991,6 +996,8 @@ function srReception(achat) {
                     <button id="sr-reception-tout" type="button" style="padding:10px 14px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--bg-elevated);color:var(--text-1);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;">Tout le reste (${reste})</button>
                 </div>
                 <div id="sr-reception-info" style="font-size:12.5px;min-height:18px;margin:8px 0 18px;color:var(--text-2);"></div>
+                ${typeof emplacements !== 'undefined' && !entrepotTableAbsente ? `<label for="sr-reception-emp" style="display:block;font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:6px;">Ranger sur l'étagère <span style="font-weight:400;color:var(--text-2);">(facultatif)</span></label>
+                <input id="sr-reception-emp" list="${datalistCodes()}" placeholder="ex. A1" autocomplete="off" value="${escapeHtml((rangementsProduit((products.find(p => p.ean === achat.ean && !p.vendu) || {}).id)[0] || {}).code || '')}" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--bg-elevated);color:var(--text-1);font-size:15px;text-transform:uppercase;margin-bottom:18px;">` : ''}
                 <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:auto;">
                     <button id="sr-reception-cancel" type="button" style="padding:9px 18px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--bg-elevated);color:var(--text-1);font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;">Annuler</button>
                     <button id="sr-reception-ok" type="button" style="padding:9px 18px;border-radius:var(--radius);border:none;background:var(--brand);color:white;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">Valider la réception</button>
@@ -1006,7 +1013,7 @@ function srReception(achat) {
             else { info.style.color = 'var(--text-2)'; info.textContent = 'Réception complète : l\'achat passera en « Reçu ».'; }
         };
         const fermer = (val) => { modal.remove(); resolve(val); };
-        const valider = () => { const n = lire(); if (n === null) { maj(); input.focus(); return; } fermer(n); };
+        const valider = () => { const n = lire(); if (n === null) { maj(); input.focus(); return; } window.receptionEmplacement = modal.querySelector('#sr-reception-emp')?.value || ''; fermer(n); };
         input.oninput = maj;
         input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); valider(); } if (e.key === 'Escape') fermer(null); };
         modal.querySelector('#sr-reception-tout').onclick = () => { input.value = reste; maj(); input.focus(); };
@@ -1047,11 +1054,18 @@ async function toggleRecu(id, v) {
 
     // Une seule unité attendue : réception directe. Sinon on demande combien sont arrivées.
     const reste = achatReste(achat);
+    window.receptionEmplacement = '';
     const qteArrivee = reste === 1 ? 1 : await srReception(achat);
     if (!qteArrivee) return;
 
     receptionEnCours = true;
-    try { await receptionnerAchat(achat, qteArrivee); }
+    try {
+        const produitId = await receptionnerAchat(achat, qteArrivee);
+        const code = (window.receptionEmplacement || '').trim();
+        if (produitId && code && typeof rangerProduit === 'function' && await rangerProduit(produitId, code, qteArrivee, true)) {
+            toastSuccess('Rangé', `${qteArrivee} unité(s) sur l'étagère ${normCode(code)}.`);
+        }
+    }
     finally { receptionEnCours = false; }
 }
 
@@ -1141,6 +1155,7 @@ async function receptionnerAchat(achat, qteArrivee) {
     await loadProducts();
     updateDashboard();
     await loadAchats();
+    return produitId;
 }
 
 async function deleteAchat(id) {
@@ -1371,6 +1386,7 @@ function stopAllScanners(sauf) {
     if (sauf !== 'produit') stopScanner();
     if (sauf !== 'inventaire') stopInventaireScanner();
     if (sauf !== 'quick') stopQuickScanner();
+    if (sauf !== 'rangement' && typeof arreterCameraRangement === 'function') arreterCameraRangement();
 }
 
 async function startScanner() {
@@ -1830,7 +1846,7 @@ function displayStock() {
         h += `<tr onclick="openProductModal(${p.id})">
             <td class="c-vide" onclick="event.stopPropagation()"><input type="checkbox" class="stock-check" data-id="${p.id}" onchange="updateStockSelection()"></td>
             <td style="white-space:nowrap;" data-l="Ajouté">${date}${riskBadge}</td>
-            <td class="c-prod"><div class="achat-nom">${escapeHtml(p.nom||'')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(p.ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(p.ean || '-')}</span></span><span class="code-copiable">${boutonCopier(p.asin, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(p.asin || '-')}</span></span></div>${p.categorie ? `<div class="sous-prix">${escapeHtml(p.categorie)}</div>` : ''}</td>
+            <td class="c-prod"><div class="achat-nom">${escapeHtml(p.nom||'')}</div>${typeof chipsRangement === 'function' ? chipsRangement(p.id) : ''}<div class="achat-codes"><span class="code-copiable">${boutonCopier(p.ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(p.ean || '-')}</span></span><span class="code-copiable">${boutonCopier(p.asin, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(p.asin || '-')}</span></span></div>${p.categorie ? `<div class="sous-prix">${escapeHtml(p.categorie)}</div>` : ''}</td>
             <td>${typeBadge}</td>`;
         if (showFbaFbm) h += `<td class="num" data-l="FBA">${p.qte_fba||0}</td><td class="num" data-l="FBM">${p.qte_fbm||0}</td>`;
         h += `<td class="num" data-l="Entrepôt">${p.qte_entrepot||0}</td>
@@ -5194,7 +5210,8 @@ function globalSearch(query, isMobile = false) {
             if ((p.nom||'').toLowerCase().includes(q) || (p.ean||'').toLowerCase().includes(q) || 
                 (p.asin||'').toLowerCase().includes(q) ||
                 (p.categorie||'').toLowerCase().includes(q) || (p.notes||'').toLowerCase().includes(q)) {
-                results.push({ type: 'stock', id: p.id, nom: p.nom, detail: `EAN: ${p.ean||'-'}${p.asin ? ' · ASIN: '+p.asin : ''} · ${p.quantite||0} unités · ${(p.prix_revente||0).toFixed(2)}€`, badge: p.etat_stock || 'neuf' });
+                const ou = typeof rangementsProduit === 'function' ? rangementsProduit(p.id).map(r => r.code + '×' + r.quantite).join(' ') : '';
+                results.push({ type: 'stock', id: p.id, nom: p.nom, detail: `${ou ? '📍 ' + ou + ' · ' : ''}EAN: ${p.ean||'-'}${p.asin ? ' · ASIN: '+p.asin : ''} · ${p.quantite||0} unités · ${(p.prix_revente||0).toFixed(2)}€`, badge: p.etat_stock || 'neuf' });
             }
         });
         

@@ -1141,6 +1141,35 @@
             .kpi-ico { width: 36px; height: 36px; }
         }
         @media (max-width: 480px) { .accueil-kpis { grid-template-columns: 1fr; } }
+        /* ═══ Entrepôt : étagères et rangement ═══ */
+        .emp-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin: 3px 0; }
+        .emp-chip { display: inline-flex; align-items: baseline; gap: 2px; padding: 1px 7px; border-radius: 5px; background: #e8f1e6; color: #1f4a1b; font-size: 12.5px; font-weight: 700; border: 1px solid #c4dbbf; }
+        .emp-chip small { font-weight: 500; font-size: 11px; color: #3c6b36; }
+        body.dark-theme .emp-chip { background: #1f3a1c; color: #c8e6c2; border-color: #2f5a2a; }
+        body.dark-theme .emp-chip small { color: #a5cf9e; }
+        .emp-panneau { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: 16px; }
+        .emp-panneau h3 { font-size: 15px; margin: 0 0 6px; color: var(--text-1); }
+        .emp-form { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .emp-form > div { flex: 1 1 120px; min-width: 0; }
+        .emp-form label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-1); margin-bottom: 4px; }
+        .emp-form input, .emp-form select { width: 100%; box-sizing: border-box; min-height: 40px; padding: 0 10px; border-radius: var(--radius); border: 1.5px solid var(--border); background: var(--bg-elevated); color: var(--text-1); font: inherit; font-size: 15px; }
+        .emp-actif { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px; color: var(--text-1); }
+        .emp-actif strong { font-size: 20px; color: var(--brand); }
+        .rg-feedback { margin-top: 10px; font-size: 13px; }
+        .rg-ligne { padding: 6px 10px; border-radius: 6px; margin-top: 4px; }
+        .rg-ligne.ok { background: #e8f5ec; color: #17603a; } .rg-ligne.ko { background: #fde8e5; color: #8f1d12; } .rg-ligne.info { background: var(--bg-subtle); color: var(--text-1); }
+        body.dark-theme .rg-ligne.ok { background: #173d27; color: #a5e0bb; } body.dark-theme .rg-ligne.ko { background: #5a1f1a; color: #ffc9c2; }
+        .emp-rangee { margin-bottom: 14px; }
+        .emp-rangee-titre { font-weight: 700; font-size: 13.5px; color: var(--text-2); margin-bottom: 6px; }
+        .emp-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+        .emp-case { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-elevated); cursor: pointer; font: inherit; text-align: left; }
+        .emp-case strong { font-size: 18px; color: var(--text-1); }
+        .emp-case span { font-size: 12px; color: var(--text-2); }
+        .emp-case:hover { border-color: var(--brand); box-shadow: var(--shadow); }
+        .emp-case.vide { background: var(--bg-subtle); }
+        .emp-case.vide strong { color: var(--text-2); }
+        .vente-emp { margin-top: 8px; font-size: 13.5px; }
+        @media (max-width: 768px) { .emp-form > div { flex: 1 1 100%; max-width: none !important; } .emp-form input, .emp-form select { min-height: 48px; font-size: 17px; } }
         /* Retours */
         .retours-aide { background: var(--info-bg); border: 1px solid rgba(52,152,219,.3); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 15px; font-size: 13.5px; color: var(--text-1); }
         .retours-import { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 15px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-subtle); font-size: 13.5px; }
@@ -1771,6 +1800,66 @@
                     <div id="ventes-container"></div>
                 </div>
 
+                <!-- ══════ ENTREPÔT ══════ -->
+                <div id="entrepot" class="tab-content">
+                    <div class="section-header">
+                        <div><h2>Entrepôt</h2><div class="resume-ligne" id="entrepot-resume"></div></div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <button type="button" class="scan-button" onclick="basculerPanneau('emp-panneau-ranger')">Mode rangement</button>
+                            <button type="button" class="scan-button export" onclick="basculerPanneau('emp-panneau-etiquettes')">Imprimer des étiquettes</button>
+                            <button type="button" class="scan-button export" onclick="basculerPanneau('emp-panneau-creer')">Créer des étagères</button>
+                        </div>
+                    </div>
+                    <div class="retours-aide" id="entrepot-aide-migration" style="display:none;">Pour utiliser l'entrepôt, exécutez <strong>migration-entrepot.sql</strong> dans Supabase (SQL Editor), puis rechargez la page.</div>
+
+                    <div id="emp-panneau-ranger" class="emp-panneau" style="display:none;">
+                        <h3>Mode rangement</h3>
+                        <p class="sous-prix">1. Scannez l'étiquette de l'étagère (ou tapez son code). 2. Scannez chaque produit que vous y posez : une unité par scan, ou indiquez la quantité avant. Une douchette USB fonctionne aussi.</p>
+                        <div class="emp-form">
+                            <div><label for="rg-etagere">Étagère</label><input id="rg-etagere" list="sr-emp-codes" placeholder="A1" autocomplete="off" style="text-transform:uppercase;" onkeydown="if(event.key==='Enter'){event.preventDefault();choisirEtagere(this.value);}" onchange="choisirEtagere(this.value)"></div>
+                            <div style="flex:2;"><label for="rg-ean">Code-barres du produit</label><input id="rg-ean" inputmode="numeric" autocomplete="off" placeholder="Scannez ou tapez l'EAN" onkeydown="if(event.key==='Enter'){event.preventDefault();rangerScan(this.value, document.getElementById('rg-qte').value);}"></div>
+                            <div style="max-width:90px;"><label for="rg-qte">Quantité</label><input id="rg-qte" type="number" min="1" value="1"></div>
+                            <div style="align-self:flex-end;"><button type="button" class="scan-button" onclick="rangerScan(document.getElementById('rg-ean').value, document.getElementById('rg-qte').value)">Ranger</button></div>
+                        </div>
+                        <div class="emp-actif">Étagère en cours : <strong id="rg-etagere-active">aucune</strong> <button type="button" id="rg-camera-btn" class="scan-button export" onclick="demarrerCameraRangement()">Scanner avec la caméra</button></div>
+                        <video id="rg-video" autoplay playsinline muted style="display:none;width:100%;max-width:420px;border-radius:10px;margin-top:10px;"></video>
+                        <div id="rg-feedback" class="rg-feedback"></div>
+                    </div>
+
+                    <div id="emp-panneau-etiquettes" class="emp-panneau" style="display:none;">
+                        <h3>Étiquettes d'étagères (Brother QL-700)</h3>
+                        <div class="emp-form">
+                            <div><label for="emp-etq-format">Rouleau</label><select id="emp-etq-format"><option value="62x29">62 × 29 mm (DK-11209)</option><option value="90x29">90 × 29 mm (DK-11201)</option><option value="62x100">62 × 100 mm (DK-11202)</option></select></div>
+                            <div style="max-width:110px;"><label for="emp-etq-de">De</label><input id="emp-etq-de" list="sr-emp-codes" placeholder="A1" style="text-transform:uppercase;"></div>
+                            <div style="max-width:110px;"><label for="emp-etq-a">À</label><input id="emp-etq-a" list="sr-emp-codes" placeholder="F5" style="text-transform:uppercase;"></div>
+                            <div style="align-self:flex-end;"><label style="display:flex;gap:6px;align-items:center;font-weight:400;"><input type="checkbox" id="emp-etq-qr" checked> QR code</label></div>
+                            <div style="align-self:flex-end;"><button type="button" class="scan-button" onclick="imprimerEtiquettesSelection()">Imprimer</button></div>
+                        </div>
+                        <p class="sous-prix">Laissez « De » et « À » vides pour toutes les étagères. Le QR code se scanne en mode rangement pour choisir l'étagère sans rien taper.</p>
+                    </div>
+
+                    <div id="emp-panneau-creer" class="emp-panneau" style="display:none;">
+                        <h3>Créer des étagères</h3>
+                        <div class="emp-form">
+                            <div style="max-width:90px;"><label for="emp-lettre-de">Lettres de</label><input id="emp-lettre-de" value="A" maxlength="1" style="text-transform:uppercase;" oninput="apercuCreation()"></div>
+                            <div style="max-width:90px;"><label for="emp-lettre-a">à</label><input id="emp-lettre-a" value="F" maxlength="1" style="text-transform:uppercase;" oninput="apercuCreation()"></div>
+                            <div style="max-width:90px;"><label for="emp-niv-de">Niveaux de</label><input id="emp-niv-de" type="number" min="0" value="1" oninput="apercuCreation()"></div>
+                            <div style="max-width:90px;"><label for="emp-niv-a">à</label><input id="emp-niv-a" type="number" min="0" value="5" oninput="apercuCreation()"></div>
+                            <div><label for="emp-libelle">Zone (facultatif)</label><input id="emp-libelle" placeholder="ex. Fond du local"></div>
+                            <div style="align-self:flex-end;"><button type="button" class="scan-button" onclick="creerEtageresSerie()">Créer</button></div>
+                        </div>
+                        <p class="sous-prix" id="emp-creer-apercu">30 étagère(s) : A1, A2, A3, A4, A5, B1, B2, B3…</p>
+                        <div class="emp-form" style="margin-top:6px;">
+                            <div style="max-width:160px;"><label for="emp-code-unique">Ou une seule</label><input id="emp-code-unique" placeholder="ex. G1" style="text-transform:uppercase;"></div>
+                            <div style="align-self:flex-end;"><button type="button" class="scan-button export" onclick="creerEtagereUnique()">Ajouter</button></div>
+                        </div>
+                    </div>
+
+                    <div id="entrepot-pastilles" class="pastilles" role="group" aria-label="Vue de l'entrepôt"></div>
+                    <div class="search-filters" style="padding:10px;"><input type="text" class="search-input" id="entrepot-search" placeholder="Nom, EAN ou ASIN (vous pouvez scanner)…" oninput="displayEntrepot()" style="display:none;width:100%;"></div>
+                    <div id="entrepot-container"></div>
+                </div>
+
                 <!-- ══════ RÉASSORT ══════ -->
                 <div id="reassort" class="tab-content">
                     <div class="section-header">
@@ -2359,7 +2448,7 @@
         <button type="button" data-nav="dashboard" onclick="switchTab('dashboard')"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg><span>Accueil</span></button>
         <button type="button" data-nav="achats" onclick="allerAchatsEnAttente()"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/></svg><span>Réception</span></button>
         <button type="button" data-nav="scan" class="nav-scan" onclick="openQuickScan()"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 011-1h2M17 4h2a1 1 0 011 1v2M20 17v2a1 1 0 01-1 1h-2M7 20H5a1 1 0 01-1-1v-2M8 8v8M12 8v8M16 8v8"/></svg><span>Scanner</span></button>
-        <button type="button" data-nav="stock" onclick="switchTab('stock')"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/></svg><span>Stock</span></button>
+        <button type="button" data-nav="entrepot" onclick="switchTab('entrepot');setTimeout(function(){var p=document.getElementById('emp-panneau-ranger');if(p&&p.style.display==='none')basculerPanneau('emp-panneau-ranger');},50)"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/></svg><span>Ranger</span></button>
         <button type="button" data-nav="inventaire" onclick="switchTab('inventaire')"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/></svg><span>Inventaire</span></button>
     </nav>
     </div><!-- /app-container -->
@@ -2370,10 +2459,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261114-8"></script>
-    <script src="app-cloud.js?v=20261114-8"></script>
-    <script src="app-analyse.js?v=20261114-8"></script>
-    <script src="auth.js?v=20261114-8"></script>
+    <script src="config.js?v=20261114-9"></script>
+    <script src="app-cloud.js?v=20261114-9"></script>
+    <script src="app-analyse.js?v=20261114-9"></script>
+    <script src="app-entrepot.js?v=20261114-9"></script>
+    <script src="auth.js?v=20261114-9"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {
