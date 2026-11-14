@@ -794,3 +794,45 @@ function majBlocsAccueil() {
                 : '<p class="kpi-sous">Aucune vente sur la période.</p>');
     }
 }
+
+// ═══════ Saisie des coûts des ventes sans prix d'achat (par produit) ═══════
+function cleCout(v) {
+    const m = String(v.notes || '').match(/ASIN:([A-Z0-9]{10})/);
+    if (m) return 'A:' + m[1];
+    if (v.produit_id) { const p = products.find(x => x.id === v.produit_id); if (p) return cleProduit(p); }
+    return v.produit_ean ? 'E:' + v.produit_ean : 'N:' + (v.produit_nom || '');
+}
+function panneauSaisieCouts(liste) {
+    const g = new Map();
+    liste.filter(v => !(v.prix_achat_unitaire > 0)).forEach(v => {
+        const k = cleCout(v);
+        if (!g.has(k)) g.set(k, { k, nom: v.produit_nom || '', ids: [], unites: 0, ca: 0 });
+        const x = g.get(k); x.ids.push(v.id); x.unites += v.quantite || 1; x.ca += v.prix_total || 0;
+    });
+    const groupes = [...g.values()].sort((a, b) => b.ca - a.ca);
+    if (!groupes.length) return '';
+    window._groupesCouts = groupes;
+    const lignes = groupes.slice(0, 150).map((x, i) => {
+        const code = x.k.slice(2);
+        return `<tr style="cursor:default;"><td class="c-prod"><div class="achat-nom">${escapeHtml(x.nom || '-')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(code, x.k[0] === 'A' ? 'ASIN' : 'EAN')}<span class="code-lib">${x.k[0] === 'A' ? 'ASIN' : x.k[0] === 'E' ? 'EAN' : ''}</span><span>${escapeHtml(code)}</span></span></div></td>
+            <td class="num" data-l="Ventes">${x.ids.length}</td><td class="num" data-l="Unités">${x.unites}</td><td class="num" data-l="CA">${fmtEur(x.ca)}</td>
+            <td class="c-actions"><div style="display:flex;gap:6px;align-items:center;"><input type="number" step="0.01" min="0" id="cout-${i}" placeholder="Coût TTC / u." class="search-input" style="width:120px;min-width:0;"><button type="button" class="btn-recep" style="margin:0;" onclick="appliquerCout(${i})">Appliquer</button></div></td></tr>`;
+    }).join('');
+    return `<div class="emp-panneau"><h3>Saisir les coûts manquants</h3><p class="sous-prix">${groupes.length} produit(s) vendu(s) sans prix d'achat connu, triés par chiffre d'affaires. Saisissez le coût unitaire TTC : le bénéfice de toutes leurs ventes est recalculé.</p>
+        <div class="products-table" style="margin-top:8px;"><table class="achats-table"><thead><tr><th>Produit</th><th class="num">Ventes</th><th class="num">Unités</th><th class="num">CA</th><th>Coût unitaire</th></tr></thead><tbody>${lignes}</tbody></table></div>${groupes.length > 150 ? `<p class="sous-prix">… et ${groupes.length - 150} autres : traitez les premiers puis revenez.</p>` : ''}</div>`;
+}
+async function appliquerCout(i) {
+    const x = (window._groupesCouts || [])[i];
+    const cout = parseFloat(String(document.getElementById('cout-' + i)?.value || '').replace(',', '.'));
+    if (!x || !(cout > 0)) return toastError('Coût invalide', 'Saisissez un coût unitaire supérieur à 0.');
+    let ok = 0;
+    for (const id of x.ids) {
+        const v = ventes.find(y => y.id === id); if (!v) continue;
+        const benefice = parseFloat(((v.prix_total || 0) - cout * (v.quantite || 1) - (v.frais || 0)).toFixed(2));
+        const { error } = await sb.from('ventes').update({ prix_achat_unitaire: cout, benefice }).eq('id', id);
+        if (error) { toastError('Erreur', error.message); break; }
+        v.prix_achat_unitaire = cout; v.benefice = benefice; ok++;
+    }
+    toastSuccess('Coût appliqué', `${ok} vente(s) recalculée(s) pour ${x.nom}.`);
+    displayVentes(); updateDashboard();
+}

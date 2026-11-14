@@ -2886,15 +2886,18 @@ let amazonImportEnCours = false;
 
 async function confirmAmazonImport() {
     if (amazonImportEnCours) return toastWarning('Import en cours', 'Patientez, les ventes sont en train d\'être enregistrées…');
-    let lignes = (amazonImportData || []).filter(l => l.etat === 'ok' && l.produit);
-    if (!lignes.length) return toastError('Rien à importer', 'Aucune ligne valide (vérifiez que vos produits ont bien leur ASIN renseigné).');
-
     const fraisPct = parseFloat(document.getElementById('amz-frais-pct')?.value) || 0;
     const historique = document.getElementById('amz-historique')?.checked || false;
     if (historique) {
-        if (!await srConfirm(`Importer ${lignes.length} vente(s) Amazon passée(s) ?\n\nLe stock ne sera PAS modifié : ces ventes servent aux chiffres (CA, bénéfice, réassort, classement).\nLe prix d'achat vient de la fiche produit entrée en stock avant la vente.`, 'Importer des ventes passées')) return;
-        return importerVentesPassees(lignes, fraisPct);
+        // Ventes passées : on prend aussi celles dont le produit n'a pas (plus) de fiche, bénéfice à 0 tant que le coût est inconnu
+        const passees = (amazonImportData || []).filter(l => (l.etat === 'ok' && l.produit) || l.etat === 'introuvable');
+        if (!passees.length) return toastError('Rien à importer', 'Aucune ligne valide dans ce rapport.');
+        const sansFiche = passees.filter(l => l.etat === 'introuvable').length;
+        if (!await srConfirm(`Importer ${passees.length} vente(s) Amazon passée(s) ?\n\nLe stock ne sera PAS modifié : ces ventes servent aux chiffres (CA, bénéfice, réassort, classement).\n${passees.length - sansFiche} avec leur fiche produit (prix d'achat de la fiche).` + (sansFiche ? `\n${sansFiche} sans fiche produit : bénéfice à 0 tant que vous n'avez pas saisi leur coût (Ventes › filtre « Sans prix d'achat »).` : ''), 'Importer des ventes passées')) return;
+        return importerVentesPassees(passees, fraisPct);
     }
+    let lignes = (amazonImportData || []).filter(l => l.etat === 'ok' && l.produit);
+    if (!lignes.length) return toastError('Rien à importer', 'Aucune ligne valide (vérifiez que vos produits ont bien leur ASIN renseigné).');
     const nbManqueAvant = lignes.filter(l => l.manque > 0).length;
     const msg = `Importer ${lignes.length} vente(s) Amazon ?\n\n- Le stock FBA/FBM sera décrémenté (fiche la plus ancienne d'abord)\n` + (nbManqueAvant ? `- ⚠️ ${nbManqueAvant} vente(s) dépassent le stock du canal : elles seront enregistrées, mais le stock manquant ne pourra pas être déduit\n` : '') + `- Les ventes seront ajoutées à l'historique\n- Frais estimés : ${fraisPct}% du prix de vente\n\nL'import prend environ 1 seconde par vente — laissez la page ouverte jusqu'au message de fin.`;
     if (!await srConfirm(msg, 'Importer les ventes Amazon')) return;
@@ -2996,15 +2999,17 @@ async function importerVentesPassees(lignes, fraisPct) {
         const aInserer = [];
         for (const l of lignes) {
             const candidats = amzCandidatsALaDate((l.candidatIds || []).map(id => parId.get(id)).filter(Boolean), l.date);
-            const p = amzTrierCandidats(candidats, l.canal)[0];
-            if (!p) continue;
+            const p = amzTrierCandidats(candidats, l.canal)[0] || null;
             const prixUnit = parseFloat(l.prixUnit.toFixed(2)), prixTotal = parseFloat((prixUnit * l.qte).toFixed(2));
-            const frais = parseFloat((prixTotal * fraisPct / 100).toFixed(2)), pa = p.prix_achat || 0;
+            const frais = parseFloat((prixTotal * fraisPct / 100).toFixed(2)), pa = p ? (p.prix_achat || 0) : 0;
             const v = {
-                user_id: uid, produit_id: p.id, produit_ean: p.ean || '', produit_nom: p.nom || l.nom || '',
+                user_id: uid, produit_id: p ? p.id : null, produit_ean: p ? (p.ean || '') : '', produit_nom: (p && p.nom) || l.nom || '',
                 canal: l.canal, quantite: l.qte, prix_unitaire: prixUnit, prix_total: prixTotal,
-                prix_achat_unitaire: pa, frais, benefice: parseFloat(((prixUnit - pa) * l.qte - frais).toFixed(2)),
-                date_vente: l.date, notes: 'Import Amazon (vente passée, stock non modifié)', amazon_order_id: l.cle,
+                prix_achat_unitaire: pa, frais,
+                // Coût inconnu : bénéfice à 0 (jamais gonflé) jusqu'à la saisie du coût
+                benefice: pa > 0 ? parseFloat(((prixUnit - pa) * l.qte - frais).toFixed(2)) : 0,
+                date_vente: l.date, amazon_order_id: l.cle,
+                notes: p ? 'Import Amazon (vente passée, stock non modifié)' : `Import Amazon (vente passée, sans fiche produit) · ASIN:${l.asin || ''} · SKU:${l.sku || ''}`,
             };
             if (ventesMarketplaceOk && l.marketplace) v.marketplace = l.marketplace;
             aInserer.push(v);
@@ -3321,7 +3326,7 @@ async function confirmFraisImport() {
             i++;
             if (btn) btn.innerHTML = `⏳ Application… ${i} / ${lignes.length}`;
             const v = l.vente;
-            const benefice = parseFloat(((v.prix_total || 0) - (v.prix_achat_unitaire || 0) * (v.quantite || 1) - l.frais).toFixed(2));
+            const benefice = (v.prix_achat_unitaire || 0) > 0 ? parseFloat(((v.prix_total || 0) - (v.prix_achat_unitaire || 0) * (v.quantite || 1) - l.frais).toFixed(2)) : 0;
             const notes = (v.notes || '').includes('frais réels') ? v.notes : ((v.notes || '') + ' · frais réels').trim();
             const maj = { frais: l.frais, benefice, notes };
             if (ventesMarketplaceOk && l.marketplace) maj.marketplace = l.marketplace;
@@ -3648,8 +3653,9 @@ function displayVentes() {
         c.innerHTML = '<div class="empty-state"><h3>Aucune vente</h3><p>Les ventes apparaîtront ici après chaque enregistrement.</p></div>';
         return;
     }
+    const panneauCouts = (ventesFiltreCout && typeof panneauSaisieCouts === 'function') ? panneauSaisieCouts(list) : '';
 
-    let h = '<div class="products-table"><table class="achats-table ventes-table"><thead><tr><th>Date</th><th>Produit</th><th>Canal</th><th class="num">Qté</th><th class="num">Prix unit.</th><th class="num">Total</th><th class="num">Frais</th><th class="num">Bénéfice</th><th>Notes</th></tr></thead><tbody>';
+    let h = panneauCouts + '<div class="products-table"><table class="achats-table ventes-table"><thead><tr><th>Date</th><th>Produit</th><th>Canal</th><th class="num">Qté</th><th class="num">Prix unit.</th><th class="num">Total</th><th class="num">Frais</th><th class="num">Bénéfice</th><th>Notes</th></tr></thead><tbody>';
     const cleVentes = [q, canal, dateFrom, dateTo, ventesFiltreCout].join('|');
     if (cleVentes !== ventesCleFiltres) { ventesCleFiltres = cleVentes; ventesPage = 1; }
     const VENTES_PAR_PAGE = 50, ventesPages = Math.max(1, Math.ceil(list.length / VENTES_PAR_PAGE));
