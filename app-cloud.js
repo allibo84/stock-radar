@@ -3119,6 +3119,7 @@ function previewFraisImport(input) {
     reader.onload = async function(e) {
         try {
             cancelFraisImport(true);
+            document.getElementById('frais-apply-btn').style.display = '';
             if (typeof chargerTauxBce === 'function') await chargerTauxBce();
             document.getElementById('frais-file-name').textContent = file.name;
             const all = parseCSVQuoted(e.target.result);
@@ -3376,7 +3377,15 @@ async function confirmFraisImport() {
         }
         if (aEcrire.length < lignes.length) toastInfo('Déjà à jour', `${lignes.length - aEcrire.length} vente(s) avaient déjà ces frais réels.`);
         toastSuccess('Frais appliqués', `${ok} vente(s) mise(s) à jour avec les frais réels` + (erreurs ? ` · ${erreurs} erreur(s)` : ''));
-        cancelFraisImport();
+        // On ne referme que l'aperçu des frais : les remboursements et opérations du même rapport
+        // restent proposés s'ils n'ont pas encore été enregistrés.
+        const resteAEnregistrer = (retoursImportData || []).some(x => x.nouveau) || (typeof opsImportData !== 'undefined' && (opsImportData || []).some(x => x.nouveau));
+        if (resteAEnregistrer) {
+            fraisImportData = null;
+            document.getElementById('frais-preview-table').innerHTML = '<p style="color:var(--success);font-weight:600;">Frais réels appliqués. Enregistrez aussi les remboursements et opérations ci-dessous.</p>';
+            document.getElementById('frais-apply-btn').style.display = 'none';
+        }
+        else cancelFraisImport();
         await loadVentes();
         updateDashboard();
     } finally {
