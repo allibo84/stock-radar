@@ -732,11 +732,13 @@ function majTendancesEtResultat() {
         const rfba = ops.filter(o => o.categorie === 'remboursement_fba').reduce((s, o) => s + (Number(o.total) || 0), 0);
         const fraisAmz = ops.filter(o => o.categorie !== 'remboursement_fba').reduce((s, o) => s + (Number(o.total) || 0), 0);
         const ch = chargesInternesPeriode(debut, fin);
-        const resultat = actu.benefice + actu.remb + rfba + fraisAmz - ch.ponctuel - ch.abonnements;
+        const devOk = typeof recupereRetoursPeriode === 'function' && retoursDevenirOk === true;
+        const recup = devOk ? recupereRetoursPeriode(debut, fin) : 0;
+        const resultat = actu.benefice + actu.remb + recup + rfba + fraisAmz - ch.ponctuel - ch.abonnements;
         const L = (lib, v, aide) => { if (Math.abs(v) < 0.005) v = 0; return `<div class="resultat-ligne"><span>${lib}${aide ? `<small>${aide}</small>` : ''}</span><span class="${v < 0 ? 'neg' : v > 0 ? 'pos' : ''}">${v > 0 ? '+' : ''}${fmtEur(v)}</span></div>`; };
         zone.innerHTML = `<h3>Résultat après retours et charges</h3>
             ${L('Bénéfice des ventes', actu.benefice)}
-            ${L('Remboursements clients', actu.remb, 'montant net débité par Amazon ; les produits revenus en stock ne sont pas recomptés')}
+            ${devOk ? L('Perte réelle sur retours', actu.remb + recup, `${fmtEur(actu.remb)} repris par Amazon, ${fmtEur(recup)} récupérés (revenus en stock Amazon, reventes) ; les remboursements FBA sont dans leur ligne`) : L('Remboursements clients', actu.remb, 'montant net débité par Amazon ; les produits revenus en stock ne sont pas recomptés')}
             ${opsTableAbsente ? '<div class="resultat-ligne"><span>Remboursements FBA et frais Amazon hors ventes<small>exécutez migration-amazon-v2.sql pour les compter</small></span><span>–</span></div>' : L('Remboursements FBA', rfba, 'stock perdu ou abîmé payé par Amazon') + L('Frais Amazon hors ventes', fraisAmz, 'transport entrant, stockage, abonnement, étiquettes…')}
             ${L('Fournitures', -ch.ponctuel)}
             ${L('Abonnements', -ch.abonnements, 'saisis dans Fournitures & frais, ramenés à la période')}

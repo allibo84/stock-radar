@@ -975,6 +975,25 @@
         .scan-button.danger, .scan-button.stop { background: var(--bg-elevated); color: #a52a1d; border-color: #c0392b; }
         .ico-vendre { background: #1e8449; color: #fff; }
         .ico-voir { background: var(--bg-elevated); color: var(--text-1); border: 1px solid var(--border-strong); }
+        .retours-bilan { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .retours-bilan > div { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+        .retours-bilan span { font-size: 12.5px; color: var(--text-2); }
+        .retours-bilan strong { font-size: 19px; font-variant-numeric: tabular-nums; color: var(--text-1); }
+        .retours-bilan strong.neg { color: var(--danger); } .retours-bilan strong.pos { color: var(--success); }
+        .retours-bilan small { font-size: 11.5px; color: var(--text-2); }
+        .retours-actions { white-space: nowrap; text-align: right; }
+        .retours-actions .pill-btn { margin-left: 4px; }
+        .devenir-liste { border: none; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 6px; }
+        .devenir-liste legend { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--text-1); }
+        .devenir-choix { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+        .devenir-choix:has(input:checked) { border-color: var(--brand); background: var(--bg-hover, #eef1f4); }
+        .devenir-choix input { margin-top: 3px; }
+        .devenir-choix small { display: block; font-size: 12px; color: var(--text-2); }
+        .devenir-revente { flex-direction: column; gap: 8px; margin-bottom: 10px; font-size: 13px; color: var(--text-2); }
+        .devenir-revente label { display: flex; flex-direction: column; gap: 4px; }
+        label.devenir-revente { gap: 4px; }
+        .scan-retour-ligne { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
+        @media (max-width: 760px) { .retours-bilan { grid-template-columns: repeat(2, minmax(0, 1fr)); } .retours-actions { text-align: left; } }
         .pastilles-sep { align-self: center; color: var(--text-2); font-size: 13px; padding: 0 2px 0 8px; }
         .pill-info { background: #e1ecf7; color: #173f66; }
         .pill-neutre { background: var(--bg-hover, #eef1f4); color: var(--text-1); }
@@ -1932,9 +1951,17 @@
                             <h2>Retours et remboursements</h2>
                             <div class="resume-ligne" id="retours-resume"></div>
                         </div>
-                        <button class="scan-button export" onclick="exportRetours()">Exporter</button>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="scan-button" onclick="openScanRetour()">Réceptionner un retour</button>
+                            <label class="scan-button export" style="cursor:pointer;" title="Seller Central > Rapports > Expédié par Amazon > Retours clients"><span>Rapport des retours Amazon</span><input type="file" id="retours-rapport-input" accept=".txt,.tsv,.csv" style="display:none;" onchange="previewRapportRetours(this)"></label>
+                            <button class="scan-button export" onclick="appliquerRemboursementsFba()" title="Retours jamais revenus que Amazon vous a payés">Rapprocher les remboursements FBA</button>
+                            <button class="scan-button export" onclick="exportRetours()">Exporter</button>
+                        </div>
                     </div>
                     <div id="retours-aide" class="retours-aide" style="display:none;"></div>
+                    <div id="retours-rapport-bloc" class="retours-import" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;"><span class="txt" style="flex:1;min-width:240px;"></span><button class="scan-button" onclick="confirmRapportRetours()">Mettre à jour</button></div>
+                    <div id="retours-bilan"></div>
+                    <div class="pastilles" id="retours-devenir"></div>
                     <div class="search-filters" style="margin-bottom:15px;">
                         <div class="search-row">
                             <input type="text" class="search-input" id="retours-search" placeholder="Rechercher un produit, une commande, un SKU…" oninput="retoursPage = 1; displayRetours()">
@@ -2463,11 +2490,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261114-12"></script>
-    <script src="app-cloud.js?v=20261114-12"></script>
-    <script src="app-analyse.js?v=20261114-12"></script>
-    <script src="app-entrepot.js?v=20261114-12"></script>
-    <script src="auth.js?v=20261114-12"></script>
+    <script src="config.js?v=20261114-13"></script>
+    <script src="app-cloud.js?v=20261114-13"></script>
+    <script src="app-analyse.js?v=20261114-13"></script>
+    <script src="app-entrepot.js?v=20261114-13"></script>
+    <script src="app-retours.js?v=20261114-13"></script>
+    <script src="auth.js?v=20261114-13"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {

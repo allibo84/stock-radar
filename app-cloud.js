@@ -192,6 +192,7 @@ async function loadRetours() {
         if (!data || data.length < 1000) break;
     }
     retours = lignes;
+    if (typeof verifierDevenirRetours === 'function' && !retoursTableAbsente) { retoursDevenirOk = null; await verifierDevenirRetours(); }
     if (document.getElementById('retours')?.classList.contains('active')) displayRetours();
     updateDashboard();
 }
@@ -256,6 +257,7 @@ function displayRetours() {
     }
 
     const list = retoursFiltres();
+    if (typeof majDevenirRetours === 'function') majDevenirRetours(list);
     const unites = list.reduce((s, r) => s + (r.quantite || 0), 0);
     const rembourse = list.reduce((s, r) => s + (r.montant_produit || 0), 0);
     const net = list.reduce((s, r) => s + (r.total || 0), 0);
@@ -295,24 +297,29 @@ function displayRetours() {
         if (cv) charts.retoursMois = new Chart(cv, { type: 'bar', data: { labels: cles.map(k => new Date(+k.slice(0, 4), +k.slice(5) - 1, 1).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })), datasets: [{ label: 'Unités retournées', data: cles.map(k => parMois[k]), backgroundColor: 'rgba(192,57,43,0.75)' }] }, options: { responsive: true, plugins: { legend: { display: false } } } });
     }
 
-    if (!list.length) { c.innerHTML = retours.length ? '<div class="empty-state"><h3>Aucun retour ne correspond à ces filtres</h3></div>' : ''; return; }
-    const PAR_PAGE = 50, totalPages = Math.max(1, Math.ceil(list.length / PAR_PAGE));
+    const listeTable = typeof filtrerParDevenir === 'function' ? filtrerParDevenir(list) : list;
+    if (!listeTable.length) { c.innerHTML = retours.length ? '<div class="empty-state"><h3>Aucun retour ne correspond à ces filtres</h3></div>' : ''; return; }
+    const devenirOk = typeof pillDevenir === 'function' && retoursDevenirOk !== false;
+    const PAR_PAGE = 50, totalPages = Math.max(1, Math.ceil(listeTable.length / PAR_PAGE));
     if (retoursPage > totalPages) retoursPage = totalPages;
     const debut = (retoursPage - 1) * PAR_PAGE;
-    let h = '<div class="products-table"><table class="achats-table"><thead><tr><th>Date</th><th>Produit</th><th>Pays</th><th class="num">Qté</th><th class="num">Produit remboursé</th><th class="num">Effet net</th></tr></thead><tbody>';
-    list.slice(debut, debut + PAR_PAGE).forEach(r => {
-        h += `<tr style="cursor:default;">
+    let h = '<div class="products-table"><table class="achats-table retours-table"><thead><tr><th>Date</th><th>Produit</th><th>Pays</th><th class="num">Qté</th><th class="num">Repris par Amazon</th>' + (devenirOk ? '<th>Devenir</th><th class="num">Perte réelle</th><th></th>' : '<th class="num">Produit remboursé</th>') + '</tr></thead><tbody>';
+    listeTable.slice(debut, debut + PAR_PAGE).forEach(r => {
+        const aTraiter = devenirOk && !r.devenir;
+        h += `<tr style="cursor:${devenirOk ? 'pointer' : 'default'};" ${devenirOk ? `onclick="openDevenirRetour(${r.id})"` : ''}>
             <td style="white-space:nowrap;">${r.date_retour ? new Date(r.date_retour).toLocaleDateString('fr-FR') : '-'}</td>
             <td><div class="achat-nom">${escapeHtml(r.produit_nom || 'Produit non identifié')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(r.amazon_order_id, 'n° de commande')}<span class="code-lib">Commande</span><span>${escapeHtml(r.amazon_order_id || '-')}</span></span><span class="code-copiable">${boutonCopier(r.sku, 'SKU')}<span class="code-lib">SKU</span><span>${escapeHtml(r.sku || '-')}</span></span>${r.produit_id ? '' : '<span class="pill pill-warn">non rattaché au stock</span>'}</div></td>
             <td>${escapeHtml(paysRetour(r.marketplace))}</td>
             <td class="num"><strong>${r.quantite || 0}</strong></td>
-            <td class="num">${fmtEur(r.montant_produit || 0)}</td>
             <td class="num" style="font-weight:600;color:${(r.total || 0) < 0 ? 'var(--danger)' : 'var(--text-1)'};">${fmtEur(r.total || 0)}</td>
+            ${devenirOk ? `<td>${pillDevenir(r)}${r.disposition && r.devenir_source === 'amazon' ? `<div class="sous-prix" style="margin-top:3px;">${escapeHtml(libRaison(r.raison_retour))}</div>` : ''}</td>
+            <td class="num" style="font-weight:600;color:${perteReelle(r) < 0 ? 'var(--danger)' : 'var(--success)'};">${fmtEur(perteReelle(r))}</td>
+            <td class="retours-actions" onclick="event.stopPropagation()">${aTraiter || r.devenir === 'invendable_amazon' ? `<button type="button" class="pill-btn" onclick="devenirRapide(${r.id},'recu')" title="Le produit est arrivé chez vous">Reçu</button>` : ''}${r.devenir === 'recu' || aTraiter || r.devenir === 'invendable_amazon' ? `<button type="button" class="pill-btn" onclick="openDevenirRetour(${r.id})" title="Revendu, au rebut…">Devenir…</button>` : ''}</td>` : `<td class="num">${fmtEur(r.montant_produit || 0)}</td>`}
         </tr>`;
     });
     h += '</tbody></table></div>';
     if (totalPages > 1) {
-        h += `<div class="pagination-bar"><div class="pagination-info">${debut + 1}–${Math.min(debut + PAR_PAGE, list.length)} sur ${list.length} retours</div><div class="pagination-controls">
+        h += `<div class="pagination-bar"><div class="pagination-info">${debut + 1}–${Math.min(debut + PAR_PAGE, listeTable.length)} sur ${listeTable.length} retours</div><div class="pagination-controls">
             <button class="page-btn" onclick="retoursPage--; displayRetours()" ${retoursPage === 1 ? 'disabled' : ''} aria-label="Page précédente">‹</button>
             <span class="page-btn" style="cursor:default;border:none;">${retoursPage} / ${totalPages}</span>
             <button class="page-btn" onclick="retoursPage++; displayRetours()" ${retoursPage === totalPages ? 'disabled' : ''} aria-label="Page suivante">›</button></div></div>`;
@@ -325,8 +332,9 @@ function exportRetours() {
     if (!list.length) return toastInfo('Rien à exporter', 'Aucun retour dans la sélection.');
     const q = (x) => '"' + String(x ?? '').replace(/"/g, '""') + '"';
     const num = (n) => String((n || 0).toFixed(2)).replace('.', ',');
-    let csv = '﻿Date;Produit;Commande;SKU;Pays;Quantité;Produit remboursé;Effet net\n';
-    list.forEach(r => { csv += [q(r.date_retour || ''), q(r.produit_nom), q(r.amazon_order_id), q(r.sku), q(paysRetour(r.marketplace)), r.quantite || 0, num(r.montant_produit), num(r.total)].join(';') + '\n'; });
+    const avecDevenir = typeof DEVENIRS !== 'undefined' && retoursDevenirOk !== false;
+    let csv = '﻿Date;Produit;Commande;SKU;Pays;Quantité;Produit remboursé;Effet net' + (avecDevenir ? ';Devenir;Canal de revente;Valeur récupérée;Perte réelle;Note' : '') + '\n';
+    list.forEach(r => { csv += [q(r.date_retour || ''), q(r.produit_nom), q(r.amazon_order_id), q(r.sku), q(paysRetour(r.marketplace)), r.quantite || 0, num(r.montant_produit), num(r.total)].concat(avecDevenir ? [q(DEVENIRS[devenirDe(r)].lib), q(r.canal_revente), num(r.valeur_recuperee), num(perteReelle(r)), q(r.note_devenir)] : []).join(';') + '\n'; });
     downloadCSV(csv, 'retours-amazon-' + dateLocaleISO(new Date()) + '.csv');
 }
 
@@ -3514,6 +3522,7 @@ function updateDashboard() {
         }
 
         if (typeof lignesAFaireAnalyse === 'function') lignesAFaireAnalyse(ligne);
+        if (typeof lignesAFaireRetours === 'function') lignesAFaireRetours(ligne);
         alertsDiv.innerHTML = lignes.length ? lignes.join('') : '<span class="kpi-sous">Rien à traiter pour le moment.</span>';
     }
 
