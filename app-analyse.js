@@ -222,9 +222,9 @@ function displayReassort() {
     if (cle !== reassortCleFiltres) { reassortCleFiltres = cle; reassortPage = 1; }
 
     const resume = document.getElementById('reassort-resume');
-    const derniereVente = ventes.reduce((m, v) => String(v.date_vente || '') > m ? String(v.date_vente) : m, '');
+    const derniereVente = ventes.filter(v => String(v.canal || '').startsWith('Amazon')).reduce((m, v) => String(v.date_vente || '') > m ? String(v.date_vente) : m, '');
     if (resume) resume.innerHTML = `${n('a_racheter') + n('rupture')} référence(s) à racheter pour tenir ${reassortCouverture} jours · ${n('dormant')} sans vente depuis 90 jours`
-        + (derniereVente && derniereVente < ilYA(3) ? ` · <span style="color:var(--danger);">dernière vente enregistrée le ${new Date(derniereVente + 'T12:00:00').toLocaleDateString('fr-FR')} : importez les ventes récentes pour des chiffres justes</span>` : '');
+        + (derniereVente && derniereVente < ilYA(3) ? ` · <span style="color:var(--danger);">dernière vente Amazon enregistrée le ${new Date(derniereVente + 'T12:00:00').toLocaleDateString('fr-FR')} : importez les ventes récentes pour des chiffres justes</span>` : '');
 
     if (!liste.length) { c.innerHTML = '<div class="empty-state"><h3>Rien dans ce filtre</h3></div>'; return; }
     const { tranche, page, barre } = paginer(liste, reassortPage, 50, 'reassortGoPage');
@@ -721,7 +721,7 @@ function majTendancesEtResultat() {
         const fraisAmz = ops.filter(o => o.categorie !== 'remboursement_fba').reduce((s, o) => s + (Number(o.total) || 0), 0);
         const ch = chargesInternesPeriode(debut, fin);
         const resultat = actu.benefice + actu.remb + rfba + fraisAmz - ch.ponctuel - ch.abonnements;
-        const L = (lib, v, aide) => `<div class="resultat-ligne"><span>${lib}${aide ? `<small>${aide}</small>` : ''}</span><span class="${v < 0 ? 'neg' : 'pos'}">${v >= 0 ? '+' : ''}${fmtEur(v)}</span></div>`;
+        const L = (lib, v, aide) => { if (Math.abs(v) < 0.005) v = 0; return `<div class="resultat-ligne"><span>${lib}${aide ? `<small>${aide}</small>` : ''}</span><span class="${v < 0 ? 'neg' : v > 0 ? 'pos' : ''}">${v > 0 ? '+' : ''}${fmtEur(v)}</span></div>`; };
         zone.innerHTML = `<h3>Résultat après retours et charges</h3>
             ${L('Bénéfice des ventes', actu.benefice)}
             ${L('Remboursements clients', actu.remb, 'montant net débité par Amazon ; les produits revenus en stock ne sont pas recomptés')}
