@@ -8,7 +8,9 @@
 const TVA_PAYS = {
     FR: ['France', 20], DE: ['Allemagne', 19], IT: ['Italie', 22], ES: ['Espagne', 21], NL: ['Pays-Bas', 21],
     BE: ['Belgique', 21], PL: ['Pologne', 23], SE: ['Suède', 25], IE: ['Irlande', 23], UK: ['Royaume-Uni', 20],
+    AE: ['Émirats arabes unis', 5], SA: ['Arabie saoudite', 15], TR: ['Turquie', 20], US: ['États-Unis', 0],
 };
+const TVA_HORS_UE = new Set(['UK', 'AE', 'SA', 'TR', 'US']);
 let tvaPeriode = '';
 
 function tauxTva(code) {
@@ -113,7 +115,7 @@ function displayTva() {
     lignes.forEach(x => {
         const perso = x.taux !== (TVA_PAYS[x.codeTaux] || [])[1];
         h += `<tr style="cursor:default;">
-            <td data-l="Pays"><strong>${escapeHtml(nomPays(x.code))}</strong>${x.code === 'FR?' ? '<div class="sous-prix">ventes Amazon sans pays connu, comptées au taux français</div>' : ''}${x.code === 'FR' ? '<div class="sous-prix">amazon.fr + Vinted, Leboncoin et ventes saisies à la main</div>' : ''}</td>
+            <td data-l="Pays"><strong>${escapeHtml(nomPays(x.code))}</strong>${x.code === 'FR?' ? '<div class="sous-prix">ventes Amazon sans pays connu, comptées au taux français</div>' : ''}${x.code === 'FR' ? '<div class="sous-prix">amazon.fr + Vinted, Leboncoin et ventes saisies à la main</div>' : ''}${TVA_HORS_UE.has(x.code) ? '<div class="sous-prix">hors UE : Amazon collecte souvent la TVA lui-même, vérifiez sur vos factures Amazon</div>' : ''}</td>
             <td class="num" data-l="Taux"><input type="number" class="tva-taux${perso ? ' perso' : ''}" value="${x.taux}" min="0" max="30" step="0.1" aria-label="Taux de TVA ${escapeHtml(nomPays(x.code))}" title="${perso ? 'Taux modifié par vous' : 'Taux normal du pays'}" onchange="setTauxTva('${x.codeTaux}', this.value)"> %</td>
             <td class="num" data-l="Ventes TTC">${fmtEur(x.ventesTtc)}<div class="sous-prix">${x.nb} vente(s)</div></td>
             <td class="num" data-l="Remboursements">${x.rembTtc ? '−' + fmtEur(x.rembTtc) : '–'}${x.nbRemb ? `<div class="sous-prix">${x.nbRemb} retour(s)</div>` : ''}</td>
