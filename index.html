@@ -1646,7 +1646,7 @@
                     <div class="stats" id="ventes-stats" style="margin-bottom:20px;"></div>
                     <div class="search-filters" style="margin-bottom:15px;">
                         <div class="search-row">
-                            <input type="text" class="search-input" id="ventes-search" placeholder="🔍 Rechercher produit, EAN, canal..." oninput="displayVentes()">
+                            <input type="text" class="search-input" id="ventes-search" placeholder="🔍 Rechercher produit, EAN, ASIN, canal..." oninput="displayVentes()">
                             <select class="search-input" id="ventes-filter-canal" onchange="displayVentes()" style="max-width:180px;">
                                 <option value="">Tous les canaux</option>
                                 <option value="Amazon FBA">Amazon FBA</option>
@@ -2273,9 +2273,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261114-2"></script>
-    <script src="app-cloud.js?v=20261114-2"></script>
-    <script src="auth.js?v=20261114-2"></script>
+    <script src="config.js?v=20261114-3"></script>
+    <script src="app-cloud.js?v=20261114-3"></script>
+    <script src="auth.js?v=20261114-3"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {

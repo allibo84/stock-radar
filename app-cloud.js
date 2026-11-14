@@ -53,6 +53,7 @@ function srConfirm(message, title = 'Confirmer', danger = false) {
 // sb est créé dans config.js
 let fournisseurs = [], achats = [], products = [], mouvements = [], ventes = [], retours = [];
 let retoursTableAbsente = false, retoursPage = 1;
+let ventesPage = 1, ventesCleFiltres = null;
 let currentPhotos = [], currentVenteProductId = null;
 let activeStockView = 'all';
 let stockCurrentPage = 1;
@@ -299,7 +300,7 @@ function displayRetours() {
     list.slice(debut, debut + PAR_PAGE).forEach(r => {
         h += `<tr style="cursor:default;">
             <td style="white-space:nowrap;">${r.date_retour ? new Date(r.date_retour).toLocaleDateString('fr-FR') : '-'}</td>
-            <td><div class="achat-nom">${escapeHtml(r.produit_nom || 'Produit non identifié')}</div><div class="achat-codes"><span><span class="code-lib">Commande</span>${escapeHtml(r.amazon_order_id || '-')}</span><span><span class="code-lib">SKU</span>${escapeHtml(r.sku || '-')}</span>${r.produit_id ? '' : '<span class="pill pill-warn">non rattaché au stock</span>'}</div></td>
+            <td><div class="achat-nom">${escapeHtml(r.produit_nom || 'Produit non identifié')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(r.amazon_order_id, 'n° de commande')}<span class="code-lib">Commande</span><span>${escapeHtml(r.amazon_order_id || '-')}</span></span><span class="code-copiable">${boutonCopier(r.sku, 'SKU')}<span class="code-lib">SKU</span><span>${escapeHtml(r.sku || '-')}</span></span>${r.produit_id ? '' : '<span class="pill pill-warn">non rattaché au stock</span>'}</div></td>
             <td>${escapeHtml(paysRetour(r.marketplace))}</td>
             <td class="num"><strong>${r.quantite || 0}</strong></td>
             <td class="num">${fmtEur(r.montant_produit || 0)}</td>
@@ -530,7 +531,7 @@ function openFournisseurModal(id) {
                     const diff = ((p.ttc - sorted[i-1].ttc) / sorted[i-1].ttc * 100);
                     evol = diff > 0 ? `<span style="color:#e74c3c;">+${diff.toFixed(1)}% ↑</span>` : diff < 0 ? `<span style="color:#27ae60;">${diff.toFixed(1)}% ↓</span>` : '<span style="color:#95a5a6;">= 0%</span>';
                 }
-                h += `<tr><td>${escapeHtml(ean)}</td><td>${escapeHtml(item.nom||'')}</td><td>${p.date ? new Date(p.date).toLocaleDateString('fr-FR') : '-'}</td><td>${(p.ht||0).toFixed(2)}€</td><td>${(p.ttc||0).toFixed(2)}€</td><td>${evol}</td></tr>`;
+                h += `<tr><td>${codeCopiable(ean, 'EAN')}</td><td>${escapeHtml(item.nom||'')}</td><td>${p.date ? new Date(p.date).toLocaleDateString('fr-FR') : '-'}</td><td>${(p.ht||0).toFixed(2)}€</td><td>${(p.ttc||0).toFixed(2)}€</td><td>${evol}</td></tr>`;
             });
         });
         h += '</tbody></table></div>';
@@ -553,7 +554,7 @@ function openFournisseurModal(id) {
         h += `<h3 style="margin:25px 0 10px;">🛒 Derniers achats (${fAchats.length})</h3>
         <div class="products-table"><table><thead><tr><th>Date</th><th>EAN</th><th>Produit</th><th>Qté</th><th>Prix TTC</th><th>Reçu</th></tr></thead><tbody>`;
         fAchats.slice(0, 20).forEach(a => {
-            h += `<tr><td>${a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-'}</td><td>${escapeHtml(a.ean)}</td><td>${escapeHtml(a.nom)}</td><td>${a.quantite||1}</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td>${a.recu ? '✅' : '⏳'}</td></tr>`;
+            h += `<tr><td>${a.date_achat ? new Date(a.date_achat).toLocaleDateString('fr-FR') : '-'}</td><td>${codeCopiable(a.ean, 'EAN')}</td><td>${escapeHtml(a.nom)}</td><td>${a.quantite||1}</td><td>${(a.prix_ttc||0).toFixed(2)}€</td><td>${a.recu ? '✅' : '⏳'}</td></tr>`;
         });
         h += '</tbody></table></div>';
     }
@@ -747,6 +748,11 @@ function boutonCopier(code, libelle) {
     const v = String(code ?? '').trim();
     if (!v || v === '-') return '';
     return `<button type="button" class="copy-code-btn" data-code="${escapeHtml(v)}" data-libelle="${escapeHtml(libelle)}" title="Copier l'${escapeHtml(libelle)}" aria-label="Copier l'${escapeHtml(libelle)}" onclick="event.stopPropagation();copierCode(this)"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg></button>`;
+}
+// Un code (EAN, ASIN, SKU, n° de commande) précédé de son bouton copier
+function codeCopiable(code, libelle) {
+    const v = String(code ?? '').trim();
+    return `<span class="code-copiable">${boutonCopier(v, libelle)}<span>${escapeHtml(v || '-')}</span></span>`;
 }
 async function copierCode(btn) {
     const code = btn.dataset.code || '';
@@ -1883,7 +1889,7 @@ function openProductModal(id) {
 
     body.innerHTML = `
         <h2 style="margin-bottom:5px;">${escapeHtml(p.nom)}</h2>
-        <p style="color:var(--text-secondary);margin-bottom:20px;">EAN: ${escapeHtml(p.ean||'-')}${p.asin ? ' / ASIN: ' + escapeHtml(p.asin) : ''} · ${typeBadge}</p>
+        <p style="color:var(--text-secondary);margin-bottom:20px;">EAN : ${codeCopiable(p.ean, 'EAN')}${p.asin ? ' &nbsp; ASIN : ' + codeCopiable(p.asin, 'ASIN') : ''} · ${typeBadge}</p>
         
         <!-- Zone lecture -->
         <div id="product-view-${p.id}">
@@ -2065,7 +2071,7 @@ function openVenteModal(id) {
     const info = document.getElementById('vente-product-info');
     if (info) {
         info.innerHTML = `<strong>${escapeHtml(p.nom)}</strong><br>
-            <span style="color:var(--text-secondary);">EAN: ${escapeHtml(p.ean||'-')} · Stock: <strong>${p.quantite||0}</strong> (FBA: ${p.qte_fba||0} · FBM: ${p.qte_fbm||0} · Entrepôt: ${p.qte_entrepot||0}) · Prix achat: ${(p.prix_achat||0).toFixed(2)}€</span>`;
+            <span style="color:var(--text-secondary);">EAN : ${codeCopiable(p.ean, 'EAN')} · Stock: <strong>${p.quantite||0}</strong> (FBA: ${p.qte_fba||0} · FBM: ${p.qte_fbm||0} · Entrepôt: ${p.qte_entrepot||0}) · Prix achat: ${(p.prix_achat||0).toFixed(2)}€</span>`;
     }
     
     document.getElementById('vente-prix').value = (p.prix_revente || 0).toFixed(2);
@@ -2342,7 +2348,7 @@ function displayGrossistePreview() {
         const badge = l.exist
             ? `<span style="color:#9a6100;font-weight:700;">↻ ${l.exist.quantite || 0} u.</span>`
             : '<span style="color:#1e7a45;font-weight:700;">+ nouveau</span>';
-        h += `<tr><td>${escapeHtml(l.r.ean)}${l.r.eanManquant ? ' <span style="color:#b4342b;" title="Aucune colonne EAN — ASIN utilisé">⚠️</span>' : ''}</td><td>${escapeHtml(l.r.asin || '-')}</td><td>${escapeHtml(l.r.nom)}</td><td>${l.ht.toFixed(2)}€</td><td>${l.ttc.toFixed(2)}€</td><td>${l.qte}</td><td>${escapeHtml(l.r.categorie)}</td><td>${badge}</td></tr>`;
+        h += `<tr><td>${codeCopiable(l.r.ean, 'EAN')}${l.r.eanManquant ? ' <span style="color:#b4342b;" title="Aucune colonne EAN — ASIN utilisé">⚠️</span>' : ''}</td><td>${codeCopiable(l.r.asin, 'ASIN')}</td><td>${escapeHtml(l.r.nom)}</td><td>${l.ht.toFixed(2)}€</td><td>${l.ttc.toFixed(2)}€</td><td>${l.qte}</td><td>${escapeHtml(l.r.categorie)}</td><td>${badge}</td></tr>`;
     });
     if (lignes.length > 50) h += `<tr><td colspan="8" style="text-align:center;color:var(--text-secondary)">... et ${lignes.length - 50} de plus</td></tr>`;
     h += '</tbody></table></div>';
@@ -2840,7 +2846,7 @@ function displayAmazonPreview() {
             <td>${etatBadge[l.etat] || ''}</td>
             <td>${l.date}</td>
             <td style="font-size:12px;">${escapeHtml(l.orderId)}</td>
-            <td style="font-size:12px;">${escapeHtml(l.asin || l.sku || '-')}</td>
+            <td style="font-size:12px;">${codeCopiable(l.asin || l.sku, l.asin ? 'ASIN' : 'SKU')}</td>
             <td style="font-size:12px;">${escapeHtml((l.nom || '').substring(0, 50))}</td>
             <td>${l.produit ? '<strong>' + escapeHtml(l.produit.nom) + '</strong>' : '<span style="color:#e67e22;">non trouvé</span>'}${l.etat === 'ok' && l.nbFiches > 1 ? `<div style="font-size:11px;color:var(--text-secondary);">réparti sur ${l.nbFiches} fiches (la plus ancienne d'abord)</div>` : ''}${l.etat === 'ok' && l.manque > 0 ? `<div style="font-size:11px;color:#c0392b;font-weight:600;">⚠️ ${l.manque} u. sans stock ${l.canal === 'Amazon FBA' ? 'FBA' : 'FBM'} à déduire</div>` : ''}</td>
             <td>${l.canal === 'Amazon FBA' ? '📦 FBA' : '🏠 FBM'}</td>
@@ -3551,8 +3557,10 @@ function displayVentes() {
     const dateFrom = document.getElementById('ventes-filter-from')?.value || '';
     const dateTo = document.getElementById('ventes-filter-to')?.value || '';
 
+    const asinParProduit = new Map(products.map(p => [p.id, p.asin || '']));
     let list = [...ventes];
-    if (q) list = list.filter(v => (v.produit_nom||'').toLowerCase().includes(q) || (v.produit_ean||'').includes(q) || (v.canal||'').toLowerCase().includes(q));
+    if (q) list = list.filter(v => (v.produit_nom||'').toLowerCase().includes(q) || (v.produit_ean||'').includes(q) || (v.canal||'').toLowerCase().includes(q)
+        || (asinParProduit.get(v.produit_id) || '').toLowerCase().includes(q) || String(v.amazon_order_id || '').toLowerCase().includes(q));
     if (canal) list = list.filter(v => v.canal === canal);
     if (dateFrom) list = list.filter(v => v.date_vente >= dateFrom);
     if (dateTo) list = list.filter(v => v.date_vente <= dateTo);
@@ -3579,14 +3587,19 @@ function displayVentes() {
         return;
     }
 
-    let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>Produit</th><th>EAN</th><th>Canal</th><th>Qté</th><th>Prix unit.</th><th>Total</th><th>Frais</th><th>Bénéfice</th><th>Notes</th></tr></thead><tbody>';
-    list.forEach(v => {
+    let h = '<div class="products-table"><table><thead><tr><th>Date</th><th>Produit</th><th>Canal</th><th>Qté</th><th>Prix unit.</th><th>Total</th><th>Frais</th><th>Bénéfice</th><th>Notes</th></tr></thead><tbody>';
+    const cleVentes = [q, canal, dateFrom, dateTo].join('|');
+    if (cleVentes !== ventesCleFiltres) { ventesCleFiltres = cleVentes; ventesPage = 1; }
+    const VENTES_PAR_PAGE = 50, ventesPages = Math.max(1, Math.ceil(list.length / VENTES_PAR_PAGE));
+    if (ventesPage > ventesPages) ventesPage = ventesPages;
+    const ventesDebut = (ventesPage - 1) * VENTES_PAR_PAGE;
+    list.slice(ventesDebut, ventesDebut + VENTES_PAR_PAGE).forEach(v => {
         const benef = v.benefice || 0;
+        const asinVente = asinParProduit.get(v.produit_id) || '';
         const benefColor = benef > 0 ? 'var(--success)' : benef < 0 ? 'var(--danger)' : 'var(--text-secondary)';
         h += `<tr>
             <td style="font-size:12px;color:var(--text-secondary);">${v.date_vente || '-'}</td>
-            <td><strong>${escapeHtml(v.produit_nom || '-')}</strong></td>
-            <td style="font-size:12px;color:var(--text-secondary);">${escapeHtml(v.produit_ean || '-')}</td>
+            <td><div class="achat-nom">${escapeHtml(v.produit_nom || '-')}</div><div class="achat-codes"><span class="code-copiable">${boutonCopier(v.produit_ean, 'EAN')}<span class="code-lib">EAN</span><span>${escapeHtml(v.produit_ean || '-')}</span></span><span class="code-copiable">${boutonCopier(asinVente, 'ASIN')}<span class="code-lib">ASIN</span><span>${escapeHtml(asinVente || '-')}</span></span></div></td>
             <td><span class="badge badge-neuf" style="font-size:11px;">${escapeHtml(v.canal || 'Autre')}</span></td>
             <td style="text-align:center;font-weight:700;">${v.quantite || 1}</td>
             <td>${(v.prix_unitaire || 0).toFixed(2)}€</td>
@@ -3597,6 +3610,14 @@ function displayVentes() {
         </tr>`;
     });
     h += '</tbody></table></div>';
+    if (ventesPages > 1) {
+        h += `<div class="pagination-bar"><div class="pagination-info">${ventesDebut + 1}–${Math.min(ventesDebut + VENTES_PAR_PAGE, list.length)} sur ${list.length} ventes</div><div class="pagination-controls">
+            <button class="page-btn" onclick="ventesPage = 1; displayVentes()" ${ventesPage === 1 ? 'disabled' : ''} aria-label="Première page">«</button>
+            <button class="page-btn" onclick="ventesPage--; displayVentes()" ${ventesPage === 1 ? 'disabled' : ''} aria-label="Page précédente">‹</button>
+            <span class="page-btn" style="cursor:default;border:none;">${ventesPage} / ${ventesPages}</span>
+            <button class="page-btn" onclick="ventesPage++; displayVentes()" ${ventesPage === ventesPages ? 'disabled' : ''} aria-label="Page suivante">›</button>
+            <button class="page-btn" onclick="ventesPage = ${ventesPages}; displayVentes()" ${ventesPage === ventesPages ? 'disabled' : ''} aria-label="Dernière page">»</button></div></div>`;
+    }
     c.innerHTML = h;
 }
 
@@ -3651,7 +3672,7 @@ function displayMouvements() {
             <td>${date}</td>
             <td><span style="color:${color};font-weight:700;">${icon} ${escapeHtml(m.type)}</span></td>
             <td><strong>${escapeHtml(m.produit_nom||'-')}</strong></td>
-            <td>${escapeHtml(m.produit_ean||'-')}</td>
+            <td>${codeCopiable(m.produit_ean, 'EAN')}</td>
             <td style="font-weight:700;">${m.quantite||0}</td>
             <td>${escapeHtml(m.de_emplacement||'-')}</td>
             <td>${escapeHtml(m.vers_emplacement||'-')}</td>
@@ -3893,7 +3914,7 @@ function renderBulkTransfertList() {
         if (!p) return;
         const max = p[BULK_CHAMPS[from]] || 0;
         rows += `<tr style="${max === 0 ? 'opacity:0.45;' : ''}">
-            <td><strong>${escapeHtml(p.nom)}</strong><br><span style="font-size:11px;color:var(--text-secondary);">${escapeHtml(p.ean || '')}</span></td>
+            <td><strong>${escapeHtml(p.nom)}</strong><br><span style="font-size:11px;color:var(--text-secondary);">${codeCopiable(p.ean, 'EAN')}</span></td>
             <td style="text-align:center;font-weight:700;">${max}</td>
             <td style="text-align:center;"><input type="number" class="bulk-qty" data-id="${p.id}" min="0" max="${max}" value="${max}" ${max === 0 ? 'disabled' : ''} style="width:70px;padding:6px;text-align:center;font-weight:700;border:2px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-color);" oninput="updateBulkSummary()"></td>
         </tr>`;
@@ -4141,7 +4162,7 @@ function displayAlertes() {
         
         h += `<tr style="cursor:pointer" onclick="openProductModal(${p.id})">
             <td><strong>${escapeHtml(p.nom||'')}</strong></td>
-            <td>${escapeHtml(p.ean||'')}</td>
+            <td>${codeCopiable(p.ean, 'EAN')}</td>
             <td style="font-weight:700;color:${isCritique ? '#e74c3c' : '#f39c12'};">${p.quantite || 0}</td>
             <td>${p.seuil_stock || 0}</td>
             <td style="font-weight:700;color:#e74c3c;">${ecart}</td>
@@ -4259,7 +4280,7 @@ function displayInventaire() {
         const statusBadge = item.compte === null ? '<span style="color:var(--text-secondary);">❓</span>' : (item.ecart === 0 ? '<span class="alert-ok">✅</span>' : '<span class="alert-critique">⚠️</span>');
         
         h += `<div class="inv-row ${ecartClass}">
-            <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(item.ean)}</div>
+            <div style="font-size:12px;color:var(--text-secondary);">${codeCopiable(item.ean, 'EAN')}</div>
             <div><strong>${escapeHtml(item.nom)}</strong>${item.emplacement ? `<br><span style="font-size:11px;color:var(--text-secondary);">📍 ${escapeHtml(item.emplacement)}</span>` : ''}</div>
             <div style="font-weight:700;text-align:center;">${item.theorique}</div>
             <div><input type="number" class="inv-input ${inputClass}" value="${item.compte !== null ? item.compte : ''}" min="0" placeholder="-" onchange="updateInventaireCount(${item.id}, this.value)"></div>
