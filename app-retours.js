@@ -16,6 +16,7 @@ const DEVENIRS = {
     invendable_amazon: { lib: 'Invendable chez Amazon',  cls: 'pill-danger', aide: 'Abîmé ou défectueux, gardé par Amazon : à faire revenir ou à détruire' },
     rembourse_amazon:  { lib: 'Remboursé par Amazon',    cls: 'pill-info',   aide: 'Jamais revenu : Amazon vous l\'a payé (remboursement FBA)' },
     recu:              { lib: 'Reçu chez nous',          cls: 'pill-neutre', aide: 'Il est chez vous : à revendre ou à jeter' },
+    remis_stock:       { lib: 'Remis en stock',          cls: 'pill-ok',     aide: 'Remis dans votre stock (entrepôt ou Vinted) : il se revend comme les autres produits' },
     revendu:           { lib: 'Revendu',                 cls: 'pill-ok',     aide: 'Revendu sur Vinted, Leboncoin ou ailleurs' },
     rebut:             { lib: 'Au rebut',                cls: 'pill-danger', aide: 'Jeté ou détruit : perte totale' },
 };
@@ -65,7 +66,7 @@ function bilanDevenir(list) {
 // hors remboursements FBA (déjà comptés dans leur propre ligne).
 function recupereRetoursPeriode(debut, fin) {
     return retours.filter(r => { const d = String(r.date_retour || ''); return (!debut || d >= debut) && (!fin || d <= fin); })
-        .filter(r => r.devenir === 'stock_amazon' || r.devenir === 'revendu')
+        .filter(r => r.devenir === 'stock_amazon' || r.devenir === 'revendu' || r.devenir === 'remis_stock')
         .reduce((s, r) => s + (Number(r.valeur_recuperee) || 0), 0);
 }
 
@@ -90,6 +91,7 @@ function majDevenirRetours(listeFiltree) {
         ['invendable_amazon', 'Invendables chez Amazon', P.invendable_amazon.n],
         ['rembourse_amazon', 'Remboursés par Amazon', P.rembourse_amazon.n],
         ['recu', 'Reçus chez nous', P.recu.n],
+        ['remis_stock', 'Remis en stock', P.remis_stock.n],
         ['revendu', 'Revendus', P.revendu.n],
         ['rebut', 'Au rebut', P.rebut.n],
     ].filter(([v, , n]) => v === '' || v === 'a_traiter' || n > 0), retoursFiltreDevenir, 'setRetoursDevenir');
@@ -97,7 +99,7 @@ function majDevenirRetours(listeFiltree) {
         const pctTraite = listeFiltree.length ? Math.round((1 - P[''].n / listeFiltree.length) * 100) : 0;
         bilanZone.innerHTML = `<div class="retours-bilan">
             <div><span>Repris par Amazon</span><strong class="neg">${fmtEur(b.rembourse)}</strong></div>
-            <div><span>Récupéré</span><strong class="pos">+${fmtEur(b.recupere)}</strong><small>stock revenu chez Amazon, reventes, remboursements FBA</small></div>
+            <div><span>Récupéré</span><strong class="pos">+${fmtEur(b.recupere)}</strong><small>stock revenu chez Amazon ou chez vous, reventes, remboursements FBA</small></div>
             <div><span>Perte réelle</span><strong class="${b.perte < 0 ? 'neg' : 'pos'}">${fmtEur(b.perte)}</strong></div>
             <div><span>Devenir connu</span><strong>${pctTraite} %</strong><small>${P[''].n} retour(s) à traiter</small></div>
         </div>`;
@@ -117,7 +119,7 @@ function openDevenirRetour(id) {
     if (retoursDevenirOk === false) return toastWarning('Migration à exécuter', 'Exécutez migration-retours-devenir.sql dans Supabase, puis rechargez la page.');
     const d = devenirDe(r);
     const cout = coutRetour(r);
-    const options = Object.entries(DEVENIRS).map(([k, x]) => `<label class="devenir-choix"><input type="radio" name="devenir" value="${k}" ${k === d ? 'checked' : ''} onchange="majFormDevenir()"><span><strong>${x.lib}</strong><small>${escapeHtml(x.aide)}</small></span></label>`).join('');
+    const options = Object.entries(DEVENIRS).filter(([k]) => k !== 'remis_stock' || d === 'remis_stock').map(([k, x]) => `<label class="devenir-choix"><input type="radio" name="devenir" value="${k}" ${k === d ? 'checked' : ''} onchange="majFormDevenir()"><span><strong>${x.lib}</strong><small>${escapeHtml(x.aide)}</small></span></label>`).join('');
     document.getElementById('sr-devenir')?.remove();
     const m = document.createElement('div');
     m.id = 'sr-devenir';
@@ -392,7 +394,7 @@ function chercherRetourScan() {
     const zone = document.getElementById('scan-retour-res');
     if (!champ || !zone) return;
     const tous = retoursPourCode(champ.value);
-    const enAttente = tous.filter(r => ['', 'invendable_amazon'].includes(devenirDe(r)) || (r.devenir === 'rembourse_amazon'))
+    const enAttente = tous.filter(r => ['', 'invendable_amazon', 'recu', 'rembourse_amazon'].includes(devenirDe(r)))
         .sort((a, b) => String(b.date_retour || '').localeCompare(String(a.date_retour || '')));
     if (!tous.length) { zone.innerHTML = `<div class="empty-state" style="padding:18px;"><h3>Aucun retour pour « ${escapeHtml(champ.value)} »</h3><p>Le remboursement n'est peut-être pas encore importé (rapport de transactions).</p></div>`; return; }
     if (!enAttente.length) { zone.innerHTML = `<p class="sous-prix">${tous.length} retour(s) pour ce produit, tous déjà traités : ${tous.map(r => DEVENIRS[devenirDe(r)].lib).join(', ')}.</p>`; return; }
@@ -401,7 +403,7 @@ function chercherRetourScan() {
             <div><div class="achat-nom">${escapeHtml(r.produit_nom || r.sku || '-')}</div>
             <div class="sous-prix">${r.date_retour ? new Date(r.date_retour + 'T12:00:00').toLocaleDateString('fr-FR') : '-'} · ${escapeHtml(paysRetour(r.marketplace))} · ${Math.abs(r.quantite || 1)} u. · ${escapeHtml(r.amazon_order_id || '')}</div>
             <div style="margin-top:4px;">${pillDevenir(r)}</div></div>
-            <button type="button" class="scan-button" onclick="recevoirRetourScan(${r.id})">Reçu</button>
+            <div style="display:flex;flex-direction:column;gap:6px;"><button type="button" class="scan-button" onclick="document.getElementById('sr-scan-retour').remove();openRemiseStock(${r.id})">Remettre en stock</button><button type="button" class="scan-button export" onclick="recevoirRetourScan(${r.id})">Reçu, sans plus</button></div>
         </div>`).join('');
 }
 async function recevoirRetourScan(id) {
@@ -427,8 +429,116 @@ function lignesAFaireRetours(ligne) {
     try {
         if (retoursDevenirOk === false || !retours.length) return;
         const recus = retours.filter(r => r.devenir === 'recu');
-        if (recus.length) ligne(recus.length, 'warn', `Retour${recus.length > 1 ? 's' : ''} reçu${recus.length > 1 ? 's' : ''} à revendre ou jeter`, 'Indiquez s\'ils sont revendus (Vinted, Leboncoin…) ou mis au rebut', 'Voir', "switchTab('retours');setRetoursDevenir('recu')");
+        if (recus.length) ligne(recus.length, 'warn', `Retour${recus.length > 1 ? 's' : ''} reçu${recus.length > 1 ? 's' : ''} à revendre ou jeter`, 'Remettez-les en stock pour Vinted / Leboncoin, ou marquez-les au rebut', 'Voir', "switchTab('retours');setRetoursDevenir('recu')");
         const inv = retours.filter(r => r.devenir === 'invendable_amazon');
         if (inv.length) ligne(inv.length, 'warn', `Retour${inv.length > 1 ? 's' : ''} invendable${inv.length > 1 ? 's' : ''} chez Amazon`, 'À faire revenir (ordre de retrait) ou à faire détruire', 'Voir', "switchTab('retours');setRetoursDevenir('invendable_amazon')");
     } catch (e) { console.warn('À faire (retours):', e); }
+}
+
+
+// ─── Remettre un retour dans le stock (entrepôt ou Vinted) ───
+// L'unité revient sur la fiche existante (même EAN / ASIN) : jamais de transfert depuis le FBA,
+// car l'unité vendue est déjà sortie du stock FBA de Stock Radar au moment de la vente.
+function ficheDuRetour(r) {
+    if (r.produit_id) { const p = products.find(x => x.id === r.produit_id); if (p) return p; }
+    const asin = String(r.asin || '').toUpperCase(), sku = String(r.sku || '').toUpperCase();
+    return products.find(p => asin && String(p.asin || '').toUpperCase() === asin)
+        || products.find(p => sku && (String(p.ean || '').toUpperCase() === sku || String(p.asin || '').toUpperCase() === sku))
+        || null;
+}
+function openRemiseStock(id) {
+    const r = retours.find(x => x.id === id);
+    if (!r) return;
+    if (retoursDevenirOk === false) return toastWarning('Migration à exécuter', 'Exécutez migration-retours-devenir.sql dans Supabase, puis rechargez la page.');
+    const p = ficheDuRetour(r);
+    const q = Math.abs(r.quantite || 1);
+    const cout = coutRetour(r) / q || (p && p.prix_achat) || 0;
+    if (typeof datalistCodes === 'function') datalistCodes();
+    document.getElementById('sr-remise')?.remove();
+    const m = document.createElement('div');
+    m.id = 'sr-remise';
+    m.className = 'sr-tiroir';
+    m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Remettre en stock" class="sr-tiroir-panneau">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+            <div><div class="tiroir-sur">Retour du ${r.date_retour ? new Date(r.date_retour + 'T12:00:00').toLocaleDateString('fr-FR') : '-'} · ${escapeHtml(r.amazon_order_id || '')}</div>
+            <div class="tiroir-titre">Remettre en stock</div></div>
+            <button type="button" class="ico-btn ico-voir" onclick="document.getElementById('sr-remise').remove()" aria-label="Fermer">${ICO('<path d="M6 6l12 12M18 6L6 18"/>')}</button>
+        </div>
+        ${p ? `<div class="detail-calcul" style="margin:10px 0 14px;">
+            <div class="detail-ligne"><span>Fiche produit<small>${escapeHtml(p.ean || '')}${p.asin ? ' · ' + escapeHtml(p.asin) : ''}</small></span><span style="white-space:normal;text-align:right;max-width:60%;">${escapeHtml(p.nom || '')}</span></div>
+            <div class="detail-ligne"><span>Stock au local aujourd'hui</span><span>${(p.qte_entrepot || 0)} u.</span></div>
+        </div>` : `<p class="sous-prix" style="margin:10px 0;">Ce produit n'a pas de fiche dans votre stock : elle sera créée avec ces informations.</p>
+        <div class="devenir-revente" style="display:flex;">
+            <label>Nom <input type="text" id="remise-nom" class="search-input" value="${escapeHtml(r.produit_nom || '')}"></label>
+            <label>EAN (scannez le code-barres) <input type="text" id="remise-ean" class="search-input" inputmode="numeric" autocomplete="off"></label>
+            <label>ASIN <input type="text" id="remise-asin" class="search-input" value="${escapeHtml(r.asin || '')}"></label>
+            <label>Prix d'achat unitaire (€) <input type="number" id="remise-pa" class="search-input" min="0" step="0.01" value="${cout ? cout.toFixed(2) : ''}"></label>
+        </div>`}
+        <div class="devenir-revente" style="display:flex;">
+            <label>Quantité <input type="number" id="remise-qte" class="search-input" min="1" max="${q}" value="${q}"></label>
+            <span style="font-weight:600;color:var(--text-1);">Où le mettre en vente ?</span>
+            <label class="devenir-choix"><input type="radio" name="remise-canal" value="vinted" checked><span><strong>Vinted / Leboncoin</strong><small>dans votre stock au local, marqué « en vente sur Vinted »</small></span></label>
+            <label class="devenir-choix"><input type="radio" name="remise-canal" value="entrepot"><span><strong>Entrepôt</strong><small>dans votre stock au local, sans canal particulier</small></span></label>
+            <label>Étagère (facultatif) <input type="text" id="remise-etagere" class="search-input" list="sr-emp-codes" placeholder="ex. A1" autocomplete="off" style="text-transform:uppercase;"></label>
+        </div>
+        <p class="sous-prix">Le stock FBA n'est pas touché : l'unité vendue en était déjà sortie.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:14px;">
+            <button type="button" class="scan-button" id="remise-ok" onclick="remettreEnStock(${r.id})">Remettre en stock</button>
+            <button type="button" class="scan-button export" onclick="document.getElementById('sr-remise').remove()">Annuler</button>
+        </div>
+    </div>`;
+    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
+    document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', esc); } });
+    document.body.appendChild(m);
+}
+async function remettreEnStock(id) {
+    const r = retours.find(x => x.id === id);
+    if (!r) return;
+    const btn = document.getElementById('remise-ok');
+    if (btn) btn.disabled = true;
+    try {
+        const qMax = Math.abs(r.quantite || 1);
+        const q = Math.min(qMax, Math.max(1, parseInt(document.getElementById('remise-qte')?.value) || 1));
+        const canal = document.querySelector('#sr-remise input[name="remise-canal"]:checked')?.value || 'entrepot';
+        const etagere = (document.getElementById('remise-etagere')?.value || '').trim();
+        let p = ficheDuRetour(r);
+        if (!p) {
+            const nom = (document.getElementById('remise-nom')?.value || '').trim();
+            const ean = (document.getElementById('remise-ean')?.value || '').trim();
+            const asin = (document.getElementById('remise-asin')?.value || '').trim().toUpperCase();
+            const pa = parseFloat(String(document.getElementById('remise-pa')?.value || '0').replace(',', '.')) || 0;
+            if (!nom) { toastError('Nom manquant', 'Indiquez le nom du produit.'); return; }
+            const fiche = {
+                user_id: getEffectiveUserId(), ean, asin, nom, categorie: '',
+                etat: 'Neuf', etat_stock: 'neuf', statut: 'recu', emplacement: '',
+                prix_achat: pa, prix_revente: 0, qte_fba: 0, qte_fbm: 0, qte_entrepot: q, quantite: q,
+                amazon_fba: false, amazon_fbm: false, vinted: canal === 'vinted', leboncoin: false, invendable: false, vendu: false,
+                photos: [], notes: 'Retour client ' + (r.amazon_order_id || ''), date_ajout: new Date().toISOString(),
+            };
+            const { data, error } = await sb.from('produits').insert([fiche]).select('*').single();
+            if (error) { toastError('Fiche non créée', error.message); return; }
+            p = { ...data, qte_entrepot: q, quantite: q };
+            products.unshift(p);
+        } else {
+            const maj = { qte_entrepot: (p.qte_entrepot || 0) + q, quantite: (p.quantite || 0) + q, vendu: false };
+            if (canal === 'vinted') maj.vinted = true;
+            const { error } = await sb.from('produits').update(maj).eq('id', p.id);
+            if (error) { toastError('Stock non modifié', error.message); return; }
+            Object.assign(p, maj);
+        }
+        await logMouvement(p.id, 'ajustement', q, 'retour client', 'entrepot', `Retour client remis en stock${canal === 'vinted' ? ' (Vinted)' : ''} · commande ${r.amazon_order_id || '-'}`, '');
+        if (etagere && typeof rangerProduit === 'function') await rangerProduit(p.id, etagere, q, true);
+        const valeur = +((p.prix_achat || 0) * q).toFixed(2) || coutRetour(r);
+        const majR = { devenir: 'remis_stock', devenir_source: 'manuel', valeur_recuperee: valeur, canal_revente: canal === 'vinted' ? 'Vinted' : '', date_devenir: dateLocaleISO(new Date()), produit_id: p.id, note_devenir: `${q} u. remise(s) en stock${etagere ? ' en ' + etagere.toUpperCase() : ''}` };
+        const { error } = await sb.from('retours').update(majR).eq('id', r.id);
+        if (error) toastWarning('Stock mis à jour, retour non marqué', error.message);
+        else Object.assign(r, majR);
+        document.getElementById('sr-remise')?.remove();
+        toastSuccess('Remis en stock', `${q} u. de ${p.nom} ajoutée(s) au stock${canal === 'vinted' ? ' (Vinted)' : ''}${etagere ? ', étagère ' + etagere.toUpperCase() : ''}.`);
+        if (typeof displayStock === 'function') displayStock();
+        displayRetours();
+        updateDashboard();
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
