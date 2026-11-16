@@ -3066,7 +3066,7 @@ const TRAD_ENTETES = {
     'data/godzina': 'date/time', 'identyfikator rozliczenia': 'settlement id', 'typ': 'type', 'identyfikator zamówienia': 'order id',
     'opis': 'description', 'ilość': 'quantity', 'rynek': 'marketplace', 'realizacja': 'fulfillment', 'sprzedaż produktów': 'product sales',
     'opłaty za sprzedaż': 'selling fees', 'opłaty za fba': 'fba fees', 'inne opłaty transakcyjne': 'other transaction fees', 'inne': 'other', 'suma': 'total',
-    'datum/tid': 'date/time', 'avräknings-id': 'settlement id', 'beställnings-id': 'order id', 'order-id': 'order id', 'beskrivning': 'description',
+    'datum/tid': 'date/time', 'avräknings-id': 'settlement id', 'reglerings-id': 'settlement id', 'försäljning av produkter': 'product sales', 'leverans': 'fulfillment', 'beställnings-id': 'order id', 'order-id': 'order id', 'beskrivning': 'description',
     'antal': 'quantity', 'marknadsplats': 'marketplace', 'uppfyllande': 'fulfillment', 'uppfyllelse': 'fulfillment', 'produktförsäljning': 'product sales',
     'försäljningsavgifter': 'selling fees', 'säljavgifter': 'selling fees', 'fba-avgifter': 'fba fees', 'övriga transaktionsavgifter': 'other transaction fees',
     'övrigt': 'other', 'övriga': 'other', 'totalt': 'total', 'summa': 'total',
