@@ -3118,7 +3118,8 @@ function parseCSVQuoted(text) {
 function parseMontantFR(s) {
     if (s === null || s === undefined || s === '') return 0;
     if (typeof s === 'number') return isFinite(s) ? s : 0;
-    let t = String(s).replace(/[\s\u00a0\u202f]/g, '').replace(/[\u20ac$\u00a3]/g, '').trim();
+    // « − » (signe moins typographique, rapports suédois) ramené au tiret
+    let t = String(s).replace(/[\s\u00a0\u202f]/g, '').replace(/[\u20ac$\u00a3]/g, '').replace(/[\u2212\u2013]/g, '-').trim();
     if (!t) return 0;
     const negatif = /^\(.*\)$/.test(t);          // "(12,34)" = montant négatif en comptabilité
     if (negatif) t = t.slice(1, -1);
