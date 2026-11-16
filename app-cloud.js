@@ -212,7 +212,7 @@ function parseDateTransaction(brut) {
     m = t.match(/^(\d{1,2})\.?\s+([^\s\d]+)\s+(\d{4})/);
     if (!m) return null;
     const mot = m[2].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\./g, '');
-    const MOIS = [['jan', 1], ['gen', 1], ['ene', 1], ['fev', 2], ['feb', 2], ['mar', 3], ['mrt', 3], ['maa', 3], ['avr', 4], ['apr', 4], ['abr', 4], ['mai', 5], ['may', 5], ['mag', 5], ['mei', 5],
+    const MOIS = [['sty', 1], ['lut', 2], ['kwi', 4], ['maj', 5], ['cze', 6], ['lip', 7], ['sie', 8], ['wrz', 9], ['paz', 10], ['lis', 11], ['gru', 12], ['jan', 1], ['gen', 1], ['ene', 1], ['fev', 2], ['feb', 2], ['mar', 3], ['mrt', 3], ['maa', 3], ['avr', 4], ['apr', 4], ['abr', 4], ['mai', 5], ['may', 5], ['mag', 5], ['mei', 5],
         ['juin', 6], ['jun', 6], ['giu', 6], ['juil', 7], ['jul', 7], ['lug', 7], ['aou', 8], ['aug', 8], ['ago', 8], ['sep', 9], ['set', 9], ['oct', 10], ['okt', 10], ['ott', 10], ['nov', 11], ['dec', 12], ['dez', 12], ['dic', 12]];
     const trouve = MOIS.find(([prefixe]) => mot.startsWith(prefixe));
     return trouve ? `${m[3]}-${p2(trouve[1])}-${p2(m[1])}` : null;
@@ -3060,6 +3060,32 @@ let fraisImportData = null;
 let retoursImportData = null, retoursImportEnCours = false;
 let fraisImportEnCours = false;
 
+// Rapports de transactions polonais et suédois : en-têtes et types ramenés à l'anglais,
+// pour que la suite du traitement (pensée pour le français et l'anglais) les comprenne.
+const TRAD_ENTETES = {
+    'data/godzina': 'date/time', 'identyfikator rozliczenia': 'settlement id', 'typ': 'type', 'identyfikator zamówienia': 'order id',
+    'opis': 'description', 'ilość': 'quantity', 'rynek': 'marketplace', 'realizacja': 'fulfillment', 'sprzedaż produktów': 'product sales',
+    'opłaty za sprzedaż': 'selling fees', 'opłaty za fba': 'fba fees', 'inne opłaty transakcyjne': 'other transaction fees', 'inne': 'other', 'suma': 'total',
+    'datum/tid': 'date/time', 'avräknings-id': 'settlement id', 'beställnings-id': 'order id', 'order-id': 'order id', 'beskrivning': 'description',
+    'antal': 'quantity', 'marknadsplats': 'marketplace', 'uppfyllande': 'fulfillment', 'uppfyllelse': 'fulfillment', 'produktförsäljning': 'product sales',
+    'försäljningsavgifter': 'selling fees', 'säljavgifter': 'selling fees', 'fba-avgifter': 'fba fees', 'övriga transaktionsavgifter': 'other transaction fees',
+    'övrigt': 'other', 'övriga': 'other', 'totalt': 'total', 'summa': 'total',
+};
+const TRAD_TYPES = [[/^zamówienie|^beställning/i, 'Order'], [/^zwrot kosztów|^återbetalning/i, 'Refund'], [/^przelew|^överföring/i, 'Transfer']];
+function traduireRapportTransactions(all) {
+    const hIdx = all.findIndex(r => r.length > 5 && r.some(c => /^(data\/godzina|datum\/tid)$/i.test(String(c || '').trim())));
+    if (hIdx === -1) return all;
+    const entetes = all[hIdx].map(h => String(h || '').trim().toLowerCase());
+    all[hIdx] = entetes.map(h => TRAD_ENTETES[h] || h);
+    const cType = all[hIdx].indexOf('type');
+    if (cType > -1) for (let i = hIdx + 1; i < all.length; i++) {
+        const t = String(all[i][cType] || '').trim();
+        const tr = TRAD_TYPES.find(([re]) => re.test(t));
+        if (tr) all[i][cType] = tr[1];
+    }
+    return all;
+}
+
 // CSV avec champs entre guillemets (les descriptions contiennent des virgules)
 function parseCSVQuoted(text) {
     const rows = [];
@@ -3122,7 +3148,7 @@ function previewFraisImport(input) {
             document.getElementById('frais-apply-btn').style.display = '';
             if (typeof chargerTauxBce === 'function') await chargerTauxBce();
             document.getElementById('frais-file-name').textContent = file.name;
-            const all = parseCSVQuoted(e.target.result);
+            const all = traduireRapportTransactions(parseCSVQuoted(e.target.result));
             // Les rapports FR commencent par ~9 lignes d'explications avant l'en-tête
             const hIdx = all.findIndex(r => r.length > 5 && r.some(c => (c || '').toLowerCase().includes('date/heure') || (c || '').toLowerCase().includes('date/time')));
             if (hIdx === -1) return toastError('Format non reconnu', 'Utilisez le rapport « Transaction » de Seller Central (Paiements → Rapports de la plage de dates).');

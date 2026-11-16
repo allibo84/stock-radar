@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stock-radar-v39';
+const CACHE_NAME = 'stock-radar-v40';
 const urlsToCache = [
     './',
     './index.html',
