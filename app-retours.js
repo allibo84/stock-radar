@@ -534,7 +534,12 @@ async function remettreEnStock(id) {
         if (error) toastWarning('Stock mis à jour, retour non marqué', error.message);
         else Object.assign(r, majR);
         document.getElementById('sr-remise')?.remove();
-        toastSuccess('Remis en stock', `${q} u. de ${p.nom} ajoutée(s) au stock${canal === 'vinted' ? ' (Vinted)' : ''}${etagere ? ', étagère ' + etagere.toUpperCase() : ''}.`);
+        // Revente Vinted / Leboncoin : l'article arrive dans « À mettre en ligne »
+        if (canal === 'vinted' && typeof creerAnnonce === 'function') {
+            const etat = r.disposition && r.disposition !== 'SELLABLE' ? 'abime' : 'neuf';
+            await creerAnnonce(p.id, { canal: 'Vinted', etat, quantite: q, retourId: r.id, silencieux: true });
+        }
+        toastSuccess('Remis en stock', `${q} u. de ${p.nom} ajoutée(s) au stock${canal === 'vinted' ? ' — à mettre en ligne dans Vinted / Leboncoin' : ''}${etagere ? ', étagère ' + etagere.toUpperCase() : ''}.`);
         if (typeof displayStock === 'function') displayStock();
         displayRetours();
         updateDashboard();

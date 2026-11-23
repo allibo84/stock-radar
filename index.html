@@ -978,6 +978,13 @@
         .tva-taux { width: 64px; padding: 4px 6px; border: 1px solid var(--input-border, var(--border)); border-radius: 6px; background: var(--input-bg, transparent); color: var(--text-1); text-align: right; font: inherit; }
         .tva-taux.perso { border-color: var(--brand); font-weight: 700; }
         .tva-total td { border-top: 2px solid var(--border-strong); }
+        .annonces-colonnes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+        .annonces-col { background: var(--bg-hover, #eef1f4); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
+        .annonces-col h3 { font-size: 14px; margin: 0 0 2px; color: var(--text-1); }
+        .annonce-carte { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+        .annonce-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+        .annonce-actions a.pill-btn { text-decoration: none; }
+        @media (max-width: 900px) { .annonces-colonnes { grid-template-columns: 1fr; } }
         .retours-bilan { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
         .retours-bilan > div { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
         .retours-bilan span { font-size: 12.5px; color: var(--text-2); }
@@ -1936,6 +1943,15 @@
                     <div id="classement-container"></div>
                 </div>
 
+                <!-- ══════ VINTED / LEBONCOIN ══════ -->
+                <div id="vinted" class="tab-content">
+                    <div class="section-header">
+                        <div><h2>Vinted / Leboncoin</h2><div class="resume-ligne">Les articles à revendre, de la mise en ligne à la vente. Les retours remis en stock « Vinted » arrivent ici tout seuls.</div></div>
+                    </div>
+                    <div id="vinted-canal" class="pastilles" role="group" aria-label="Site"></div>
+                    <div id="vinted-container"></div>
+                </div>
+
                 <!-- ══════ RECALAGE FBA ══════ -->
                 <div id="recalage" class="tab-content">
                     <div class="section-header">
@@ -2517,15 +2533,16 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261123-1"></script>
-    <script src="app-cloud.js?v=20261123-1"></script>
-    <script src="app-devises.js?v=20261123-1"></script>
-    <script src="app-analyse.js?v=20261123-1"></script>
-    <script src="app-entrepot.js?v=20261123-1"></script>
-    <script src="app-retours.js?v=20261123-1"></script>
-    <script src="app-tva.js?v=20261123-1"></script>
-    <script src="app-recalage.js?v=20261123-1"></script>
-    <script src="auth.js?v=20261123-1"></script>
+    <script src="config.js?v=20261123-2"></script>
+    <script src="app-cloud.js?v=20261123-2"></script>
+    <script src="app-devises.js?v=20261123-2"></script>
+    <script src="app-analyse.js?v=20261123-2"></script>
+    <script src="app-entrepot.js?v=20261123-2"></script>
+    <script src="app-retours.js?v=20261123-2"></script>
+    <script src="app-tva.js?v=20261123-2"></script>
+    <script src="app-recalage.js?v=20261123-2"></script>
+    <script src="app-vinted.js?v=20261123-2"></script>
+    <script src="auth.js?v=20261123-2"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {
