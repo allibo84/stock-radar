@@ -1936,6 +1936,18 @@
                     <div id="classement-container"></div>
                 </div>
 
+                <!-- ══════ RECALAGE FBA ══════ -->
+                <div id="recalage" class="tab-content">
+                    <div class="section-header">
+                        <div><h2>Recalage du stock FBA</h2><div class="resume-ligne">Aligne le stock FBA de Stock Radar sur l'inventaire réel d'Amazon. À refaire chaque mois.</div></div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <a class="scan-button export" href="https://sellercentral.amazon.fr/reportcentral/FBA_MYI_UNSUPPRESSED_INVENTORY/1" target="_blank" rel="noopener">1. Rapport d'inventaire Amazon</a>
+                            <label class="scan-button" style="cursor:pointer;"><span>2. Déposer le rapport (.txt)</span><input type="file" id="recalage-file-input" accept=".txt,.tsv" style="display:none;" onchange="previewRecalage(this)"></label>
+                        </div>
+                    </div>
+                    <div id="recalage-container"></div>
+                </div>
+
                 <!-- ══════ REMBOURSEMENTS FBA ══════ -->
                 <div id="remboursements-fba" class="tab-content">
                     <div class="section-header">
@@ -2505,14 +2517,15 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Numéro de version à incrémenter à chaque mise en ligne pour forcer le rechargement -->
-    <script src="config.js?v=20261116-3"></script>
-    <script src="app-cloud.js?v=20261116-3"></script>
-    <script src="app-devises.js?v=20261116-3"></script>
-    <script src="app-analyse.js?v=20261116-3"></script>
-    <script src="app-entrepot.js?v=20261116-3"></script>
-    <script src="app-retours.js?v=20261116-3"></script>
-    <script src="app-tva.js?v=20261116-3"></script>
-    <script src="auth.js?v=20261116-3"></script>
+    <script src="config.js?v=20261123-1"></script>
+    <script src="app-cloud.js?v=20261123-1"></script>
+    <script src="app-devises.js?v=20261123-1"></script>
+    <script src="app-analyse.js?v=20261123-1"></script>
+    <script src="app-entrepot.js?v=20261123-1"></script>
+    <script src="app-retours.js?v=20261123-1"></script>
+    <script src="app-tva.js?v=20261123-1"></script>
+    <script src="app-recalage.js?v=20261123-1"></script>
+    <script src="auth.js?v=20261123-1"></script>
     <script>
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register("sw.js").then(reg => {

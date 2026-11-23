@@ -364,7 +364,7 @@ function setupRealtimeSync() {
 // ═══════ NAVIGATION ═══════
 const GROUPES_MENU = {
     'achats': [['achats', 'Achats'], ['import-grossiste', 'Import grossiste'], ['fournisseurs', 'Fournisseurs'], ['fournitures', 'Fournitures & frais']],
-    'stock': [['stock', 'Mon stock'], ['entrepot', 'Entrepôt'], ['reassort', 'Réassort'], ['envois-fba', 'Envois FBA'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['inventaire', 'Inventaire']],
+    'stock': [['stock', 'Mon stock'], ['entrepot', 'Entrepôt'], ['reassort', 'Réassort'], ['envois-fba', 'Envois FBA'], ['recalage', 'Recalage FBA'], ['nouveau-produit', 'Nouveau produit'], ['mouvements', 'Journal des mouvements'], ['inventaire', 'Inventaire']],
     'ventes': [['ventes', 'Mes ventes'], ['classement', 'Meilleurs produits'], ['retours', 'Retours'], ['remboursements-fba', 'Remboursements FBA'], ['tva', 'TVA'], ['import-amazon', 'Import Amazon']],
     'outils-export': [['outils-export', 'Export & sauvegarde'], ['aide', 'Aide & raccourcis']],
 };
@@ -403,6 +403,7 @@ function switchTab(tabName) {
     if (tabName === 'classement') displayClassement();
     if (tabName === 'remboursements-fba') displayRemboursementsFba();
     if (tabName === 'envois-fba') displayEnvoisFba();
+    if (tabName === 'recalage' && typeof displayRecalage === 'function') displayRecalage();
     if (tabName === 'fournitures') displayChargesAmazon();
     if (tabName === 'outils-export') loadSauvegardes();
 }
